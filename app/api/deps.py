@@ -1,8 +1,8 @@
-"""Per-request FastAPI dependencies.
+"""请求作用域的 FastAPI 依赖。
 
-These pull infrastructure from the DI container and expose it as request-scoped
-dependencies. Endpoints depend on the typed aliases (``SessionDep``,
-``RedisDep``) rather than importing concrete connections directly.
+从 DI 容器取基础设施（DB session、Redis），并把仓储作为请求作用域依赖暴露。
+仓储依赖返回抽象接口类型、内部构造 SQLAlchemy 实现——依赖倒置在此 wiring
+边界完成：endpoint / service 只依赖接口，不见具体实现。
 """
 
 from __future__ import annotations
@@ -15,16 +15,22 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.container import container
+from app.repositories.interfaces.fixture_repository import FixtureRepository
+from app.repositories.interfaces.prediction_repository import PredictionRepository
+from app.repositories.interfaces.value_bet_repository import ValueBetRepository
+from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
+from app.repositories.sqlalchemy.prediction_repository import SqlAlchemyPredictionRepository
+from app.repositories.sqlalchemy.value_bet_repository import SqlAlchemyValueBetRepository
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Yield a transactional DB session from the container's Database."""
+    """从容器的 Database 产出一个事务性 session。"""
     async with container.database.session() as session:
         yield session
 
 
 async def get_redis() -> AsyncGenerator[redis.Redis, None]:
-    """Yield a Redis client from the container's connection pool."""
+    """从容器的连接池产出一个 Redis 客户端。"""
     client = container.redis.client()
     try:
         yield client
@@ -32,8 +38,39 @@ async def get_redis() -> AsyncGenerator[redis.Redis, None]:
         await client.aclose()
 
 
-# Typed dependency aliases for endpoint signatures.
+# 用于 endpoint 签名的类型别名。
 SessionDep = Annotated[AsyncSession, Depends(get_db_session)]
 RedisDep = Annotated[redis.Redis, Depends(get_redis)]
 
-__all__ = ["get_db_session", "get_redis", "SessionDep", "RedisDep"]
+
+# --- 仓储依赖（返回接口类型，注入 SQLAlchemy 实现）---
+
+
+def get_fixture_repository(session: SessionDep) -> FixtureRepository:
+    return SqlAlchemyFixtureRepository(session)
+
+
+def get_prediction_repository(session: SessionDep) -> PredictionRepository:
+    return SqlAlchemyPredictionRepository(session)
+
+
+def get_value_bet_repository(session: SessionDep) -> ValueBetRepository:
+    return SqlAlchemyValueBetRepository(session)
+
+
+FixtureRepositoryDep = Annotated[FixtureRepository, Depends(get_fixture_repository)]
+PredictionRepositoryDep = Annotated[PredictionRepository, Depends(get_prediction_repository)]
+ValueBetRepositoryDep = Annotated[ValueBetRepository, Depends(get_value_bet_repository)]
+
+__all__ = [
+    "FixtureRepositoryDep",
+    "PredictionRepositoryDep",
+    "RedisDep",
+    "SessionDep",
+    "ValueBetRepositoryDep",
+    "get_db_session",
+    "get_fixture_repository",
+    "get_prediction_repository",
+    "get_redis",
+    "get_value_bet_repository",
+]
