@@ -1,0 +1,27 @@
+"""决策日志实体（宪法第 16 节）。
+
+记录每次推荐或放弃的可追溯依据：为什么推荐、支持证据、风险、为什么放弃其他
+玩法、哪些信息变化会改变结论。用于审计与长期复盘。
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from uuid import UUID
+
+from app.models.entities.base import Entity, utcnow
+
+
+@dataclass(eq=False, kw_only=True)
+class DecisionLog(Entity):
+    """一条决策记录，关联某场比赛（可选关联具体推荐）。"""
+
+    fixture_id: UUID
+    summary: str  # 为什么推荐；或为什么判定无价值
+    value_bet_id: UUID | None = None
+    supporting_evidence: list[str] = field(default_factory=list)  # 前三支持证据
+    risks: list[str] = field(default_factory=list)  # 前三风险
+    rejected_alternatives: list[str] = field(default_factory=list)  # 为什么放弃其他玩法
+    change_conditions: list[str] = field(default_factory=list)  # 哪些信息变化会改变结论
+    created_at: datetime = field(default_factory=utcnow)

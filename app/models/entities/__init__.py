@@ -3,6 +3,7 @@
 from app.models.entities.base import Entity, utcnow
 from app.models.entities.bookmaker import Bookmaker
 from app.models.entities.competition import Competition, Season
+from app.models.entities.decision_log import DecisionLog
 from app.models.entities.enums import InjuryStatus, MatchStatus, PlayerPosition
 from app.models.entities.fixture import Fixture
 from app.models.entities.injury import Injury
@@ -16,6 +17,7 @@ from app.models.entities.value_bet import ValueBet
 __all__ = [
     "Bookmaker",
     "Competition",
+    "DecisionLog",
     "Entity",
     "Fixture",
     "Injury",
