@@ -45,9 +45,15 @@ class Container:
 
         # AI reasoning engine. Lazy import keeps the core container decoupled
         # from the Anthropic SDK; bound to its interface for injection.
-        from app.agents import ReasoningEngine, build_reasoning_agent
+        from app.agents import (
+            CommitteeReviewer,
+            ReasoningEngine,
+            build_committee_reviewer,
+            build_reasoning_agent,
+        )
 
         self.register(ReasoningEngine, build_reasoning_agent(self._settings))
+        self.register(CommitteeReviewer, build_committee_reviewer(self._settings))
 
         # External data feeds. Each provider owns an httpx client whose lifecycle
         # the container manages; bound to interfaces for injection. Lazy import

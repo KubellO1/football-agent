@@ -15,7 +15,7 @@ import redis.asyncio as redis
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.interfaces import ReasoningEngine
+from app.agents.interfaces import CommitteeReviewer, ReasoningEngine
 from app.core.container import container
 from app.models.value_objects.money import Money
 from app.providers.interfaces.fixtures_provider import FixturesProvider
@@ -43,6 +43,7 @@ from app.repositories.sqlalchemy.reference_repositories import (
 )
 from app.repositories.sqlalchemy.value_bet_repository import SqlAlchemyValueBetRepository
 from app.services.analysis_pipeline import MatchAnalysisPipeline
+from app.services.committee_review import CommitteeReviewService
 from app.services.daily_selection import DailySelectionService
 from app.services.fixture_analysis import (
     FixtureAnalysisService,
@@ -204,6 +205,24 @@ def get_fixture_analysis_service(
 FixtureAnalysisServiceDep = Annotated[FixtureAnalysisService, Depends(get_fixture_analysis_service)]
 
 
+def get_committee_review_service(
+    analysis: FixtureAnalysisServiceDep,
+    decision_logs: DecisionLogRepositoryDep,
+    value_bets: ValueBetRepositoryDep,
+) -> CommitteeReviewService:
+    """组装 AI 评审服务：确定性分析 + 容器中的 Claude 评审器 + 请求作用域仓储。"""
+    return CommitteeReviewService(
+        analysis=analysis,
+        reviewer=container.resolve(CommitteeReviewer),
+        decision_logs=decision_logs,
+        value_bets=value_bets,
+        model_version=container.settings.anthropic_model,
+    )
+
+
+CommitteeReviewServiceDep = Annotated[CommitteeReviewService, Depends(get_committee_review_service)]
+
+
 # --- 分析编排依赖（单例组件来自容器 + 请求作用域仓储）---
 
 
@@ -225,6 +244,7 @@ AnalysisPipelineDep = Annotated[MatchAnalysisPipeline, Depends(get_analysis_pipe
 __all__ = [
     "AnalysisPipelineDep",
     "BookmakerRepositoryDep",
+    "CommitteeReviewServiceDep",
     "CompetitionRepositoryDep",
     "DecisionLogRepositoryDep",
     "FixtureAnalysisServiceDep",
@@ -242,6 +262,7 @@ __all__ = [
     "ValueBetRepositoryDep",
     "get_analysis_pipeline",
     "get_bookmaker_repository",
+    "get_committee_review_service",
     "get_competition_repository",
     "get_db_session",
     "get_decision_log_repository",

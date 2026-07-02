@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from app.models.entities.base import Entity, utcnow
@@ -24,4 +25,9 @@ class DecisionLog(Entity):
     risks: list[str] = field(default_factory=list)  # 前三风险
     rejected_alternatives: list[str] = field(default_factory=list)  # 为什么放弃其他玩法
     change_conditions: list[str] = field(default_factory=list)  # 哪些信息变化会改变结论
+    # 可复现性（宪法第 16 节）：记录评审所用的模型与提示词版本，以及 AI 评审的
+    # 完整结构化产出（原样存档，供审计与复盘；不参与任何数值计算）。
+    model_version: str | None = None
+    prompt_version: str | None = None
+    review: dict[str, Any] | None = None
     created_at: datetime = field(default_factory=utcnow)

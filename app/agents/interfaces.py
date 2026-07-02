@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from app.schemas.committee_review import CommitteeReview, CommitteeReviewContext
 from app.schemas.reasoning import ReasoningContext, ReasoningOutput
 
 
@@ -19,4 +20,17 @@ class ReasoningEngine(ABC):
     @abstractmethod
     async def analyze(self, context: ReasoningContext) -> ReasoningOutput:
         """Return a structured review of the fixture's candidate bets."""
+        raise NotImplementedError
+
+
+class CommitteeReviewer(ABC):
+    """Expert-committee review layer over the deterministic analysis.
+
+    Explains and critiques the model's output; it must never recompute or alter
+    any number. Disagreements are recorded, not acted upon.
+    """
+
+    @abstractmethod
+    async def review(self, context: CommitteeReviewContext) -> CommitteeReview:
+        """Return a structured qualitative review of the fixture's analysis."""
         raise NotImplementedError

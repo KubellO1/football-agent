@@ -27,9 +27,15 @@ from app.models.value_objects.statistics import TeamStatistics
 from app.repositories.interfaces.fixture_repository import FixtureRepository
 from app.repositories.interfaces.odds_snapshot_repository import OddsSnapshotRepository
 from app.repositories.interfaces.reference import TeamRepository
-from app.services.modeling import MarketQuote, MatchModel, ModelCandidate, ModelInput
+from app.services.modeling import (
+    MarketQuote,
+    MatchModel,
+    ModelCandidate,
+    ModelInput,
+    ModelOutput,
+)
 from app.services.models.lambda_estimator import LeagueAverages
-from app.services.recommendation_gate import GateInput, RecommendationGate
+from app.services.recommendation_gate import GateDecision, GateInput, RecommendationGate
 
 logger = get_logger(__name__)
 
@@ -207,6 +213,29 @@ class MatchAnalysisInputBuilder:
         return DataCompleteness(min(100.0, score))
 
 
+@dataclass(frozen=True, slots=True)
+class ReviewedSelection:
+    """一个模型候选连同其确定性 gate 判定（供上层评审/落库使用）。"""
+
+    candidate: ModelCandidate
+    decision: GateDecision
+
+
+@dataclass(frozen=True, slots=True)
+class DetailedAnalysis:
+    """一场比赛的完整分析：原始模型输入/输出 + 逐候选 gate 判定 + 对外结果视图。
+
+    评审层需要权威的 ModelCandidate（含 Odds/ValueEdge/Stake 领域对象）来落库，
+    故在对外的 FixtureAnalysisResult 之外额外暴露这些内部产物。
+    """
+
+    fixture: Fixture
+    model_input: ModelInput | None
+    model_output: ModelOutput | None
+    reviewed: list[ReviewedSelection]
+    result: FixtureAnalysisResult
+
+
 class FixtureAnalysisService:
     """DB 驱动的单场分析：数学模型 + 准入 gate，确定性、无外部 API。"""
 
@@ -222,23 +251,39 @@ class FixtureAnalysisService:
         self._gate = gate
 
     async def analyze(self, fixture: Fixture) -> FixtureAnalysisResult:
+        """对外的确定性分析结果（行为与产出保持稳定）。"""
+        return (await self.analyze_detailed(fixture)).result
+
+    async def analyze_detailed(self, fixture: Fixture) -> DetailedAnalysis:
+        """在对外结果之外，额外返回模型输入/输出与逐候选 gate 判定（供评审层落库）。"""
         model_input = await self._builder.build(fixture)
         if model_input is None:
-            return FixtureAnalysisResult(fixture_id=fixture.id, message=INSUFFICIENT_DATA_MESSAGE)
+            return DetailedAnalysis(
+                fixture=fixture,
+                model_input=None,
+                model_output=None,
+                reviewed=[],
+                result=FixtureAnalysisResult(
+                    fixture_id=fixture.id, message=INSUFFICIENT_DATA_MESSAGE
+                ),
+            )
 
         output = await self._model.analyze(model_input)
+        reviewed = [
+            ReviewedSelection(candidate=c, decision=self._evaluate(c)) for c in output.candidates
+        ]
+        selections = [self._to_selection_analysis(rs) for rs in reviewed]
+
         probabilities = {
             result.value: prob.value for result, prob in output.outcome_probabilities.items()
         }
-
-        selections = [self._analyze_candidate(c) for c in output.candidates]
         message: str | None = None
         if not model_input.quotes:
             message = NO_ODDS_MESSAGE
         elif not any(s.recommended for s in selections):
             message = NO_VALUE_MESSAGE
 
-        return FixtureAnalysisResult(
+        result = FixtureAnalysisResult(
             fixture_id=fixture.id,
             probabilities=probabilities,
             expected_goals_home=output.expected_goals.home if output.expected_goals else None,
@@ -247,9 +292,16 @@ class FixtureAnalysisService:
             data_completeness=model_input.data_completeness.value,
             message=message,
         )
+        return DetailedAnalysis(
+            fixture=fixture,
+            model_input=model_input,
+            model_output=output,
+            reviewed=reviewed,
+            result=result,
+        )
 
-    def _analyze_candidate(self, candidate: ModelCandidate) -> SelectionAnalysis:
-        decision = self._gate.evaluate(
+    def _evaluate(self, candidate: ModelCandidate) -> GateDecision:
+        return self._gate.evaluate(
             GateInput(
                 decision_score=candidate.decision_score,
                 expected_value=candidate.edge.edge,
@@ -258,6 +310,10 @@ class FixtureAnalysisService:
                 risk_level=candidate.risk_level,
             )
         )
+
+    def _to_selection_analysis(self, reviewed: ReviewedSelection) -> SelectionAnalysis:
+        candidate = reviewed.candidate
+        decision = reviewed.decision
         stake = candidate.stake
         kelly_fraction = stake.fraction_of_bankroll if stake is not None else 0.0
         kelly_stake = float(stake.amount.amount) if stake is not None else 0.0

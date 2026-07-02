@@ -330,6 +330,9 @@ class DecisionLogMapper:
             risks=list(row.risks),
             rejected_alternatives=list(row.rejected_alternatives),
             change_conditions=list(row.change_conditions),
+            model_version=row.model_version,
+            prompt_version=row.prompt_version,
+            review=dict(row.review) if row.review is not None else None,
             created_at=row.created_at,
         )
 
@@ -344,5 +347,8 @@ class DecisionLogMapper:
             risks=list(entity.risks),
             rejected_alternatives=list(entity.rejected_alternatives),
             change_conditions=list(entity.change_conditions),
+            model_version=entity.model_version,
+            prompt_version=entity.prompt_version,
+            review=entity.review,
             created_at=entity.created_at,
         )

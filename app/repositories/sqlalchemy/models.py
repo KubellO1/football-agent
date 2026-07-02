@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
@@ -218,3 +219,7 @@ class DecisionLogORM(TimestampMixin, Base):
     risks: Mapped[list[str]] = mapped_column(JSON, default=list)
     rejected_alternatives: Mapped[list[str]] = mapped_column(JSON, default=list)
     change_conditions: Mapped[list[str]] = mapped_column(JSON, default=list)
+    # 可复现性：AI 评审的模型/提示词版本与完整结构化产出（存档，不改数值）。
+    model_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    prompt_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    review: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
