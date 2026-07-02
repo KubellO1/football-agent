@@ -48,6 +48,16 @@ class Container:
 
         self.register(ReasoningEngine, build_reasoning_agent(self._settings))
 
+        # 无状态的分析组件注册为单例（可在测试中替换）。惰性导入避免顶层耦合。
+        from app.services.daily_selection import DailySelectionService
+        from app.services.modeling import MatchModel
+        from app.services.models.ensemble import EnsembleMatchModel
+        from app.services.recommendation_gate import RecommendationGate
+
+        self.register(MatchModel, EnsembleMatchModel())
+        self.register(RecommendationGate, RecommendationGate())
+        self.register(DailySelectionService, DailySelectionService())
+
         logger.info("Container resources initialized")
 
     async def shutdown_resources(self) -> None:

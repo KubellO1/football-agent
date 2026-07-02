@@ -1,8 +1,8 @@
 """请求作用域的 FastAPI 依赖。
 
-从 DI 容器取基础设施（DB session、Redis），并把仓储作为请求作用域依赖暴露。
-仓储依赖返回抽象接口类型、内部构造 SQLAlchemy 实现——依赖倒置在此 wiring
-边界完成：endpoint / service 只依赖接口，不见具体实现。
+从 DI 容器取基础设施（DB session、Redis）与单例服务组件，并把仓储、分析编排
+作为请求作用域依赖暴露。仓储依赖返回抽象接口类型、内部构造 SQLAlchemy 实现
+——依赖倒置在此 wiring 边界完成：endpoint / service 只依赖接口，不见具体实现。
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ import redis.asyncio as redis
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.interfaces import ReasoningEngine
 from app.core.container import container
 from app.repositories.interfaces.fixture_repository import FixtureRepository
 from app.repositories.interfaces.prediction_repository import PredictionRepository
@@ -33,6 +34,10 @@ from app.repositories.sqlalchemy.reference_repositories import (
     SqlAlchemyTeamRepository,
 )
 from app.repositories.sqlalchemy.value_bet_repository import SqlAlchemyValueBetRepository
+from app.services.analysis_pipeline import MatchAnalysisPipeline
+from app.services.daily_selection import DailySelectionService
+from app.services.modeling import MatchModel
+from app.services.recommendation_gate import RecommendationGate
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
@@ -94,7 +99,27 @@ CompetitionRepositoryDep = Annotated[CompetitionRepository, Depends(get_competit
 SeasonRepositoryDep = Annotated[SeasonRepository, Depends(get_season_repository)]
 BookmakerRepositoryDep = Annotated[BookmakerRepository, Depends(get_bookmaker_repository)]
 
+
+# --- 分析编排依赖（单例组件来自容器 + 请求作用域仓储）---
+
+
+def get_analysis_pipeline(
+    value_bet_repository: ValueBetRepositoryDep,
+) -> MatchAnalysisPipeline:
+    """组装单场比赛分析编排。"""
+    return MatchAnalysisPipeline(
+        model=container.resolve(MatchModel),
+        gate=container.resolve(RecommendationGate),
+        selector=container.resolve(DailySelectionService),
+        reasoning=container.resolve(ReasoningEngine),
+        value_bet_repository=value_bet_repository,
+    )
+
+
+AnalysisPipelineDep = Annotated[MatchAnalysisPipeline, Depends(get_analysis_pipeline)]
+
 __all__ = [
+    "AnalysisPipelineDep",
     "BookmakerRepositoryDep",
     "CompetitionRepositoryDep",
     "FixtureRepositoryDep",
@@ -104,6 +129,7 @@ __all__ = [
     "SessionDep",
     "TeamRepositoryDep",
     "ValueBetRepositoryDep",
+    "get_analysis_pipeline",
     "get_bookmaker_repository",
     "get_competition_repository",
     "get_db_session",
