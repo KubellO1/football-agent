@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     recommendations_min_confidence: float = 0.70  # confidence >= 70%
     recommendations_max_picks: int = 5
 
+    # --- Scheduled daily worker ---
+    worker_schedule_time: str = "06:00"  # daily run time, HH:MM (UTC)
+    worker_run_on_start: bool = False  # also run once immediately on startup
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sqlalchemy_dsn(self) -> str:
