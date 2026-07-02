@@ -19,9 +19,9 @@ from alembic import context
 from app.config.settings import get_settings
 from app.database.base import Base
 
-# ORM model modules must be imported here so their tables register on
-# Base.metadata for autogenerate, e.g.:
-#   from app.repositories.sqlalchemy import models  # noqa: F401
+# ORM 模型模块必须在此导入，其表才会注册到 Base.metadata 供 autogenerate 使用。
+# 新增聚合的 ORM 模型后，在此追加导入即可。
+from app.repositories.sqlalchemy import models  # noqa: E402, F401
 
 config = context.config
 
