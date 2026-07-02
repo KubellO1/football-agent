@@ -19,8 +19,6 @@ class ValueBetRepository(Repository[ValueBet]):
         ...
 
     @abstractmethod
-    async def list_created_between(
-        self, start: datetime, end: datetime
-    ) -> list[ValueBet]:
+    async def list_created_between(self, start: datetime, end: datetime) -> list[ValueBet]:
         """获取创建时间落在 [start, end) 区间内的推荐（用于每日报告、赛后复盘）。"""
         ...

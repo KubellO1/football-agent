@@ -51,3 +51,30 @@ class SqlAlchemyFixtureRepository(FixtureRepository):
         )
         rows = (await self._session.execute(stmt)).scalars().all()
         return [FixtureMapper.to_domain(r) for r in rows]
+
+    async def get_by_external_id(self, source: str, external_id: str) -> Fixture | None:
+        stmt = (
+            select(FixtureORM)
+            .where(
+                FixtureORM.external_source == source,
+                FixtureORM.external_id == external_id,
+            )
+            .limit(1)
+        )
+        row = (await self._session.execute(stmt)).scalars().first()
+        return FixtureMapper.to_domain(row) if row is not None else None
+
+    async def update(self, entity: Fixture) -> Fixture:
+        row = await self._session.get(FixtureORM, entity.id)
+        if row is None:
+            raise KeyError(f"fixture {entity.id} not found for update")
+        # 仅刷新采集会变化的字段；id / external_* / 外键关系保持稳定。
+        row.kickoff = entity.kickoff
+        row.status = entity.status.value
+        row.score_home = entity.score.home if entity.score is not None else None
+        row.score_away = entity.score.away if entity.score is not None else None
+        row.competition_id = entity.competition_id
+        row.home_team_id = entity.home_team_id
+        row.away_team_id = entity.away_team_id
+        await self._session.flush()
+        return FixtureMapper.to_domain(row)

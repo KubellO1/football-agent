@@ -19,8 +19,6 @@ class DecisionLogRepository(Repository[DecisionLog]):
         ...
 
     @abstractmethod
-    async def list_created_between(
-        self, start: datetime, end: datetime
-    ) -> list[DecisionLog]:
+    async def list_created_between(self, start: datetime, end: datetime) -> list[DecisionLog]:
         """获取创建时间落在 [start, end) 区间内的决策日志（供复盘）。"""
         ...

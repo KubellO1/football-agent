@@ -26,6 +26,9 @@ class Fixture(Entity):
     kickoff: datetime
     status: MatchStatus = MatchStatus.SCHEDULED
     score: Score | None = None
+    # Upstream feed id + source (idempotency key for ingestion).
+    external_id: str | None = None
+    external_source: str | None = None
 
     def __post_init__(self) -> None:
         if self.home_team_id == self.away_team_id:

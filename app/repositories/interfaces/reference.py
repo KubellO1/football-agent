@@ -36,9 +36,19 @@ class ReferenceRepository(Repository[T]):
 class TeamRepository(ReferenceRepository[Team]):
     """球队仓储。"""
 
+    @abstractmethod
+    async def get_by_external_id(self, source: str, external_id: str) -> Team | None:
+        """按外部数据源 + 外部 id 精确查询（采集幂等键），不存在返回 None。"""
+        ...
+
 
 class CompetitionRepository(ReferenceRepository[Competition]):
     """赛事仓储。"""
+
+    @abstractmethod
+    async def get_by_external_id(self, source: str, external_id: str) -> Competition | None:
+        """按外部数据源 + 外部 id 精确查询（采集幂等键），不存在返回 None。"""
+        ...
 
 
 class BookmakerRepository(ReferenceRepository[Bookmaker]):

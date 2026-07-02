@@ -24,6 +24,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     Uuid,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -36,14 +37,19 @@ from app.database.base import Base, TimestampMixin
 
 
 class CompetitionORM(TimestampMixin, Base):
-    """赛事表。"""
+    """赛事表。external_source+external_id 为采集幂等键（唯一）。"""
 
     __tablename__ = "competitions"
+    __table_args__ = (
+        UniqueConstraint("external_source", "external_id", name="uq_competitions_external"),
+    )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     name: Mapped[str] = mapped_column(String(120), index=True)
     country: Mapped[str] = mapped_column(String(80))
     tier: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    external_source: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    external_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class SeasonORM(TimestampMixin, Base):
@@ -52,24 +58,25 @@ class SeasonORM(TimestampMixin, Base):
     __tablename__ = "seasons"
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
-    competition_id: Mapped[UUID] = mapped_column(
-        Uuid, ForeignKey("competitions.id"), index=True
-    )
+    competition_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("competitions.id"), index=True)
     label: Mapped[str] = mapped_column(String(40))
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
 
 class TeamORM(TimestampMixin, Base):
-    """球队表。elo 存 EloRating 的数值。"""
+    """球队表。elo 存 EloRating 的数值。external_source+external_id 为采集幂等键（唯一）。"""
 
     __tablename__ = "teams"
+    __table_args__ = (UniqueConstraint("external_source", "external_id", name="uq_teams_external"),)
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     name: Mapped[str] = mapped_column(String(120), index=True)
     short_name: Mapped[str | None] = mapped_column(String(40), nullable=True)
     country: Mapped[str | None] = mapped_column(String(80), nullable=True)
     elo: Mapped[float | None] = mapped_column(Float, nullable=True)
+    external_source: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    external_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class BookmakerORM(TimestampMixin, Base):
@@ -88,23 +95,28 @@ class BookmakerORM(TimestampMixin, Base):
 
 
 class FixtureORM(TimestampMixin, Base):
-    """比赛表。Score 值对象拆为 score_home/score_away 两列；status 存枚举值。"""
+    """比赛表。Score 值对象拆为 score_home/score_away 两列；status 存枚举值。
+
+    external_source+external_id 为采集幂等键（唯一）：重复采集同一场比赛只会更新，
+    不会新增行。
+    """
 
     __tablename__ = "fixtures"
+    __table_args__ = (
+        UniqueConstraint("external_source", "external_id", name="uq_fixtures_external"),
+    )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
-    competition_id: Mapped[UUID] = mapped_column(
-        Uuid, ForeignKey("competitions.id"), index=True
-    )
-    season_id: Mapped[UUID | None] = mapped_column(
-        Uuid, ForeignKey("seasons.id"), nullable=True
-    )
+    competition_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("competitions.id"), index=True)
+    season_id: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey("seasons.id"), nullable=True)
     home_team_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("teams.id"))
     away_team_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("teams.id"))
     kickoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     status: Mapped[str] = mapped_column(String(20))
     score_home: Mapped[int | None] = mapped_column(Integer, nullable=True)
     score_away: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    external_source: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    external_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class PredictionORM(TimestampMixin, Base):

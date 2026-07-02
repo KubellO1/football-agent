@@ -39,12 +39,24 @@ from app.repositories.sqlalchemy.models import (
 class CompetitionMapper:
     @staticmethod
     def to_domain(row: CompetitionORM) -> Competition:
-        return Competition(id=row.id, name=row.name, country=row.country, tier=row.tier)
+        return Competition(
+            id=row.id,
+            name=row.name,
+            country=row.country,
+            tier=row.tier,
+            external_id=row.external_id,
+            external_source=row.external_source,
+        )
 
     @staticmethod
     def to_orm(entity: Competition) -> CompetitionORM:
         return CompetitionORM(
-            id=entity.id, name=entity.name, country=entity.country, tier=entity.tier
+            id=entity.id,
+            name=entity.name,
+            country=entity.country,
+            tier=entity.tier,
+            external_id=entity.external_id,
+            external_source=entity.external_source,
         )
 
 
@@ -80,6 +92,8 @@ class TeamMapper:
             short_name=row.short_name,
             country=row.country,
             elo=elo,
+            external_id=row.external_id,
+            external_source=row.external_source,
         )
 
     @staticmethod
@@ -90,6 +104,8 @@ class TeamMapper:
             short_name=entity.short_name,
             country=entity.country,
             elo=entity.elo.value if entity.elo is not None else None,
+            external_id=entity.external_id,
+            external_source=entity.external_source,
         )
 
 
@@ -127,6 +143,8 @@ class FixtureMapper:
             kickoff=row.kickoff,
             status=MatchStatus(row.status),
             score=score,
+            external_id=row.external_id,
+            external_source=row.external_source,
         )
 
     @staticmethod
@@ -141,6 +159,8 @@ class FixtureMapper:
             status=entity.status.value,
             score_home=entity.score.home if entity.score is not None else None,
             score_away=entity.score.away if entity.score is not None else None,
+            external_id=entity.external_id,
+            external_source=entity.external_source,
         )
 
 

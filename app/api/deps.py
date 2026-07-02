@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
-from typing import Annotated
+from typing import Annotated, cast
 
 import redis.asyncio as redis
 from fastapi import Depends
@@ -16,6 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.interfaces import ReasoningEngine
 from app.core.container import container
+from app.providers.interfaces.fixtures_provider import FixturesProvider
+from app.providers.interfaces.odds_provider import OddsProvider
 from app.repositories.interfaces.decision_log_repository import DecisionLogRepository
 from app.repositories.interfaces.fixture_repository import FixtureRepository
 from app.repositories.interfaces.prediction_repository import PredictionRepository
@@ -38,6 +40,7 @@ from app.repositories.sqlalchemy.reference_repositories import (
 from app.repositories.sqlalchemy.value_bet_repository import SqlAlchemyValueBetRepository
 from app.services.analysis_pipeline import MatchAnalysisPipeline
 from app.services.daily_selection import DailySelectionService
+from app.services.ingestion import IngestionService
 from app.services.modeling import MatchModel
 from app.services.recommendation_gate import RecommendationGate
 
@@ -100,13 +103,43 @@ def get_bookmaker_repository(session: SessionDep) -> BookmakerRepository:
 FixtureRepositoryDep = Annotated[FixtureRepository, Depends(get_fixture_repository)]
 PredictionRepositoryDep = Annotated[PredictionRepository, Depends(get_prediction_repository)]
 ValueBetRepositoryDep = Annotated[ValueBetRepository, Depends(get_value_bet_repository)]
-DecisionLogRepositoryDep = Annotated[
-    DecisionLogRepository, Depends(get_decision_log_repository)
-]
+DecisionLogRepositoryDep = Annotated[DecisionLogRepository, Depends(get_decision_log_repository)]
 TeamRepositoryDep = Annotated[TeamRepository, Depends(get_team_repository)]
 CompetitionRepositoryDep = Annotated[CompetitionRepository, Depends(get_competition_repository)]
 SeasonRepositoryDep = Annotated[SeasonRepository, Depends(get_season_repository)]
 BookmakerRepositoryDep = Annotated[BookmakerRepository, Depends(get_bookmaker_repository)]
+
+
+# --- 外部数据源 Provider 依赖（容器持有的单例，返回接口类型）---
+
+
+def get_fixtures_provider() -> FixturesProvider:
+    return cast("FixturesProvider", container.resolve(FixturesProvider))
+
+
+def get_odds_provider() -> OddsProvider:
+    return cast("OddsProvider", container.resolve(OddsProvider))
+
+
+FixturesProviderDep = Annotated[FixturesProvider, Depends(get_fixtures_provider)]
+OddsProviderDep = Annotated[OddsProvider, Depends(get_odds_provider)]
+
+
+def get_ingestion_service(
+    competitions: CompetitionRepositoryDep,
+    teams: TeamRepositoryDep,
+    fixtures: FixtureRepositoryDep,
+) -> IngestionService:
+    """组装数据采集服务：容器持有的 FixturesProvider + 请求作用域仓储。"""
+    return IngestionService(
+        fixtures_provider=container.resolve(FixturesProvider),
+        competitions=competitions,
+        teams=teams,
+        fixtures=fixtures,
+    )
+
+
+IngestionServiceDep = Annotated[IngestionService, Depends(get_ingestion_service)]
 
 
 # --- 分析编排依赖（单例组件来自容器 + 请求作用域仓储）---
@@ -133,6 +166,9 @@ __all__ = [
     "CompetitionRepositoryDep",
     "DecisionLogRepositoryDep",
     "FixtureRepositoryDep",
+    "FixturesProviderDep",
+    "IngestionServiceDep",
+    "OddsProviderDep",
     "PredictionRepositoryDep",
     "RedisDep",
     "SeasonRepositoryDep",
@@ -145,6 +181,9 @@ __all__ = [
     "get_db_session",
     "get_decision_log_repository",
     "get_fixture_repository",
+    "get_fixtures_provider",
+    "get_ingestion_service",
+    "get_odds_provider",
     "get_prediction_repository",
     "get_redis",
     "get_season_repository",

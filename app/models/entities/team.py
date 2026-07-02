@@ -16,3 +16,7 @@ class Team(Entity):
     short_name: str | None = None
     country: str | None = None
     elo: EloRating | None = None
+    # Stable identifier from the upstream feed (e.g. API-Football team id) plus
+    # its source name; together they form the idempotency key for ingestion.
+    external_id: str | None = None
+    external_source: str | None = None

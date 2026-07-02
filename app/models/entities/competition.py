@@ -16,6 +16,9 @@ class Competition(Entity):
     name: str
     country: str
     tier: int | None = None
+    # Upstream feed id + source (idempotency key for ingestion).
+    external_id: str | None = None
+    external_source: str | None = None
 
 
 @dataclass(eq=False, kw_only=True)

@@ -51,6 +51,15 @@ class SqlAlchemyTeamRepository(TeamRepository):
         row = (await self._session.execute(stmt)).scalars().first()
         return TeamMapper.to_domain(row) if row is not None else None
 
+    async def get_by_external_id(self, source: str, external_id: str) -> Team | None:
+        stmt = (
+            select(TeamORM)
+            .where(TeamORM.external_source == source, TeamORM.external_id == external_id)
+            .limit(1)
+        )
+        row = (await self._session.execute(stmt)).scalars().first()
+        return TeamMapper.to_domain(row) if row is not None else None
+
     async def list_all(self) -> list[Team]:
         stmt = select(TeamORM).order_by(TeamORM.name)
         rows = (await self._session.execute(stmt)).scalars().all()
@@ -75,6 +84,18 @@ class SqlAlchemyCompetitionRepository(CompetitionRepository):
 
     async def get_by_name(self, name: str) -> Competition | None:
         stmt = select(CompetitionORM).where(CompetitionORM.name == name).limit(1)
+        row = (await self._session.execute(stmt)).scalars().first()
+        return CompetitionMapper.to_domain(row) if row is not None else None
+
+    async def get_by_external_id(self, source: str, external_id: str) -> Competition | None:
+        stmt = (
+            select(CompetitionORM)
+            .where(
+                CompetitionORM.external_source == source,
+                CompetitionORM.external_id == external_id,
+            )
+            .limit(1)
+        )
         row = (await self._session.execute(stmt)).scalars().first()
         return CompetitionMapper.to_domain(row) if row is not None else None
 
