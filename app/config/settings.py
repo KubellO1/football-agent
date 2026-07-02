@@ -47,6 +47,19 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-opus-4-8"
 
+    # --- External data providers ---
+    # API-Football (fixtures / results / league data).
+    api_football_key: str = ""
+    api_football_base_url: str = "https://v3.football.api-sports.io"
+    # The Odds API (bookmaker odds across markets).
+    odds_api_key: str = ""
+    odds_api_base_url: str = "https://api.the-odds-api.com/v4"
+
+    # Shared HTTP client behaviour for all providers.
+    provider_timeout_seconds: float = 10.0
+    provider_max_retries: int = 3  # extra attempts after the first, on transient errors
+    provider_backoff_base_seconds: float = 0.5  # exponential backoff base
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sqlalchemy_dsn(self) -> str:

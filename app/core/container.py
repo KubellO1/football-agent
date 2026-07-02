@@ -29,6 +29,7 @@ class Container:
         self._settings: Settings = settings or get_settings()
         self._database: Database | None = None
         self._redis: RedisConnection | None = None
+        self._providers: list[Any] = []  # own HTTP clients; closed on shutdown
         self._bindings: dict[type, Any] = {}
 
     # --- lifecycle ---------------------------------------------------------
@@ -48,6 +49,22 @@ class Container:
 
         self.register(ReasoningEngine, build_reasoning_agent(self._settings))
 
+        # External data feeds. Each provider owns an httpx client whose lifecycle
+        # the container manages; bound to interfaces for injection. Lazy import
+        # keeps the core container decoupled from the concrete vendor clients.
+        from app.providers import (
+            FixturesProvider,
+            OddsProvider,
+            build_fixtures_provider,
+            build_odds_provider,
+        )
+
+        fixtures_provider = build_fixtures_provider(self._settings)
+        odds_provider = build_odds_provider(self._settings)
+        self._providers = [fixtures_provider, odds_provider]
+        self.register(FixturesProvider, fixtures_provider)
+        self.register(OddsProvider, odds_provider)
+
         # 无状态的分析组件注册为单例（可在测试中替换）。惰性导入避免顶层耦合。
         from app.services.daily_selection import DailySelectionService
         from app.services.modeling import MatchModel
@@ -62,6 +79,9 @@ class Container:
 
     async def shutdown_resources(self) -> None:
         """Dispose infrastructure resources (call on shutdown)."""
+        for provider in self._providers:
+            await provider.aclose()
+        self._providers = []
         if self._database is not None:
             await self._database.dispose()
             self._database = None
