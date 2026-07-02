@@ -5,13 +5,16 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.entities.enums import MatchStatus
 from app.models.entities.fixture import Fixture
 from app.repositories.interfaces.fixture_repository import FixtureRepository
 from app.repositories.sqlalchemy.mappers import FixtureMapper
 from app.repositories.sqlalchemy.models import FixtureORM
+
+_FINISHED = MatchStatus.FINISHED.value
 
 
 class SqlAlchemyFixtureRepository(FixtureRepository):
@@ -63,6 +66,36 @@ class SqlAlchemyFixtureRepository(FixtureRepository):
         )
         row = (await self._session.execute(stmt)).scalars().first()
         return FixtureMapper.to_domain(row) if row is not None else None
+
+    async def list_finished_by_team(
+        self,
+        team_id: UUID,
+        *,
+        limit: int | None = None,
+        exclude_fixture_id: UUID | None = None,
+    ) -> list[Fixture]:
+        stmt = (
+            select(FixtureORM)
+            .where(
+                FixtureORM.status == _FINISHED,
+                or_(FixtureORM.home_team_id == team_id, FixtureORM.away_team_id == team_id),
+            )
+            .order_by(FixtureORM.kickoff.desc())
+        )
+        if exclude_fixture_id is not None:
+            stmt = stmt.where(FixtureORM.id != exclude_fixture_id)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [FixtureMapper.to_domain(r) for r in rows]
+
+    async def list_finished_by_competition(self, competition_id: UUID) -> list[Fixture]:
+        stmt = select(FixtureORM).where(
+            FixtureORM.competition_id == competition_id,
+            FixtureORM.status == _FINISHED,
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [FixtureMapper.to_domain(r) for r in rows]
 
     async def update(self, entity: Fixture) -> Fixture:
         row = await self._session.get(FixtureORM, entity.id)

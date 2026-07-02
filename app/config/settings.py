@@ -68,6 +68,13 @@ class Settings(BaseSettings):
     # fixture. Beyond this the event is treated as unmatched (never guessed).
     odds_match_tolerance_minutes: int = 180
 
+    # --- Analysis ---
+    # Bankroll used for Kelly stake sizing, and how many recent finished matches
+    # form the team-form window.
+    analysis_default_bankroll: float = 1000.0
+    analysis_currency: str = "EUR"
+    analysis_form_window: int = 10
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sqlalchemy_dsn(self) -> str:

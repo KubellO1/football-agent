@@ -35,3 +35,18 @@ class FixtureRepository(Repository[Fixture]):
         采集重跑时用于刷新可变字段（开赛时间、状态、比分），保持行不重复。
         """
         ...
+
+    @abstractmethod
+    async def list_finished_by_team(
+        self, team_id: UUID, *, limit: int | None = None, exclude_fixture_id: UUID | None = None
+    ) -> list[Fixture]:
+        """按开赛时间倒序返回某队已完赛的比赛（用于近况统计）。
+
+        ``exclude_fixture_id`` 用于排除被分析的比赛本身（不能用比赛自身结果预测它）。
+        """
+        ...
+
+    @abstractmethod
+    async def list_finished_by_competition(self, competition_id: UUID) -> list[Fixture]:
+        """返回某赛事下全部已完赛的比赛（用于联赛场均进球基准）。"""
+        ...

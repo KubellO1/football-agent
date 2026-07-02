@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from decimal import Decimal
 from typing import Annotated, cast
 
 import redis.asyncio as redis
@@ -16,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.interfaces import ReasoningEngine
 from app.core.container import container
+from app.models.value_objects.money import Money
 from app.providers.interfaces.fixtures_provider import FixturesProvider
 from app.providers.interfaces.odds_provider import OddsProvider
 from app.repositories.interfaces.decision_log_repository import DecisionLogRepository
@@ -42,6 +44,10 @@ from app.repositories.sqlalchemy.reference_repositories import (
 from app.repositories.sqlalchemy.value_bet_repository import SqlAlchemyValueBetRepository
 from app.services.analysis_pipeline import MatchAnalysisPipeline
 from app.services.daily_selection import DailySelectionService
+from app.services.fixture_analysis import (
+    FixtureAnalysisService,
+    MatchAnalysisInputBuilder,
+)
 from app.services.ingestion import IngestionService
 from app.services.modeling import MatchModel
 from app.services.odds_ingestion import OddsIngestionService
@@ -173,6 +179,31 @@ def get_odds_ingestion_service(
 OddsIngestionServiceDep = Annotated[OddsIngestionService, Depends(get_odds_ingestion_service)]
 
 
+def get_fixture_analysis_service(
+    fixtures: FixtureRepositoryDep,
+    teams: TeamRepositoryDep,
+    odds_snapshots: OddsSnapshotRepositoryDep,
+) -> FixtureAnalysisService:
+    """组装 DB 驱动的单场分析服务：请求作用域仓储 + 容器中的数学模型/gate + settings。"""
+    settings = container.settings
+    bankroll = Money(Decimal(str(settings.analysis_default_bankroll)), settings.analysis_currency)
+    builder = MatchAnalysisInputBuilder(
+        fixtures=fixtures,
+        teams=teams,
+        odds_snapshots=odds_snapshots,
+        bankroll=bankroll,
+        form_window=settings.analysis_form_window,
+    )
+    return FixtureAnalysisService(
+        builder=builder,
+        model=container.resolve(MatchModel),
+        gate=container.resolve(RecommendationGate),
+    )
+
+
+FixtureAnalysisServiceDep = Annotated[FixtureAnalysisService, Depends(get_fixture_analysis_service)]
+
+
 # --- 分析编排依赖（单例组件来自容器 + 请求作用域仓储）---
 
 
@@ -196,6 +227,7 @@ __all__ = [
     "BookmakerRepositoryDep",
     "CompetitionRepositoryDep",
     "DecisionLogRepositoryDep",
+    "FixtureAnalysisServiceDep",
     "FixtureRepositoryDep",
     "FixturesProviderDep",
     "IngestionServiceDep",
@@ -213,6 +245,7 @@ __all__ = [
     "get_competition_repository",
     "get_db_session",
     "get_decision_log_repository",
+    "get_fixture_analysis_service",
     "get_fixture_repository",
     "get_fixtures_provider",
     "get_ingestion_service",
