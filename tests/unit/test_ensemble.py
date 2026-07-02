@@ -1,7 +1,7 @@
 """EnsembleMatchModel 单元测试。
 
 验证：链路能产出 1X2 概率与候选、非 1X2 报价被跳过、候选各字段落在合法范围、
-以及数值口径（概率和≈1、edge 与 ValueEdge 一致）。
+数值口径（概率和≈1、edge 与 ValueEdge 一致），以及 Elo 信号的透传与期望得分。
 """
 
 from __future__ import annotations
@@ -36,7 +36,12 @@ def _stats(*, gf: int, ga: int) -> TeamStatistics:
     )
 
 
-def _model_input(quotes: list[MarketQuote]) -> ModelInput:
+def _model_input(
+    quotes: list[MarketQuote],
+    *,
+    home_elo: float | None = None,
+    away_elo: float | None = None,
+) -> ModelInput:
     fixture = Fixture(
         competition_id=uuid4(),
         home_team_id=uuid4(),
@@ -52,6 +57,8 @@ def _model_input(quotes: list[MarketQuote]) -> ModelInput:
         bankroll=Money(Decimal("1000")),
         data_completeness=DataCompleteness(95.0),
         evidence_level=EvidenceLevel.B,
+        home_elo=home_elo,
+        away_elo=away_elo,
     )
 
 
@@ -60,7 +67,6 @@ async def test_produces_1x2_probabilities_and_candidate() -> None:
     quotes = [MarketQuote(Selection(MarketType.MATCH_RESULT, "home"), Odds(Decimal("2.0")))]
     output = await EnsembleMatchModel().analyze(_model_input(quotes))
 
-    # 1X2 概率和≈1
     total = sum(p.value for p in output.outcome_probabilities.values())
     assert total == pytest.approx(1.0, abs=1e-9)
     assert output.expected_goals is not None
@@ -71,7 +77,6 @@ async def test_produces_1x2_probabilities_and_candidate() -> None:
     assert 0.0 <= candidate.model_probability.value <= 1.0
     assert isinstance(candidate.decision_score, DecisionScore)
     assert 0.0 <= candidate.decision_score.value <= 100.0
-    # ModelCandidate.edge 与 概率×赔率−1 一致
     assert candidate.edge.edge == pytest.approx(
         candidate.model_probability.value * 2.0 - 1.0
     )
@@ -84,7 +89,6 @@ async def test_non_1x2_quote_is_skipped() -> None:
         MarketQuote(Selection(MarketType.OVER_UNDER, "over", line=2.5), Odds(Decimal("1.9"))),
     ]
     output = await EnsembleMatchModel().analyze(_model_input(quotes))
-    # 起步仅支持 1X2，大小球报价被跳过
     assert len(output.candidates) == 1
     assert output.candidates[0].selection.market is MarketType.MATCH_RESULT
 
@@ -93,6 +97,27 @@ async def test_non_1x2_quote_is_skipped() -> None:
 async def test_no_quotes_yields_no_candidates() -> None:
     output = await EnsembleMatchModel().analyze(_model_input([]))
     assert output.candidates == []
-    # 无候选时仍应产出概率与 xG
     assert output.outcome_probabilities
     assert output.expected_goals is not None
+
+
+@pytest.mark.unit
+async def test_elo_ratings_passthrough_and_expected() -> None:
+    quotes = [MarketQuote(Selection(MarketType.MATCH_RESULT, "home"), Odds(Decimal("2.0")))]
+    output = await EnsembleMatchModel().analyze(
+        _model_input(quotes, home_elo=1900.0, away_elo=1500.0)
+    )
+    assert output.elo_home == 1900.0
+    assert output.elo_away == 1500.0
+    # 强主队（评分领先）→ Elo 期望得分 > 0.5
+    assert output.elo_expected_home is not None
+    assert output.elo_expected_home > 0.5
+
+
+@pytest.mark.unit
+async def test_elo_absent_yields_none() -> None:
+    quotes = [MarketQuote(Selection(MarketType.MATCH_RESULT, "home"), Odds(Decimal("2.0")))]
+    output = await EnsembleMatchModel().analyze(_model_input(quotes))
+    assert output.elo_home is None
+    assert output.elo_away is None
+    assert output.elo_expected_home is None

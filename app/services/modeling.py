@@ -47,6 +47,7 @@ class ModelInput:
     """量化建模所需的输入数据包。
 
     数据完整度与证据等级由数据层评估后填入（模型不臆造这些属性）。
+    home_elo/away_elo 为球队当前 Elo 评分（可选，由数据层提供）。
     """
 
     fixture: Fixture
@@ -57,6 +58,8 @@ class ModelInput:
     bankroll: Money
     data_completeness: DataCompleteness
     evidence_level: EvidenceLevel
+    home_elo: float | None = None
+    away_elo: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,12 +80,16 @@ class ModelCandidate:
 
 @dataclass(frozen=True, slots=True)
 class ModelOutput:
-    """某场比赛的完整量化建模结果。"""
+    """某场比赛的完整量化建模结果。
+
+    elo_expected_home 为主队 Elo 期望得分（独立信号，不参与概率融合）。
+    """
 
     outcome_probabilities: dict[MatchResult, Probability] = field(default_factory=dict)
     expected_goals: ExpectedGoals | None = None
     elo_home: float | None = None
     elo_away: float | None = None
+    elo_expected_home: float | None = None
     candidates: list[ModelCandidate] = field(default_factory=list)
 
 

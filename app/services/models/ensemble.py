@@ -3,6 +3,9 @@
 串联链路：强度→λ 估计 → Poisson 概率 → ValueDetector 价值评估 → Kelly 下注。
 产出 ModelOutput / ModelCandidate（含 gate 所需的评分/完整度/证据/风险）。
 
+Elo 作为独立信号接入：透传球队评分并计算主队 Elo 期望得分，但**不参与概率
+融合**——概率仍由 Poisson 主导（融合需回测标定，未标定即臆造）。
+
 起步仅支持胜平负(1X2)市场；大小球、BTTS 等后续扩展。综合评分与风险等级
 采用可解释的简单规则起步，后续可外置为独立策略。
 """
@@ -14,6 +17,7 @@ from app.models.value_objects.decision import DecisionScore, RiskLevel
 from app.models.value_objects.metrics import ExpectedGoals
 from app.models.value_objects.score import MatchResult
 from app.services.modeling import MatchModel, ModelCandidate, ModelInput, ModelOutput
+from app.services.models.elo import EloModel
 from app.services.models.kelly import KellyCalculator
 from app.services.models.lambda_estimator import LambdaEstimator
 from app.services.models.poisson import PoissonModel
@@ -31,7 +35,7 @@ def _clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
 
 
 class EnsembleMatchModel(MatchModel):
-    """由 λ估计 + Poisson + 价值检测 + Kelly 组合的比赛模型。"""
+    """由 λ估计 + Poisson + 价值检测 + Kelly 组合的比赛模型（Elo 作独立信号）。"""
 
     def __init__(
         self,
@@ -40,11 +44,13 @@ class EnsembleMatchModel(MatchModel):
         poisson: PoissonModel | None = None,
         detector: ValueDetector | None = None,
         kelly: KellyCalculator | None = None,
+        elo: EloModel | None = None,
     ) -> None:
         self._estimator = estimator or LambdaEstimator()
         self._poisson = poisson or PoissonModel()
         self._detector = detector or ValueDetector()
         self._kelly = kelly or KellyCalculator()
+        self._elo = elo or EloModel()
 
     async def analyze(self, model_input: ModelInput) -> ModelOutput:
         lam_home, lam_away = self._estimator.estimate(
@@ -83,9 +89,17 @@ class EnsembleMatchModel(MatchModel):
                 )
             )
 
+        # Elo：透传评分并计算主队期望得分（独立信号，不改概率）
+        elo_expected: float | None = None
+        if model_input.home_elo is not None and model_input.away_elo is not None:
+            elo_expected = self._elo.expected_score(model_input.home_elo, model_input.away_elo)
+
         return ModelOutput(
             outcome_probabilities=probabilities,
             expected_goals=ExpectedGoals(home=lam_home, away=lam_away),
+            elo_home=model_input.home_elo,
+            elo_away=model_input.away_elo,
+            elo_expected_home=elo_expected,
             candidates=candidates,
         )
 
