@@ -5,5 +5,6 @@ Elo / Poisson / 蒙特卡洛 / Kelly / 价值检测等子模型，各自独立�
 """
 
 from app.services.models.kelly import KellyCalculator
+from app.services.models.poisson import PoissonModel
 
-__all__ = ["KellyCalculator"]
+__all__ = ["KellyCalculator", "PoissonModel"]
