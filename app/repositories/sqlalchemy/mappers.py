@@ -5,18 +5,105 @@
 
 from __future__ import annotations
 
+from app.models.entities.bookmaker import Bookmaker
+from app.models.entities.competition import Competition, Season
 from app.models.entities.enums import MatchStatus
 from app.models.entities.fixture import Fixture
 from app.models.entities.prediction import MatchPrediction
+from app.models.entities.team import Team
 from app.models.entities.value_bet import ValueBet
 from app.models.value_objects.betting import Stake, ValueEdge
 from app.models.value_objects.markets import MarketType, Selection
-from app.models.value_objects.metrics import ExpectedGoals
+from app.models.value_objects.metrics import EloRating, ExpectedGoals
 from app.models.value_objects.money import Money
 from app.models.value_objects.odds import Odds
 from app.models.value_objects.probability import Probability
 from app.models.value_objects.score import MatchResult, Score
-from app.repositories.sqlalchemy.models import FixtureORM, PredictionORM, ValueBetORM
+from app.repositories.sqlalchemy.models import (
+    BookmakerORM,
+    CompetitionORM,
+    FixtureORM,
+    PredictionORM,
+    SeasonORM,
+    TeamORM,
+    ValueBetORM,
+)
+
+# ---------------------------------------------------------------------------
+# 参考数据
+# ---------------------------------------------------------------------------
+
+
+class CompetitionMapper:
+    @staticmethod
+    def to_domain(row: CompetitionORM) -> Competition:
+        return Competition(id=row.id, name=row.name, country=row.country, tier=row.tier)
+
+    @staticmethod
+    def to_orm(entity: Competition) -> CompetitionORM:
+        return CompetitionORM(
+            id=entity.id, name=entity.name, country=entity.country, tier=entity.tier
+        )
+
+
+class SeasonMapper:
+    @staticmethod
+    def to_domain(row: SeasonORM) -> Season:
+        return Season(
+            id=row.id,
+            competition_id=row.competition_id,
+            label=row.label,
+            start_date=row.start_date,
+            end_date=row.end_date,
+        )
+
+    @staticmethod
+    def to_orm(entity: Season) -> SeasonORM:
+        return SeasonORM(
+            id=entity.id,
+            competition_id=entity.competition_id,
+            label=entity.label,
+            start_date=entity.start_date,
+            end_date=entity.end_date,
+        )
+
+
+class TeamMapper:
+    @staticmethod
+    def to_domain(row: TeamORM) -> Team:
+        elo = EloRating(row.elo) if row.elo is not None else None
+        return Team(
+            id=row.id,
+            name=row.name,
+            short_name=row.short_name,
+            country=row.country,
+            elo=elo,
+        )
+
+    @staticmethod
+    def to_orm(entity: Team) -> TeamORM:
+        return TeamORM(
+            id=entity.id,
+            name=entity.name,
+            short_name=entity.short_name,
+            country=entity.country,
+            elo=entity.elo.value if entity.elo is not None else None,
+        )
+
+
+class BookmakerMapper:
+    @staticmethod
+    def to_domain(row: BookmakerORM) -> Bookmaker:
+        return Bookmaker(id=row.id, name=row.name, country=row.country)
+
+    @staticmethod
+    def to_orm(entity: Bookmaker) -> BookmakerORM:
+        return BookmakerORM(id=entity.id, name=entity.name, country=entity.country)
+
+
+# ---------------------------------------------------------------------------
+# 核心聚合
+# ---------------------------------------------------------------------------
 
 
 class FixtureMapper:

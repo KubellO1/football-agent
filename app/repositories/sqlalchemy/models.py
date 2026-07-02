@@ -10,14 +10,80 @@ recommendations —— ValueBet 是独立聚合根、独立表（带 fixture_id�
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import DateTime, Float, Integer, Numeric, String, Text, Uuid
+from sqlalchemy import (
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base, TimestampMixin
+
+# ---------------------------------------------------------------------------
+# 参考数据
+# ---------------------------------------------------------------------------
+
+
+class CompetitionORM(TimestampMixin, Base):
+    """赛事表。"""
+
+    __tablename__ = "competitions"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), index=True)
+    country: Mapped[str] = mapped_column(String(80))
+    tier: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class SeasonORM(TimestampMixin, Base):
+    """赛季表。"""
+
+    __tablename__ = "seasons"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    competition_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("competitions.id"), index=True
+    )
+    label: Mapped[str] = mapped_column(String(40))
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+
+class TeamORM(TimestampMixin, Base):
+    """球队表。elo 存 EloRating 的数值。"""
+
+    __tablename__ = "teams"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), index=True)
+    short_name: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    country: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    elo: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class BookmakerORM(TimestampMixin, Base):
+    """博彩公司表。"""
+
+    __tablename__ = "bookmakers"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), index=True)
+    country: Mapped[str | None] = mapped_column(String(80), nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# 核心聚合
+# ---------------------------------------------------------------------------
 
 
 class FixtureORM(TimestampMixin, Base):
@@ -26,10 +92,14 @@ class FixtureORM(TimestampMixin, Base):
     __tablename__ = "fixtures"
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
-    competition_id: Mapped[UUID] = mapped_column(Uuid, index=True)
-    season_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
-    home_team_id: Mapped[UUID] = mapped_column(Uuid)
-    away_team_id: Mapped[UUID] = mapped_column(Uuid)
+    competition_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("competitions.id"), index=True
+    )
+    season_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("seasons.id"), nullable=True
+    )
+    home_team_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("teams.id"))
+    away_team_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("teams.id"))
     kickoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     status: Mapped[str] = mapped_column(String(20))
     score_home: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -45,7 +115,7 @@ class PredictionORM(TimestampMixin, Base):
     __tablename__ = "predictions"
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
-    fixture_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    fixture_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("fixtures.id"), index=True)
     prob_home: Mapped[float | None] = mapped_column(Float, nullable=True)
     prob_draw: Mapped[float | None] = mapped_column(Float, nullable=True)
     prob_away: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -66,12 +136,14 @@ class ValueBetORM(TimestampMixin, Base):
     __tablename__ = "value_bets"
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
-    fixture_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    fixture_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("fixtures.id"), index=True)
     selection_market: Mapped[str] = mapped_column(String(30))
     selection_code: Mapped[str] = mapped_column(String(30))
     selection_line: Mapped[float | None] = mapped_column(Float, nullable=True)
     odds_decimal: Mapped[Decimal] = mapped_column(Numeric(6, 3))
-    bookmaker_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+    bookmaker_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("bookmakers.id"), nullable=True
+    )
     model_probability: Mapped[float] = mapped_column(Float)
     stake_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     stake_currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
