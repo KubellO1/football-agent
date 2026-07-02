@@ -75,6 +75,14 @@ class Settings(BaseSettings):
     analysis_currency: str = "EUR"
     analysis_form_window: int = 10
 
+    # --- Daily recommendations (cost control for the Claude review) ---
+    # Thresholds a selection must clear (on top of the gate) to be worth a Claude
+    # review, plus the daily cap on how many fixtures get reviewed.
+    recommendations_min_ev: float = 0.05  # expected value >= 5%
+    recommendations_min_kelly: float = 0.02  # Kelly fraction >= 2%
+    recommendations_min_confidence: float = 0.70  # confidence >= 70%
+    recommendations_max_picks: int = 5
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sqlalchemy_dsn(self) -> str:

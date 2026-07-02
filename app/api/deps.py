@@ -45,6 +45,7 @@ from app.repositories.sqlalchemy.value_bet_repository import SqlAlchemyValueBetR
 from app.services.analysis_pipeline import MatchAnalysisPipeline
 from app.services.committee_review import CommitteeReviewService
 from app.services.daily_selection import DailySelectionService
+from app.services.daily_top_picks import DailyRecommendationsReader, DailyTopPicksService
 from app.services.fixture_analysis import (
     FixtureAnalysisService,
     MatchAnalysisInputBuilder,
@@ -223,6 +224,45 @@ def get_committee_review_service(
 CommitteeReviewServiceDep = Annotated[CommitteeReviewService, Depends(get_committee_review_service)]
 
 
+def get_daily_top_picks_service(
+    analysis: FixtureAnalysisServiceDep,
+    review: CommitteeReviewServiceDep,
+    fixtures: FixtureRepositoryDep,
+    decision_logs: DecisionLogRepositoryDep,
+) -> DailyTopPicksService:
+    """组装每日 Top Picks 批处理：确定性分析 + Claude 评审 + 阈值/上限（settings）。"""
+    settings = container.settings
+    return DailyTopPicksService(
+        fixtures=fixtures,
+        analysis=analysis,
+        review=review,
+        decision_logs=decision_logs,
+        min_ev=settings.recommendations_min_ev,
+        min_kelly=settings.recommendations_min_kelly,
+        min_confidence=settings.recommendations_min_confidence,
+        max_picks=settings.recommendations_max_picks,
+    )
+
+
+DailyTopPicksServiceDep = Annotated[DailyTopPicksService, Depends(get_daily_top_picks_service)]
+
+
+def get_daily_recommendations_reader(
+    fixtures: FixtureRepositoryDep,
+    value_bets: ValueBetRepositoryDep,
+    decision_logs: DecisionLogRepositoryDep,
+) -> DailyRecommendationsReader:
+    """组装当日推荐读取器（纯读库，不触发 Claude）。"""
+    return DailyRecommendationsReader(
+        fixtures=fixtures, value_bets=value_bets, decision_logs=decision_logs
+    )
+
+
+DailyRecommendationsReaderDep = Annotated[
+    DailyRecommendationsReader, Depends(get_daily_recommendations_reader)
+]
+
+
 # --- 分析编排依赖（单例组件来自容器 + 请求作用域仓储）---
 
 
@@ -246,6 +286,8 @@ __all__ = [
     "BookmakerRepositoryDep",
     "CommitteeReviewServiceDep",
     "CompetitionRepositoryDep",
+    "DailyRecommendationsReaderDep",
+    "DailyTopPicksServiceDep",
     "DecisionLogRepositoryDep",
     "FixtureAnalysisServiceDep",
     "FixtureRepositoryDep",
@@ -264,6 +306,8 @@ __all__ = [
     "get_bookmaker_repository",
     "get_committee_review_service",
     "get_competition_repository",
+    "get_daily_recommendations_reader",
+    "get_daily_top_picks_service",
     "get_db_session",
     "get_decision_log_repository",
     "get_fixture_analysis_service",

@@ -71,7 +71,13 @@ class CommitteeReviewService:
         self._model_version = model_version
 
     async def review(self, fixture: Fixture) -> CommitteeReviewResult:
+        """跑确定性分析后交给 Claude 评审并落库。"""
         detailed = await self._analysis.analyze_detailed(fixture)
+        return await self.review_detailed(detailed)
+
+    async def review_detailed(self, detailed: DetailedAnalysis) -> CommitteeReviewResult:
+        """基于**已算好**的确定性分析做评审并落库（供每日批处理复用，避免重复计算）。"""
+        fixture = detailed.fixture
 
         # 无法建模或没有候选（无赔率）→ 无可评审内容，不调用 Claude、不落库。
         if detailed.model_input is None or not detailed.reviewed:
