@@ -15,13 +15,11 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential curl \
     && rm -rf /var/lib/apt/lists/*
 
-# ---- Dependency layer (cached unless pyproject changes) ----
-COPY pyproject.toml README.md ./
+# ---- 源码与依赖 ----
+# 可编辑安装（-e .）需要 app/ 源码存在，故先复制全部代码再安装。
+COPY . .
 RUN pip install --upgrade pip \
     && pip install -e ".[dev]"
-
-# ---- Application code ----
-COPY . .
 
 EXPOSE 8000
 
