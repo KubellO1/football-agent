@@ -5,7 +5,15 @@ Elo / Poisson / 蒙特卡洛 / Kelly / 价值检测等子模型，各自独立�
 """
 
 from app.services.models.kelly import KellyCalculator
+from app.services.models.lambda_estimator import LambdaEstimator, LeagueAverages
 from app.services.models.poisson import PoissonModel
 from app.services.models.value_detector import ValueAssessment, ValueDetector
 
-__all__ = ["KellyCalculator", "PoissonModel", "ValueAssessment", "ValueDetector"]
+__all__ = [
+    "KellyCalculator",
+    "LambdaEstimator",
+    "LeagueAverages",
+    "PoissonModel",
+    "ValueAssessment",
+    "ValueDetector",
+]
