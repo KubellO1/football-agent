@@ -24,7 +24,7 @@ from app.schemas.reasoning import (
     Verdict,
 )
 from app.services.daily_selection import CandidateEvaluation, DailySelectionService
-from app.services.modeling import MatchModel, ModelCandidate, ModelOutput
+from app.services.modeling import MatchModel, ModelCandidate, ModelInput, ModelOutput
 from app.services.recommendation_gate import GateInput, RecommendationGate
 
 NO_VALUE_MESSAGE = "今天没有值得下注的比赛。"
@@ -57,9 +57,10 @@ class MatchAnalysisPipeline:
         self._reasoning = reasoning
         self._value_bets = value_bet_repository
 
-    async def analyze_fixture(self, fixture: Fixture) -> AnalysisResult:
+    async def analyze(self, model_input: ModelInput) -> AnalysisResult:
+        fixture = model_input.fixture
         # Step 4-7：数学模型产出概率、EV、候选（真相来源）
-        output = await self._model.analyze(fixture)
+        output = await self._model.analyze(model_input)
 
         # Step 8：逐候选跑准入 gate
         evaluations = [self._evaluate(candidate) for candidate in output.candidates]
