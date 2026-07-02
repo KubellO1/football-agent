@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from uuid import UUID
 
 from sqlalchemy import select
@@ -65,6 +66,14 @@ class SqlAlchemyTeamRepository(TeamRepository):
         rows = (await self._session.execute(stmt)).scalars().all()
         return [TeamMapper.to_domain(r) for r in rows]
 
+    async def list_by_ids(self, ids: Iterable[UUID]) -> list[Team]:
+        id_list = list(ids)
+        if not id_list:
+            return []
+        stmt = select(TeamORM).where(TeamORM.id.in_(id_list))
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [TeamMapper.to_domain(r) for r in rows]
+
 
 class SqlAlchemyCompetitionRepository(CompetitionRepository):
     """基于 AsyncSession 的赛事仓储实现。"""
@@ -101,6 +110,14 @@ class SqlAlchemyCompetitionRepository(CompetitionRepository):
 
     async def list_all(self) -> list[Competition]:
         stmt = select(CompetitionORM).order_by(CompetitionORM.name)
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [CompetitionMapper.to_domain(r) for r in rows]
+
+    async def list_by_ids(self, ids: Iterable[UUID]) -> list[Competition]:
+        id_list = list(ids)
+        if not id_list:
+            return []
+        stmt = select(CompetitionORM).where(CompetitionORM.id.in_(id_list))
         rows = (await self._session.execute(stmt)).scalars().all()
         return [CompetitionMapper.to_domain(r) for r in rows]
 

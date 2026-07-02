@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+from collections.abc import Iterable
 from typing import TypeVar
 from uuid import UUID
 
@@ -41,6 +42,11 @@ class TeamRepository(ReferenceRepository[Team]):
         """按外部数据源 + 外部 id 精确查询（采集幂等键），不存在返回 None。"""
         ...
 
+    @abstractmethod
+    async def list_by_ids(self, ids: Iterable[UUID]) -> list[Team]:
+        """按一组 id 批量获取（用于读端点批量解析，避免 N+1）。"""
+        ...
+
 
 class CompetitionRepository(ReferenceRepository[Competition]):
     """赛事仓储。"""
@@ -48,6 +54,11 @@ class CompetitionRepository(ReferenceRepository[Competition]):
     @abstractmethod
     async def get_by_external_id(self, source: str, external_id: str) -> Competition | None:
         """按外部数据源 + 外部 id 精确查询（采集幂等键），不存在返回 None。"""
+        ...
+
+    @abstractmethod
+    async def list_by_ids(self, ids: Iterable[UUID]) -> list[Competition]:
+        """按一组 id 批量获取（用于读端点批量解析，避免 N+1）。"""
         ...
 
 
