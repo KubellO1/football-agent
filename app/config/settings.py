@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field, computed_field
+from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -59,6 +59,14 @@ class Settings(BaseSettings):
     provider_timeout_seconds: float = 10.0
     provider_max_retries: int = 3  # extra attempts after the first, on transient errors
     provider_backoff_base_seconds: float = 0.5  # exponential backoff base
+
+    # --- Odds ingestion ---
+    # The Odds API sport keys to fetch (JSON list in env), and bookmaker regions.
+    odds_sport_keys: list[str] = ["soccer_epl"]
+    odds_regions: list[str] = ["eu"]
+    # Max |kickoff - commence_time| tolerated when matching an odds event to a
+    # fixture. Beyond this the event is treated as unmatched (never guessed).
+    odds_match_tolerance_minutes: int = 180
 
     @computed_field  # type: ignore[prop-decorator]
     @property

@@ -143,6 +143,18 @@ class SqlAlchemyBookmakerRepository(BookmakerRepository):
         row = (await self._session.execute(stmt)).scalars().first()
         return BookmakerMapper.to_domain(row) if row is not None else None
 
+    async def get_by_external_id(self, source: str, external_id: str) -> Bookmaker | None:
+        stmt = (
+            select(BookmakerORM)
+            .where(
+                BookmakerORM.external_source == source,
+                BookmakerORM.external_id == external_id,
+            )
+            .limit(1)
+        )
+        row = (await self._session.execute(stmt)).scalars().first()
+        return BookmakerMapper.to_domain(row) if row is not None else None
+
     async def list_all(self) -> list[Bookmaker]:
         stmt = select(BookmakerORM).order_by(BookmakerORM.name)
         rows = (await self._session.execute(stmt)).scalars().all()

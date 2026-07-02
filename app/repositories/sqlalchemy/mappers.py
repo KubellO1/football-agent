@@ -10,6 +10,7 @@ from app.models.entities.competition import Competition, Season
 from app.models.entities.decision_log import DecisionLog
 from app.models.entities.enums import MatchStatus
 from app.models.entities.fixture import Fixture
+from app.models.entities.odds_snapshot import OddsSnapshot
 from app.models.entities.prediction import MatchPrediction
 from app.models.entities.team import Team
 from app.models.entities.value_bet import ValueBet
@@ -25,6 +26,7 @@ from app.repositories.sqlalchemy.models import (
     CompetitionORM,
     DecisionLogORM,
     FixtureORM,
+    OddsSnapshotORM,
     PredictionORM,
     SeasonORM,
     TeamORM,
@@ -112,11 +114,23 @@ class TeamMapper:
 class BookmakerMapper:
     @staticmethod
     def to_domain(row: BookmakerORM) -> Bookmaker:
-        return Bookmaker(id=row.id, name=row.name, country=row.country)
+        return Bookmaker(
+            id=row.id,
+            name=row.name,
+            country=row.country,
+            external_id=row.external_id,
+            external_source=row.external_source,
+        )
 
     @staticmethod
     def to_orm(entity: Bookmaker) -> BookmakerORM:
-        return BookmakerORM(id=entity.id, name=entity.name, country=entity.country)
+        return BookmakerORM(
+            id=entity.id,
+            name=entity.name,
+            country=entity.country,
+            external_id=entity.external_id,
+            external_source=entity.external_source,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -267,6 +281,38 @@ class ValueBetMapper:
             confidence=entity.confidence,
             rationale=entity.rationale,
             created_at=entity.created_at,
+        )
+
+
+class OddsSnapshotMapper:
+    """OddsSnapshot 与 OddsSnapshotORM 之间的转换器。"""
+
+    @staticmethod
+    def to_domain(row: OddsSnapshotORM) -> OddsSnapshot:
+        return OddsSnapshot(
+            id=row.id,
+            fixture_id=row.fixture_id,
+            bookmaker_id=row.bookmaker_id,
+            selection=Selection(
+                market=MarketType(row.selection_market),
+                code=row.selection_code,
+                line=row.selection_line,
+            ),
+            odds=Odds(row.odds_decimal),
+            captured_at=row.captured_at,
+        )
+
+    @staticmethod
+    def to_orm(entity: OddsSnapshot) -> OddsSnapshotORM:
+        return OddsSnapshotORM(
+            id=entity.id,
+            fixture_id=entity.fixture_id,
+            bookmaker_id=entity.bookmaker_id,
+            selection_market=entity.selection.market.value,
+            selection_code=entity.selection.code,
+            selection_line=entity.selection.line,
+            odds_decimal=entity.odds.decimal,
+            captured_at=entity.captured_at,
         )
 
 

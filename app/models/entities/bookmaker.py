@@ -13,3 +13,6 @@ class Bookmaker(Entity):
 
     name: str
     country: str | None = None
+    # Upstream feed key + source (idempotency key for odds ingestion).
+    external_id: str | None = None
+    external_source: str | None = None

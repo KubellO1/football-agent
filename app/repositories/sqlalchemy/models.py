@@ -80,13 +80,18 @@ class TeamORM(TimestampMixin, Base):
 
 
 class BookmakerORM(TimestampMixin, Base):
-    """博彩公司表。"""
+    """博彩公司表。external_source+external_id 为采集幂等键（唯一）。"""
 
     __tablename__ = "bookmakers"
+    __table_args__ = (
+        UniqueConstraint("external_source", "external_id", name="uq_bookmakers_external"),
+    )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     name: Mapped[str] = mapped_column(String(120), index=True)
     country: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    external_source: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    external_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +168,39 @@ class ValueBetORM(TimestampMixin, Base):
     stake_fraction: Mapped[float | None] = mapped_column(Float, nullable=True)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class OddsSnapshotORM(TimestampMixin, Base):
+    """赔率快照表：某盘口某博彩公司在某时刻的一条价格观测。
+
+    时间序列表：captured_at 取博彩公司该盘口的最后更新时间。幂等键为
+    (fixture_id, bookmaker_id, market, code, line, captured_at) 唯一约束——
+    价格未变（captured_at 相同）重复采集不会插入新行。selection_line 可空且
+    1x2 恒为 NULL，故唯一约束用 NULLS NOT DISTINCT（Postgres 15+）以保证去重。
+    """
+
+    __tablename__ = "odds_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "fixture_id",
+            "bookmaker_id",
+            "selection_market",
+            "selection_code",
+            "selection_line",
+            "captured_at",
+            name="uq_odds_snapshots_natural",
+            postgresql_nulls_not_distinct=True,
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    fixture_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("fixtures.id"), index=True)
+    bookmaker_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("bookmakers.id"), index=True)
+    selection_market: Mapped[str] = mapped_column(String(30))
+    selection_code: Mapped[str] = mapped_column(String(30))
+    selection_line: Mapped[float | None] = mapped_column(Float, nullable=True)
+    odds_decimal: Mapped[Decimal] = mapped_column(Numeric(9, 3))
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
 class DecisionLogORM(TimestampMixin, Base):
