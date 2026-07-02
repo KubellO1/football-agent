@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from app.models.entities.bookmaker import Bookmaker
 from app.models.entities.competition import Competition, Season
+from app.models.entities.decision_log import DecisionLog
 from app.models.entities.enums import MatchStatus
 from app.models.entities.fixture import Fixture
 from app.models.entities.prediction import MatchPrediction
@@ -22,6 +23,7 @@ from app.models.value_objects.score import MatchResult, Score
 from app.repositories.sqlalchemy.models import (
     BookmakerORM,
     CompetitionORM,
+    DecisionLogORM,
     FixtureORM,
     PredictionORM,
     SeasonORM,
@@ -244,5 +246,37 @@ class ValueBetMapper:
             stake_fraction=stake.fraction_of_bankroll if stake is not None else None,
             confidence=entity.confidence,
             rationale=entity.rationale,
+            created_at=entity.created_at,
+        )
+
+
+class DecisionLogMapper:
+    """DecisionLog 与 DecisionLogORM 之间的转换器。列表字段直接存/取 JSON。"""
+
+    @staticmethod
+    def to_domain(row: DecisionLogORM) -> DecisionLog:
+        return DecisionLog(
+            id=row.id,
+            fixture_id=row.fixture_id,
+            summary=row.summary,
+            value_bet_id=row.value_bet_id,
+            supporting_evidence=list(row.supporting_evidence),
+            risks=list(row.risks),
+            rejected_alternatives=list(row.rejected_alternatives),
+            change_conditions=list(row.change_conditions),
+            created_at=row.created_at,
+        )
+
+    @staticmethod
+    def to_orm(entity: DecisionLog) -> DecisionLogORM:
+        return DecisionLogORM(
+            id=entity.id,
+            fixture_id=entity.fixture_id,
+            value_bet_id=entity.value_bet_id,
+            summary=entity.summary,
+            supporting_evidence=list(entity.supporting_evidence),
+            risks=list(entity.risks),
+            rejected_alternatives=list(entity.rejected_alternatives),
+            change_conditions=list(entity.change_conditions),
             created_at=entity.created_at,
         )

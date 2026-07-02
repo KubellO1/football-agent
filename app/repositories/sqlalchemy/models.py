@@ -15,6 +15,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import (
+    JSON,
     Date,
     DateTime,
     Float,
@@ -150,3 +151,20 @@ class ValueBetORM(TimestampMixin, Base):
     stake_fraction: Mapped[float | None] = mapped_column(Float, nullable=True)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class DecisionLogORM(TimestampMixin, Base):
+    """决策日志表（宪法第 16 节）。列表字段用 JSON 存储，避免多张关联表。"""
+
+    __tablename__ = "decision_logs"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    fixture_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("fixtures.id"), index=True)
+    value_bet_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("value_bets.id"), nullable=True
+    )
+    summary: Mapped[str] = mapped_column(Text)
+    supporting_evidence: Mapped[list[str]] = mapped_column(JSON, default=list)
+    risks: Mapped[list[str]] = mapped_column(JSON, default=list)
+    rejected_alternatives: Mapped[list[str]] = mapped_column(JSON, default=list)
+    change_conditions: Mapped[list[str]] = mapped_column(JSON, default=list)

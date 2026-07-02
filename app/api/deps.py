@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.interfaces import ReasoningEngine
 from app.core.container import container
+from app.repositories.interfaces.decision_log_repository import DecisionLogRepository
 from app.repositories.interfaces.fixture_repository import FixtureRepository
 from app.repositories.interfaces.prediction_repository import PredictionRepository
 from app.repositories.interfaces.reference import (
@@ -25,6 +26,7 @@ from app.repositories.interfaces.reference import (
     TeamRepository,
 )
 from app.repositories.interfaces.value_bet_repository import ValueBetRepository
+from app.repositories.sqlalchemy.decision_log_repository import SqlAlchemyDecisionLogRepository
 from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
 from app.repositories.sqlalchemy.prediction_repository import SqlAlchemyPredictionRepository
 from app.repositories.sqlalchemy.reference_repositories import (
@@ -75,6 +77,10 @@ def get_value_bet_repository(session: SessionDep) -> ValueBetRepository:
     return SqlAlchemyValueBetRepository(session)
 
 
+def get_decision_log_repository(session: SessionDep) -> DecisionLogRepository:
+    return SqlAlchemyDecisionLogRepository(session)
+
+
 def get_team_repository(session: SessionDep) -> TeamRepository:
     return SqlAlchemyTeamRepository(session)
 
@@ -94,6 +100,9 @@ def get_bookmaker_repository(session: SessionDep) -> BookmakerRepository:
 FixtureRepositoryDep = Annotated[FixtureRepository, Depends(get_fixture_repository)]
 PredictionRepositoryDep = Annotated[PredictionRepository, Depends(get_prediction_repository)]
 ValueBetRepositoryDep = Annotated[ValueBetRepository, Depends(get_value_bet_repository)]
+DecisionLogRepositoryDep = Annotated[
+    DecisionLogRepository, Depends(get_decision_log_repository)
+]
 TeamRepositoryDep = Annotated[TeamRepository, Depends(get_team_repository)]
 CompetitionRepositoryDep = Annotated[CompetitionRepository, Depends(get_competition_repository)]
 SeasonRepositoryDep = Annotated[SeasonRepository, Depends(get_season_repository)]
@@ -122,6 +131,7 @@ __all__ = [
     "AnalysisPipelineDep",
     "BookmakerRepositoryDep",
     "CompetitionRepositoryDep",
+    "DecisionLogRepositoryDep",
     "FixtureRepositoryDep",
     "PredictionRepositoryDep",
     "RedisDep",
@@ -133,6 +143,7 @@ __all__ = [
     "get_bookmaker_repository",
     "get_competition_repository",
     "get_db_session",
+    "get_decision_log_repository",
     "get_fixture_repository",
     "get_prediction_repository",
     "get_redis",

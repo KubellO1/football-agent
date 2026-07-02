@@ -1,9 +1,13 @@
 """仓储接口的 SQLAlchemy 实现。"""
 
+from app.repositories.sqlalchemy.decision_log_repository import (
+    SqlAlchemyDecisionLogRepository,
+)
 from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
 from app.repositories.sqlalchemy.mappers import (
     BookmakerMapper,
     CompetitionMapper,
+    DecisionLogMapper,
     FixtureMapper,
     PredictionMapper,
     SeasonMapper,
@@ -13,6 +17,7 @@ from app.repositories.sqlalchemy.mappers import (
 from app.repositories.sqlalchemy.models import (
     BookmakerORM,
     CompetitionORM,
+    DecisionLogORM,
     FixtureORM,
     PredictionORM,
     SeasonORM,
@@ -33,6 +38,8 @@ __all__ = [
     "BookmakerORM",
     "CompetitionMapper",
     "CompetitionORM",
+    "DecisionLogMapper",
+    "DecisionLogORM",
     "FixtureMapper",
     "FixtureORM",
     "PredictionMapper",
@@ -41,6 +48,7 @@ __all__ = [
     "SeasonORM",
     "SqlAlchemyBookmakerRepository",
     "SqlAlchemyCompetitionRepository",
+    "SqlAlchemyDecisionLogRepository",
     "SqlAlchemyFixtureRepository",
     "SqlAlchemyPredictionRepository",
     "SqlAlchemySeasonRepository",
