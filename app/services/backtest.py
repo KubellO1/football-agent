@@ -11,19 +11,27 @@
 from __future__ import annotations
 
 import csv
+import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from statistics import mean
+from statistics import mean, median, pstdev
 from uuid import UUID
 
 from app.models.entities.fixture import Fixture
 from app.models.value_objects.decision import EvidenceLevel
 from app.repositories.interfaces.fixture_repository import FixtureRepository
+from app.repositories.interfaces.odds_snapshot_repository import OddsSnapshotRepository
 from app.services.fixture_analysis import FixtureAnalysisService, MatchAnalysisInputBuilder
 from app.services.modeling import ModelInput
 from app.services.models.poisson import PoissonModel
 
 _OU_LINE = 2.5
+_CLASSES = ("home", "draw", "away")
+_LOG_EPS = 1e-15
+# 分桶边界（左闭右开，最后一桶右端为 +inf）。
+_CONFIDENCE_EDGES = [0.0, 0.5, 0.6, 0.7, 0.8, 0.9, float("inf")]
+_ODDS_EDGES = [1.0, 1.5, 2.0, 3.0, 5.0, float("inf")]
 
 
 class BacktestInputBuilder(MatchAnalysisInputBuilder):
@@ -61,6 +69,29 @@ class BetPlaced:
     kelly_fraction: float
     confidence: float
     won: bool
+    closing_odds: float | None = None  # 收盘赔率（若有赛前赔率时序），用于 CLV
+
+
+@dataclass(frozen=True, slots=True)
+class CalibrationBin:
+    """校准（可靠性）曲线的一个分箱：预测概率落入 [lo, hi) 的样本聚合。"""
+
+    lo: float
+    hi: float
+    count: int
+    avg_predicted: float  # 该箱内平均预测概率
+    observed_freq: float  # 该箱内实际发生频率
+
+
+@dataclass(frozen=True, slots=True)
+class BucketStat:
+    """按信心/赔率分桶后的下注盈亏统计。"""
+
+    label: str
+    bets: int
+    profit_units: float  # flat 单位（每注 1 单位）累计盈亏
+    roi: float  # profit_units / bets
+    win_rate: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +129,15 @@ class BacktestStats:
     kelly_roi: float = 0.0
     max_drawdown: float = 0.0  # flat 权益曲线的最大回撤（单位数）
     kelly_max_drawdown: float = 0.0  # Kelly 资金曲线的最大回撤（占峰值比例）
+    # --- 概率校准（无需赔率，对每场评估都可算）---
+    brier_score: float | None = None  # 多分类 Brier（越低越好，0..2）
+    log_loss: float | None = None  # 多分类对数损失（越低越好）
+    calibration: list[CalibrationBin] = field(default_factory=list)
+    # --- 风险/收益（需赔率）---
+    sharpe_ratio: float | None = None  # 每注 flat 收益的夏普（mean/std）
+    clv: float | None = None  # 平均收盘线价值（需赛前赔率时序，否则 None）
+    confidence_buckets: list[BucketStat] = field(default_factory=list)
+    odds_buckets: list[BucketStat] = field(default_factory=list)
     flat_curve: list[float] = field(default_factory=list)
     kelly_curve: list[float] = field(default_factory=list)
 
@@ -119,6 +159,104 @@ def _max_drawdown_fraction(curve: list[float], start: float) -> float:
         if peak > 0:
             dd = max(dd, (peak - value) / peak)
     return dd
+
+
+def _probs(o: MatchOutcome) -> dict[str, float]:
+    return {"home": o.p_home, "draw": o.p_draw, "away": o.p_away}
+
+
+def _brier_score(outcomes: list[MatchOutcome]) -> float:
+    """多分类 Brier：每场 sum_k (p_k - y_k)^2 的均值（y 为实际结果的 one-hot）。"""
+    total = 0.0
+    for o in outcomes:
+        p = _probs(o)
+        total += sum((p[c] - (1.0 if o.actual == c else 0.0)) ** 2 for c in _CLASSES)
+    return total / len(outcomes)
+
+
+def _log_loss(outcomes: list[MatchOutcome]) -> float:
+    """多分类对数损失：-mean(ln p_actual)，对概率做 eps 截断避免 log(0)。"""
+    total = 0.0
+    for o in outcomes:
+        p_actual = _probs(o).get(o.actual, 0.0)
+        total += -math.log(min(max(p_actual, _LOG_EPS), 1.0))
+    return total / len(outcomes)
+
+
+def _calibration(outcomes: list[MatchOutcome], *, bins: int = 10) -> list[CalibrationBin]:
+    """三分类合并的可靠性曲线：把每场每一类的 (预测概率, 是否发生) 汇入 10 个分箱。"""
+    buckets: list[list[tuple[float, float]]] = [[] for _ in range(bins)]
+    for o in outcomes:
+        p = _probs(o)
+        for c in _CLASSES:
+            prob = p[c]
+            idx = min(int(prob * bins), bins - 1)  # prob==1.0 归入最后一箱
+            buckets[idx].append((prob, 1.0 if o.actual == c else 0.0))
+    result: list[CalibrationBin] = []
+    for i, pairs in enumerate(buckets):
+        if not pairs:
+            continue
+        result.append(
+            CalibrationBin(
+                lo=i / bins,
+                hi=(i + 1) / bins,
+                count=len(pairs),
+                avg_predicted=mean(pr for pr, _ in pairs),
+                observed_freq=mean(y for _, y in pairs),
+            )
+        )
+    return result
+
+
+def _sharpe(bets: list[BetPlaced]) -> float | None:
+    """每注 flat 收益（赢 odds-1，输 -1）的夏普比 mean/std；样本不足或零方差返回 None。"""
+    if len(bets) < 2:
+        return None
+    returns = [(b.odds - 1.0) if b.won else -1.0 for b in bets]
+    sd = pstdev(returns)
+    return (mean(returns) / sd) if sd > 0 else None
+
+
+def _clv(bets: list[BetPlaced]) -> float | None:
+    """平均收盘线价值：mean(下注赔率 / 收盘赔率 - 1)，仅在有收盘赔率的注上计算。"""
+    priced = [b for b in bets if b.closing_odds is not None and b.closing_odds > 0]
+    if not priced:
+        return None
+    return mean(b.odds / b.closing_odds - 1.0 for b in priced)  # type: ignore[operator]
+
+
+def _bucketize(
+    bets: list[BetPlaced], key: Callable[[BetPlaced], float], edges: list[float], *, pct: bool
+) -> list[BucketStat]:
+    """按 key(bet) 落入 edges 定义的桶，聚合 flat 盈亏/ROI/胜率。"""
+    groups: list[list[BetPlaced]] = [[] for _ in range(len(edges) - 1)]
+    for b in bets:
+        v = key(b)
+        for i in range(len(edges) - 1):
+            if edges[i] <= v < edges[i + 1]:
+                groups[i].append(b)
+                break
+    stats: list[BucketStat] = []
+    for i, group in enumerate(groups):
+        if not group:
+            continue
+        lo, hi = edges[i], edges[i + 1]
+        if pct:
+            label = f"{lo:.0%}-{hi:.0%}" if hi != float("inf") else f"{lo:.0%}+"
+        else:
+            label = f"{lo:g}-{hi:g}" if hi != float("inf") else f"{lo:g}+"
+        profit = sum((b.odds - 1.0) if b.won else -1.0 for b in group)
+        wins = sum(1 for b in group if b.won)
+        stats.append(
+            BucketStat(
+                label=label,
+                bets=len(group),
+                profit_units=profit,
+                roi=profit / len(group),
+                win_rate=wins / len(group),
+            )
+        )
+    return stats
 
 
 def compute_stats(
@@ -169,6 +307,13 @@ def compute_stats(
         kelly_roi=((bankroll - bankroll_start) / bankroll_start) if n else 0.0,
         max_drawdown=_max_drawdown(flat_curve),
         kelly_max_drawdown=_max_drawdown_fraction(kelly_curve, bankroll_start),
+        brier_score=_brier_score(outcomes),
+        log_loss=_log_loss(outcomes),
+        calibration=_calibration(outcomes),
+        sharpe_ratio=_sharpe(bets),
+        clv=_clv(bets),
+        confidence_buckets=_bucketize(bets, lambda b: b.confidence, _CONFIDENCE_EDGES, pct=True),
+        odds_buckets=_bucketize(bets, lambda b: b.odds, _ODDS_EDGES, pct=False),
         flat_curve=flat_curve,
         kelly_curve=kelly_curve,
     )
@@ -183,10 +328,29 @@ class BacktestService:
         fixtures: FixtureRepository,
         analysis: FixtureAnalysisService,
         poisson: PoissonModel | None = None,
+        odds_snapshots: OddsSnapshotRepository | None = None,
     ) -> None:
         self._fixtures = fixtures
         self._analysis = analysis
         self._poisson = poisson or PoissonModel()
+        # 可选：用于 CLV（需赛前赔率时序）。缺省时 CLV 报 n/a。
+        self._snapshots = odds_snapshots
+
+    async def _closing_odds(self, fixture: Fixture, code: str) -> float | None:
+        """某选项的收盘赔率：赛前赔率快照按时间取最晚一批的中位数；不足两个时点则 None。"""
+        if self._snapshots is None:
+            return None
+        snaps = [
+            s
+            for s in await self._snapshots.list_by_fixture(fixture.id)
+            if s.selection.code == code and s.captured_at < fixture.kickoff
+        ]
+        times = {s.captured_at for s in snaps}
+        if len(times) < 2:  # 只有单一时点 → 无「开盘→收盘」时序，无法算 CLV
+            return None
+        latest = max(times)
+        closing = [float(s.odds.decimal) for s in snaps if s.captured_at == latest]
+        return median(closing) if closing else None
 
     async def run(
         self,
@@ -236,6 +400,7 @@ class BacktestService:
                     kelly_fraction=best.kelly_fraction,
                     confidence=best.confidence,
                     won=best.code == actual,
+                    closing_odds=await self._closing_odds(fixture, best.code),
                 )
 
             outcomes.append(
@@ -355,11 +520,50 @@ def render_markdown(stats: BacktestStats, *, title: str = "Backtest report") -> 
         f"| Win rate | {stats.win_rate:.1%} |",
         f"| ROI (flat stake) | {stats.flat_roi:+.1%} |",
         f"| ROI (Kelly staking) | {stats.kelly_roi:+.1%} |",
+        f"| Sharpe ratio (per bet) | {_fmt(stats.sharpe_ratio, '{:+.3f}')} |",
+        f"| Closing line value | {_fmt(stats.clv, '{:+.2%}')} |",
         f"| Max drawdown (flat, units) | {stats.max_drawdown:.2f} |",
         f"| Max drawdown (Kelly, % of peak) | {stats.kelly_max_drawdown:.1%} |",
         "",
+        "## Probability calibration (all evaluated fixtures, no odds needed)",
+        "",
+        "| Metric | Value |",
+        "|---|---|",
+        f"| Brier score (multiclass, lower=better) | {_fmt(stats.brier_score, '{:.4f}')} |",
+        f"| Log loss (multiclass, lower=better) | {_fmt(stats.log_loss, '{:.4f}')} |",
+        "",
+        "| Predicted prob bin | N | Avg predicted | Observed freq |",
+        "|---|---|---|---|",
+        *(
+            f"| {b.lo:.0%}-{b.hi:.0%} | {b.count} | {b.avg_predicted:.1%} | {b.observed_freq:.1%} |"
+            for b in stats.calibration
+        ),
+        "",
+        "## Profit by confidence bucket",
+        "",
+        *_bucket_table(stats.confidence_buckets),
+        "",
+        "## Profit by odds bucket",
+        "",
+        *_bucket_table(stats.odds_buckets),
+        "",
     ]
     return "\n".join(lines)
+
+
+def _fmt(value: float | None, spec: str) -> str:
+    return "n/a" if value is None else spec.format(value)
+
+
+def _bucket_table(buckets: list[BucketStat]) -> list[str]:
+    if not buckets:
+        return ["_(no bets)_"]
+    rows = ["| Bucket | Bets | Profit (units) | ROI | Win rate |", "|---|---|---|---|---|"]
+    rows += [
+        f"| {b.label} | {b.bets} | {b.profit_units:+.2f} | {b.roi:+.1%} | {b.win_rate:.1%} |"
+        for b in buckets
+    ]
+    return rows
 
 
 def write_markdown(path: str, stats: BacktestStats, *, title: str = "Backtest report") -> None:

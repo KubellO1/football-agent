@@ -39,3 +39,6 @@ redisdata/
 # Imported spreadsheets / local data files (never commit raw data)
 data/
 *.xlsx
+
+# Generated backtest / model-validation reports
+reports/
