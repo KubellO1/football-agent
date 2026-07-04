@@ -35,7 +35,8 @@ from app.services.backtest import (
     BacktestInputBuilder,
     BacktestService,
     BacktestStats,
-    render_markdown,
+    MatchOutcome,
+    compute_stats,
     write_csv,
     write_markdown,
 )
@@ -81,12 +82,17 @@ def _fmt(value: float | None, spec: str) -> str:
     return "n/a" if value is None else spec.format(value)
 
 
-def _summary_row(name: str, s: BacktestStats) -> str:
+def _unmatched_pct(outcomes: list[MatchOutcome]) -> float:
+    if not outcomes:
+        return 0.0
+    return 100.0 * sum(1 for o in outcomes if not o.has_odds) / len(outcomes)
+
+
+def _league_row(name: str, s: BacktestStats, outcomes: list[MatchOutcome]) -> str:
     return (
-        f"| {name} | {s.fixtures_evaluated} | {s.winner_accuracy:.1%} | "
-        f"{_fmt(s.brier_score, '{:.3f}')} | {_fmt(s.log_loss, '{:.3f}')} | {s.bets_placed} | "
-        f"{s.flat_roi:+.1%} | {s.kelly_roi:+.1%} | {_fmt(s.sharpe_ratio, '{:+.2f}')} | "
-        f"{_fmt(s.clv, '{:+.1%}')} | {s.max_drawdown:.1f} |"
+        f"| {name} | {s.bets_placed} | {s.flat_roi:+.1%} | {s.kelly_roi:+.1%} | "
+        f"{s.winner_accuracy:.1%} | {_fmt(s.brier_score, '{:.3f}')} | "
+        f"{_fmt(s.log_loss, '{:.3f}')} | {_unmatched_pct(outcomes):.1f}% |"
     )
 
 
@@ -98,20 +104,14 @@ async def _run(args: argparse.Namespace) -> None:
     out: Path = args.out
     out.mkdir(parents=True, exist_ok=True)
 
-    summary = [
-        "# Model validation summary",
-        "",
-        "| Competition | Eval | Winner acc | Brier | LogLoss | Bets | "
-        "ROI flat | ROI Kelly | Sharpe | CLV | MaxDD |",
-        "|---|---|---|---|---|---|---|---|---|---|---|",
-    ]
+    results: list[tuple[str, BacktestStats, list[MatchOutcome]]] = []
+    all_outcomes: list[MatchOutcome] = []
     try:
         async with container.database.session() as session:
             for target in _TARGETS:
                 competition_id = await _resolve(session, target)
                 if competition_id is None:
                     logger.warning("skip %s: competition not found", target["name"])
-                    summary.append(f"| {target['name']} | _competition not found_ |||||||||| ")
                     continue
                 start, end = _window(target)
                 builder = BacktestInputBuilder(
@@ -139,21 +139,38 @@ async def _run(args: argparse.Namespace) -> None:
                 write_markdown(
                     str(out / f"{target['slug']}.md"), stats, title=f"Backtest — {target['name']}"
                 )
-                summary.append(_summary_row(target["name"], stats))
+                results.append((target["name"], stats, outcomes))
+                all_outcomes.extend(outcomes)
                 logger.info(
-                    "validated %s: eval=%d bets=%d brier=%s",
+                    "validated %s: eval=%d bets=%d",
                     target["name"],
                     stats.fixtures_evaluated,
                     stats.bets_placed,
-                    _fmt(stats.brier_score, "{:.3f}"),
                 )
     finally:
         await container.shutdown_resources()
 
-    summary_text = "\n".join(summary) + "\n"
+    # 汇总：把全部逐场结果按开赛时间排序后合并计算总体指标（Kelly/回撤按时序才连贯）。
+    overall = compute_stats(sorted(all_outcomes, key=lambda o: o.kickoff))
+    ranked = sorted(results, key=lambda r: r[1].flat_roi, reverse=True)
+
+    lines = [
+        "Overall:",
+        f"  Total fixtures: {overall.fixtures_evaluated}",
+        f"  Total bets:     {overall.bets_placed}",
+        f"  ROI (flat):     {overall.flat_roi:+.1%}",
+        f"  Kelly ROI:      {overall.kelly_roi:+.1%}",
+        f"  Sharpe:         {_fmt(overall.sharpe_ratio, '{:+.2f}')}",
+        f"  Max drawdown:   {overall.max_drawdown:.2f} units",
+        "",
+        "Per league (ranked by ROI, best to worst):",
+        "| League | Bets | ROI | Kelly ROI | Winner acc | Brier | LogLoss | Unmatched % |",
+        "|---|---|---|---|---|---|---|---|",
+        *(_league_row(name, s, o) for name, s, o in ranked),
+    ]
+    summary_text = "\n".join(lines) + "\n"
     (out / "model_validation_summary.md").write_text(summary_text, encoding="utf-8")
     print(summary_text)
-    print(f"[written] {out}/*.csv, *.md, model_validation_summary.md")
 
 
 def main() -> None:

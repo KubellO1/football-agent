@@ -110,6 +110,7 @@ class MatchOutcome:
     over_pred: bool | None
     over_actual: bool
     bet: BetPlaced | None
+    has_odds: bool = False  # 该场是否有赛前赔率喂入模型（用于统计赔率覆盖/未匹配率）
 
 
 @dataclass
@@ -419,6 +420,7 @@ class BacktestService:
                     over_pred=over_pred,
                     over_actual=fixture.score.total_goals > _OU_LINE,
                     bet=bet,
+                    has_odds=bool(detailed.model_input.quotes),
                 )
             )
 
