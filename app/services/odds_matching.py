@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -64,19 +65,25 @@ def match_event(
     commence_time: datetime,
     candidates: list[MatchCandidate],
     tolerance: timedelta,
+    alias_names: Callable[[str], frozenset[str]] | None = None,
 ) -> MatchResult:
     """把一个赔率事件匹配到候选比赛中唯一的一场，否则报告未匹配/歧义。
 
     命中条件：归一化主队名与客队名**同时**相等（不允许主客颠倒），且
     ``|kickoff - commence_time| <= tolerance``。
+
+    ``alias_names`` 可选：把某个归一化队名展开为「等价拼写集合」（人工核对的别名，
+    见 team_aliases），用于消除跨数据源的拼写差异。默认恒等（不启用别名，行为不变）。
+    赛事名只要落入候选方的等价集合即视为同队——仍是精确集合成员判断，绝非模糊匹配。
     """
     home = normalize_team_name(event_home)
     away = normalize_team_name(event_away)
+    resolve = alias_names if alias_names is not None else (lambda n: frozenset({n}))
     hits = [
         c
         for c in candidates
-        if c.home_norm == home
-        and c.away_norm == away
+        if home in resolve(c.home_norm)
+        and away in resolve(c.away_norm)
         and abs(c.kickoff - commence_time) <= tolerance
     ]
     if len(hits) == 1:

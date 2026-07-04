@@ -102,6 +102,28 @@ def test_kickoff_outside_tolerance_is_unmatched() -> None:
 
 
 @pytest.mark.unit
+def test_alias_resolver_matches_different_spelling() -> None:
+    # 候选库存简称，赛事用全称：默认不匹配，提供别名解析器后命中
+    cand = _candidate("Newcastle", "Liverpool")
+    common = dict(
+        event_home="Newcastle United",
+        event_away="Liverpool",
+        commence_time=KICKOFF,
+        candidates=[cand],
+        tolerance=TOL,
+    )
+    assert match_event(**common).outcome is MatchOutcome.UNMATCHED
+
+    def resolve(norm: str) -> frozenset[str]:
+        group = {normalize_team_name("Newcastle"), normalize_team_name("Newcastle United")}
+        return frozenset(group) if norm in group else frozenset({norm})
+
+    aliased = match_event(**common, alias_names=resolve)
+    assert aliased.outcome is MatchOutcome.MATCHED
+    assert aliased.fixture_id == cand.fixture_id
+
+
+@pytest.mark.unit
 def test_home_away_orientation_must_match() -> None:
     # 主客颠倒不算命中（避免把赔率关联到错误方向）。
     result = match_event(

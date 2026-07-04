@@ -157,6 +157,30 @@ async def test_backfill_competition_filter_disambiguates(db_session: AsyncSessio
 
 
 @pytest.mark.integration
+async def test_backfill_matches_via_team_alias(db_session: AsyncSession) -> None:
+    # 库存简称（API-Football 口径），赔率用全称（The Odds API 口径）→ 靠别名命中
+    comp = await SqlAlchemyCompetitionRepository(db_session).add(
+        Competition(name="EPL", country="C")
+    )
+    home = await SqlAlchemyTeamRepository(db_session).add(Team(name="Newcastle"))
+    away = await SqlAlchemyTeamRepository(db_session).add(Team(name="Wolves"))
+    fixture = await _add_fixture(db_session, comp.id, home.id, away.id, D17)
+
+    provider = FakeHistoricalProvider(
+        [_event("Newcastle United", "Wolverhampton Wanderers", commence=D17)]
+    )
+    report = await _service(db_session, provider).backfill_historical(
+        sport="soccer_epl", start=date(2024, 8, 17), end=date(2024, 8, 17)
+    )
+
+    assert report.events_matched == 1
+    assert report.events_unmatched == 0
+    assert report.snapshots_created == 3
+    snaps = await SqlAlchemyOddsSnapshotRepository(db_session).list_by_fixture(fixture.id)
+    assert {s.selection.code for s in snaps} == {"home", "away", "draw"}
+
+
+@pytest.mark.integration
 async def test_backfill_steps_days_and_ignores_other_day_events(db_session: AsyncSession) -> None:
     comp = await SqlAlchemyCompetitionRepository(db_session).add(
         Competition(name="EPL", country="C")

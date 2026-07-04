@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -32,6 +32,7 @@ from app.services.odds_matching import (
     match_event,
     normalize_team_name,
 )
+from app.services.team_aliases import accepted_names
 
 logger = get_logger(__name__)
 
@@ -78,6 +79,7 @@ class OddsIngestionService:
         regions: list[str],
         tolerance_minutes: int,
         source: str = SOURCE_THE_ODDS_API,
+        alias_names: Callable[[str], frozenset[str]] = accepted_names,
     ) -> None:
         self._odds = odds_provider
         self._fixtures = fixtures
@@ -88,6 +90,7 @@ class OddsIngestionService:
         self._regions = regions
         self._tolerance = timedelta(minutes=tolerance_minutes)
         self._source = source
+        self._alias_names = alias_names
 
     async def sync_odds_today(self, on_date: date) -> OddsSyncReport:
         """抓取并写入 ``on_date`` 当日的足球赔率快照，返回统计。可安全重复运行。"""
@@ -241,6 +244,7 @@ class OddsIngestionService:
                 commence_time=event.commence_time,
                 candidates=candidates,
                 tolerance=self._tolerance,
+                alias_names=self._alias_names,
             )
             label = f"{event.home_team} vs {event.away_team} @ {event.commence_time.isoformat()}"
             if result.outcome is MatchOutcome.UNMATCHED:
