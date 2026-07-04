@@ -20,7 +20,12 @@ from app.providers.interfaces.fixtures_provider import FixturesProvider
 from app.providers.schemas.fixtures import ProviderFixture, ProviderTeam
 from app.repositories.sqlalchemy import models  # noqa: F401 - 注册 ORM 表
 from app.repositories.sqlalchemy.models import FixtureORM
-from app.services.backfill import ApiFootballBackfill, write_checkpoint
+from app.services.backfill import (
+    ApiFootballBackfill,
+    LeagueSeasonBackfill,
+    write_checkpoint,
+    write_league_checkpoint,
+)
 
 
 def _test_dsn() -> str:
@@ -133,3 +138,85 @@ async def test_backfill_resumes_from_checkpoint(container: Container, tmp_path) 
     assert report.dates_processed == 2
     assert provider.queried_dates == [date(2026, 1, 2), date(2026, 1, 3)]
     assert await _fixture_count(container) == 2
+
+
+class LeagueFakeFixturesProvider(FixturesProvider):
+    """按 (league, season) 返回 2 场比赛（provider_id 随对变化），记录被查询的对。"""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[int, int]] = []
+
+    async def get_fixtures(self, *, on_date=None, league=None, season=None):  # type: ignore[no-untyped-def]
+        self.calls.append((league, season))
+        base = f"L{league}S{season}"
+        return [
+            ProviderFixture(
+                provider_id=f"{base}-m{i}",
+                kickoff=datetime.combine(date(season, 6, 1 + i), time(18, 0), tzinfo=UTC),
+                status="FT",
+                home=ProviderTeam(provider_id=f"L{league}-A", name=f"L{league} A"),
+                away=ProviderTeam(provider_id=f"L{league}-B", name=f"L{league} B"),
+                league=f"League {league}",
+                league_id=str(league),
+                league_country="X",
+                season=season,
+                home_score=1,
+                away_score=0,
+            )
+            for i in range(2)
+        ]
+
+    async def get_fixture(self, provider_id: str):  # type: ignore[no-untyped-def]
+        return None
+
+
+@pytest.mark.integration
+async def test_league_backfill_and_resume(container: Container, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    provider = LeagueFakeFixturesProvider()
+    container.register(FixturesProvider, provider)
+    cp = tmp_path / "lcp.json"
+    leagues, seasons = [39, 140], [2024, 2025]
+    backfill = LeagueSeasonBackfill(
+        container,
+        checkpoint_path=cp,
+        min_interval_seconds=0.0,
+        sleep=_noop_sleep,
+        progress=lambda _msg: None,
+    )
+
+    # 全量：2 联赛 × 2 赛季 = 4 对，每对 2 场
+    first = await backfill.run(leagues, seasons)
+    assert first.pairs_processed == 4
+    assert first.fixtures_created == 8
+    assert set(provider.calls) == {(39, 2024), (39, 2025), (140, 2024), (140, 2025)}
+    assert await _fixture_count(container) == 8
+
+    # 重跑：全部已完成 → 跳过、无新增
+    again = await backfill.run(leagues, seasons)
+    assert again.pairs_processed == 0
+    assert again.pairs_skipped == 4
+    assert await _fixture_count(container) == 8
+
+
+@pytest.mark.integration
+async def test_league_backfill_resumes_partial(container: Container, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    provider = LeagueFakeFixturesProvider()
+    container.register(FixturesProvider, provider)
+    cp = tmp_path / "lcp.json"
+    leagues, seasons = [39, 140], [2024, 2025]
+    # 模拟联赛 39 的两个赛季已完成
+    write_league_checkpoint(cp, leagues, seasons, {"39:2024", "39:2025"})
+
+    backfill = LeagueSeasonBackfill(
+        container,
+        checkpoint_path=cp,
+        min_interval_seconds=0.0,
+        sleep=_noop_sleep,
+        progress=lambda _msg: None,
+    )
+    report = await backfill.run(leagues, seasons)
+
+    assert report.pairs_processed == 2
+    assert report.pairs_skipped == 2
+    assert set(provider.calls) == {(140, 2024), (140, 2025)}
+    assert await _fixture_count(container) == 4

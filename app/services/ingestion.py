@@ -93,6 +93,15 @@ class IngestionService:
     async def sync_today(self, on_date: date) -> SyncReport:
         """采集 ``on_date`` 当日的比赛并写库，返回统计。可安全重复运行。"""
         provider_fixtures = await self._provider.get_fixtures(on_date=on_date)
+        return await self._process(provider_fixtures, scope=on_date.isoformat())
+
+    async def sync_league_season(self, league_id: int, season: int) -> SyncReport:
+        """采集某联赛某赛季的全部比赛并写库（按 league+season，不按日期）。可安全重复运行。"""
+        provider_fixtures = await self._provider.get_fixtures(league=league_id, season=season)
+        return await self._process(provider_fixtures, scope=f"league={league_id} season={season}")
+
+    async def _process(self, provider_fixtures: list[ProviderFixture], *, scope: str) -> SyncReport:
+        """把一批 ProviderFixture 幂等写入（赛事/球队/比赛/比分/状态），返回统计。"""
         counters = _Counters()
 
         for pf in provider_fixtures:
@@ -112,7 +121,7 @@ class IngestionService:
 
         logger.info(
             "Sync %s: processed=%d created=%d updated=%d skipped=%d comps=%d teams=%d",
-            on_date.isoformat(),
+            scope,
             counters.processed,
             counters.created,
             counters.updated,
@@ -122,7 +131,7 @@ class IngestionService:
         )
         return SyncReport(
             source=self._source,
-            date=on_date.isoformat(),
+            date=scope,
             fixtures_processed=counters.processed,
             fixtures_created=counters.created,
             fixtures_updated=counters.updated,

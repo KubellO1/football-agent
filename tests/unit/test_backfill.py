@@ -6,7 +6,7 @@ from datetime import date
 
 import pytest
 
-from app.services.backfill import date_range, resume_start
+from app.services.backfill import completed_pairs, date_range, resume_start
 
 
 @pytest.mark.unit
@@ -48,3 +48,20 @@ def test_resume_start_past_end_yields_empty_range() -> None:
     start = resume_start(date(2026, 1, 1), date(2026, 1, 5), cp)
     assert start == date(2026, 1, 6)
     assert list(date_range(start, date(2026, 1, 5))) == []
+
+
+@pytest.mark.unit
+def test_completed_pairs_none() -> None:
+    assert completed_pairs([39, 140], [2024, 2025], None) == set()
+
+
+@pytest.mark.unit
+def test_completed_pairs_matching_config() -> None:
+    cp = {"leagues": [39, 140], "seasons": [2024, 2025], "completed": ["39:2024", "39:2025"]}
+    assert completed_pairs([39, 140], [2024, 2025], cp) == {"39:2024", "39:2025"}
+
+
+@pytest.mark.unit
+def test_completed_pairs_ignored_on_config_mismatch() -> None:
+    cp = {"leagues": [39], "seasons": [2024], "completed": ["39:2024"]}
+    assert completed_pairs([39, 140], [2024, 2025], cp) == set()
