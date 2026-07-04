@@ -74,6 +74,8 @@ class Settings(BaseSettings):
     analysis_default_bankroll: float = 1000.0
     analysis_currency: str = "EUR"
     analysis_form_window: int = 10
+    # 概率校准温度（温度缩放）。1.0=不校准；>1 降低过度自信。由 fit_calibration 拟合得到。
+    analysis_calibration_temperature: float = 1.0
 
     # --- Daily recommendations (cost control for the Claude review) ---
     # Thresholds a selection must clear (on top of the gate) to be worth a Claude

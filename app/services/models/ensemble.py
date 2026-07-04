@@ -17,6 +17,7 @@ from app.models.value_objects.decision import DecisionScore, RiskLevel
 from app.models.value_objects.metrics import ExpectedGoals
 from app.models.value_objects.score import MatchResult
 from app.services.modeling import MatchModel, ModelCandidate, ModelInput, ModelOutput
+from app.services.models.calibration import TemperatureCalibrator
 from app.services.models.elo import EloModel
 from app.services.models.kelly import KellyCalculator
 from app.services.models.lambda_estimator import LambdaEstimator
@@ -45,18 +46,23 @@ class EnsembleMatchModel(MatchModel):
         detector: ValueDetector | None = None,
         kelly: KellyCalculator | None = None,
         elo: EloModel | None = None,
+        calibrator: TemperatureCalibrator | None = None,
     ) -> None:
         self._estimator = estimator or LambdaEstimator()
         self._poisson = poisson or PoissonModel()
         self._detector = detector or ValueDetector()
         self._kelly = kelly or KellyCalculator()
         self._elo = elo or EloModel()
+        # 概率校准（温度缩放）。默认 T=1（恒等）→ 不改变既有行为，配置后才生效。
+        self._calibrator = calibrator or TemperatureCalibrator()
 
     async def analyze(self, model_input: ModelInput) -> ModelOutput:
         lam_home, lam_away = self._estimator.estimate(
             model_input.home_stats, model_input.away_stats, model_input.league
         )
         probabilities = self._poisson.match_result_probabilities(lam_home, lam_away)
+        # 校准：温度缩放修正过度自信（保持 argmax，仅改概率大小 → 修正 EV/Kelly/信心）。
+        probabilities = self._calibrator.calibrate(probabilities)
 
         candidates: list[ModelCandidate] = []
         for quote in model_input.quotes:
