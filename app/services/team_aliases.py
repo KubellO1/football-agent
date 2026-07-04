@@ -6,7 +6,8 @@
 剥离等任何推断。
 
 每组是同一支球队在不同数据源下的等价拼写；每个归一化名至多属于一个组，加载时
-校验冲突。当前仅覆盖英超（EPL）；其它联赛按需逐步补充。
+校验冲突。当前覆盖英超 + 西甲 + 德甲 + 意甲 + 法甲（由 _alias_probe 对比两数据源
+队名探得）；其它联赛按需逐步补充。
 """
 
 from __future__ import annotations
@@ -14,7 +15,9 @@ from __future__ import annotations
 from app.services.odds_matching import normalize_team_name
 
 # 每组内的名称视为同一支球队的等价拼写（原始文本，加载时统一归一化）。
+# 每组左侧为库内(API-Football)名，右侧为 The Odds API 的拼写（由 _alias_probe 探得）。
 _ALIAS_GROUPS: list[list[str]] = [
+    # --- Premier League ---
     ["Newcastle", "Newcastle United"],
     ["Wolves", "Wolverhampton Wanderers", "Wolverhampton"],
     ["Ipswich", "Ipswich Town"],
@@ -22,6 +25,21 @@ _ALIAS_GROUPS: list[list[str]] = [
     ["West Ham", "West Ham United"],
     ["Tottenham", "Tottenham Hotspur", "Spurs"],
     ["Leicester", "Leicester City"],
+    # --- La Liga ---
+    ["Athletic Club", "Athletic Bilbao"],
+    ["Osasuna", "CA Osasuna"],
+    # --- Bundesliga ---
+    ["FC Augsburg", "Augsburg"],
+    ["Bayern München", "Bayern Munich"],
+    ["1899 Hoffenheim", "TSG Hoffenheim"],
+    # --- Serie A ---
+    ["Atalanta", "Atalanta BC"],
+    ["Inter", "Inter Milan"],
+    # --- Ligue 1 ---
+    ["Monaco", "AS Monaco"],
+    ["Stade Brestois 29", "Brest"],
+    ["Lens", "RC Lens"],
+    ["Reims", "Stade de Reims"],
 ]
 
 

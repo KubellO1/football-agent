@@ -19,6 +19,24 @@ def test_alias_is_symmetric() -> None:
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    ("db_name", "odds_name"),
+    [
+        ("Athletic Club", "Athletic Bilbao"),  # La Liga
+        ("Bayern München", "Bayern Munich"),  # Bundesliga (口音 + 拼写)
+        ("Inter", "Inter Milan"),  # Serie A
+        ("Stade Brestois 29", "Brest"),  # Ligue 1
+        ("Monaco", "AS Monaco"),  # Ligue 1
+    ],
+)
+def test_cross_league_aliases_resolve(db_name: str, odds_name: str) -> None:
+    group = accepted_names(normalize_team_name(db_name))
+    assert normalize_team_name(odds_name) in group
+    # 反向也成立（同组）
+    assert normalize_team_name(db_name) in accepted_names(normalize_team_name(odds_name))
+
+
+@pytest.mark.unit
 def test_unknown_name_passes_through() -> None:
     # 无别名的名字只返回自身（不会凭空扩展）
     norm = normalize_team_name("Some Random FC")
