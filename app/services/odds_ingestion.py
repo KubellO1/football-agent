@@ -166,8 +166,14 @@ class OddsIngestionService:
         days_processed = 0
 
         day = start
+        days_skipped_empty = 0
         while day <= end:
             candidates = await self._build_candidates(day, competition_id=competition_id)
+            if not candidates:
+                # 当天该赛事无比赛（如国际比赛周/休赛日）→ 不必消耗一次历史赔率请求
+                days_skipped_empty += 1
+                day += timedelta(days=1)
+                continue
             snapshot_at = datetime(day.year, day.month, day.day, snapshot_hour, tzinfo=UTC)
             events = await self._odds.get_historical_odds(
                 sport=sport, at=snapshot_at, markets=("h2h",), regions=regions_t
@@ -193,12 +199,13 @@ class OddsIngestionService:
             day += timedelta(days=1)
 
         logger.info(
-            "Historical odds backfill %s %s..%s: days=%d fetched=%d matched=%d "
+            "Historical odds backfill %s %s..%s: days=%d (skipped_empty=%d) fetched=%d matched=%d "
             "unmatched=%d ambiguous=%d snapshots(created=%d existing=%d) outcomes_skipped=%d",
             sport,
             start.isoformat(),
             end.isoformat(),
             days_processed,
+            days_skipped_empty,
             counters.fetched,
             counters.matched,
             counters.unmatched,

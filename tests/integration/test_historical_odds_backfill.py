@@ -157,6 +157,26 @@ async def test_backfill_competition_filter_disambiguates(db_session: AsyncSessio
 
 
 @pytest.mark.integration
+async def test_backfill_skips_days_without_fixtures(db_session: AsyncSession) -> None:
+    # 只有 8/17 有比赛；回填 8/16..8/18 时，无比赛的两天不应调用历史赔率接口
+    comp = await SqlAlchemyCompetitionRepository(db_session).add(
+        Competition(name="EPL", country="C")
+    )
+    a = await SqlAlchemyTeamRepository(db_session).add(Team(name="Alpha"))
+    b = await SqlAlchemyTeamRepository(db_session).add(Team(name="Beta"))
+    await _add_fixture(db_session, comp.id, a.id, b.id, D17)
+
+    provider = FakeHistoricalProvider([_event("Alpha", "Beta", commence=D17)])
+    report = await _service(db_session, provider).backfill_historical(
+        sport="soccer_epl", start=date(2024, 8, 16), end=date(2024, 8, 18)
+    )
+
+    assert provider.calls == [datetime(2024, 8, 17, 12, tzinfo=UTC)]  # 仅有比赛的那天
+    assert report.days_processed == 1
+    assert report.events_matched == 1
+
+
+@pytest.mark.integration
 async def test_backfill_matches_via_team_alias(db_session: AsyncSession) -> None:
     # 库存简称（API-Football 口径），赔率用全称（The Odds API 口径）→ 靠别名命中
     comp = await SqlAlchemyCompetitionRepository(db_session).add(

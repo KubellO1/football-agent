@@ -30,6 +30,10 @@ _API_FOOTBALL = "api-football"
 # 命中不了就退回「名+时间」匹配；可用 --league / --competition-name 覆盖。
 SPORT_LEAGUE_IDS = {
     "soccer_epl": 39,
+    "soccer_spain_la_liga": 140,
+    "soccer_germany_bundesliga": 78,
+    "soccer_italy_serie_a": 135,
+    "soccer_france_ligue_one": 61,
 }
 
 
