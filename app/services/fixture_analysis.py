@@ -16,13 +16,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import timedelta
+from decimal import Decimal
+from statistics import median
 from uuid import UUID
 
 from app.core.logging import get_logger
 from app.models.entities.fixture import Fixture
+from app.models.entities.odds_snapshot import OddsSnapshot
 from app.models.value_objects.decision import DataCompleteness, EvidenceLevel
 from app.models.value_objects.markets import MarketType
 from app.models.value_objects.money import Money
+from app.models.value_objects.odds import Odds
 from app.models.value_objects.statistics import TeamStatistics
 from app.repositories.interfaces.fixture_repository import FixtureRepository
 from app.repositories.interfaces.odds_snapshot_repository import OddsSnapshotRepository
@@ -45,6 +50,11 @@ NO_VALUE_MESSAGE = "本场无满足准入门槛的价值投注。"
 
 # 采集数据来自 API-Football（专业统计源），证据等级记为 B。
 _EVIDENCE_LEVEL = EvidenceLevel.B
+
+# 赔率去噪参数：某盘口最新快照晚于「最新 - 该窗口」才视为新鲜（否则丢弃为过期）；
+# 相对中位数偏离超过该倍数的赔率视为极端离群点丢弃。
+_ODDS_STALE_WINDOW = timedelta(days=2)
+_ODDS_OUTLIER_RATIO = 3.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,19 +183,53 @@ class MatchAnalysisInputBuilder:
         return LeagueAverages(goals_per_game=per_team)
 
     async def _quotes(self, fixture_id: UUID) -> list[MarketQuote]:
+        """按选项汇总去噪后的赔率报价。
+
+        去噪三步（不取全体最大值）：① 每个博彩公司只保留最新一条快照；② 丢弃明显
+        过期（远早于该选项最新时间）与相对中位数极端离群的赔率；③ 取剩余各家中位数。
+        """
         snapshots = await self._odds.list_by_fixture(fixture_id)
-        best: dict[str, MarketQuote] = {}
+        # code -> bookmaker_id -> 该家最新快照
+        by_code: dict[str, dict[UUID, OddsSnapshot]] = {}
         for snap in snapshots:
             if snap.selection.market is not MarketType.MATCH_RESULT:
                 continue
-            code = snap.selection.code
-            current = best.get(code)
-            # 取每个选项的最优（最高）赔率
-            if current is None or snap.odds.decimal > current.odds.decimal:
-                best[code] = MarketQuote(
-                    selection=snap.selection, odds=snap.odds, bookmaker_id=snap.bookmaker_id
-                )
-        return list(best.values())
+            per_book = by_code.setdefault(snap.selection.code, {})
+            current = per_book.get(snap.bookmaker_id)
+            if current is None or snap.captured_at > current.captured_at:
+                per_book[snap.bookmaker_id] = snap
+
+        quotes: list[MarketQuote] = []
+        for latest_per_book in by_code.values():
+            quote = self._denoise_selection(list(latest_per_book.values()))
+            if quote is not None:
+                quotes.append(quote)
+        return quotes
+
+    @staticmethod
+    def _denoise_selection(snaps: list[OddsSnapshot]) -> MarketQuote | None:
+        """从「各家最新快照」中去掉过期/离群，取中位数赔率，返回一条报价。"""
+        if not snaps:
+            return None
+        # ① 过期过滤：只保留接近最新时间的家
+        newest = max(s.captured_at for s in snaps)
+        fresh = [s for s in snaps if s.captured_at >= newest - _ODDS_STALE_WINDOW]
+        # ② 离群过滤：相对中位数偏离过大者剔除（样本 >=3 时才做，避免误伤）
+        values = [float(s.odds.decimal) for s in fresh]
+        med = median(values)
+        if len(fresh) >= 3:
+            lo, hi = med / _ODDS_OUTLIER_RATIO, med * _ODDS_OUTLIER_RATIO
+            kept = [s for s in fresh if lo <= float(s.odds.decimal) <= hi]
+            if kept:
+                fresh = kept
+        # ③ 取中位数赔率；代表性 bookmaker 取最接近中位数的一家
+        med_odds = median(float(s.odds.decimal) for s in fresh)
+        representative = min(fresh, key=lambda s: abs(float(s.odds.decimal) - med_odds))
+        return MarketQuote(
+            selection=representative.selection,
+            odds=Odds(Decimal(str(round(med_odds, 3)))),
+            bookmaker_id=representative.bookmaker_id,
+        )
 
     async def _elos(
         self, home_team_id: UUID, away_team_id: UUID
