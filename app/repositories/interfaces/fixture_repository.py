@@ -38,15 +38,34 @@ class FixtureRepository(Repository[Fixture]):
 
     @abstractmethod
     async def list_finished_by_team(
-        self, team_id: UUID, *, limit: int | None = None, exclude_fixture_id: UUID | None = None
+        self,
+        team_id: UUID,
+        *,
+        limit: int | None = None,
+        exclude_fixture_id: UUID | None = None,
+        before: datetime | None = None,
     ) -> list[Fixture]:
         """按开赛时间倒序返回某队已完赛的比赛（用于近况统计）。
 
         ``exclude_fixture_id`` 用于排除被分析的比赛本身（不能用比赛自身结果预测它）。
+        ``before`` 只取开赛时间早于该时刻的比赛（回测「赛前」时点、避免未来信息）。
         """
         ...
 
     @abstractmethod
-    async def list_finished_by_competition(self, competition_id: UUID) -> list[Fixture]:
-        """返回某赛事下全部已完赛的比赛（用于联赛场均进球基准）。"""
+    async def list_finished_by_competition(
+        self, competition_id: UUID, *, before: datetime | None = None
+    ) -> list[Fixture]:
+        """返回某赛事下全部已完赛的比赛（用于联赛场均进球基准）。``before`` 见上。"""
+        ...
+
+    @abstractmethod
+    async def list_finished(
+        self,
+        *,
+        competition_id: UUID | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> list[Fixture]:
+        """按开赛时间升序返回已完赛比赛，可选按赛事 / 时间区间过滤（用于回测取样）。"""
         ...

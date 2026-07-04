@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from statistics import median
 from uuid import UUID
@@ -133,9 +133,11 @@ class MatchAnalysisInputBuilder:
             away_elo=away_elo,
         )
 
-    async def _team_stats(self, team_id: UUID, *, exclude: UUID) -> TeamStatistics:
+    async def _team_stats(
+        self, team_id: UUID, *, exclude: UUID, before: datetime | None = None
+    ) -> TeamStatistics:
         fixtures = await self._fixtures.list_finished_by_team(
-            team_id, limit=self._form_window, exclude_fixture_id=exclude
+            team_id, limit=self._form_window, exclude_fixture_id=exclude, before=before
         )
         wins = draws = losses = goals_for = goals_against = played = 0
         for f in fixtures:
@@ -165,8 +167,10 @@ class MatchAnalysisInputBuilder:
             xg_against=float(goals_against),
         )
 
-    async def _league_averages(self, competition_id: UUID) -> LeagueAverages | None:
-        fixtures = await self._fixtures.list_finished_by_competition(competition_id)
+    async def _league_averages(
+        self, competition_id: UUID, *, before: datetime | None = None
+    ) -> LeagueAverages | None:
+        fixtures = await self._fixtures.list_finished_by_competition(competition_id, before=before)
         total_goals = 0
         games = 0
         for f in fixtures:

@@ -73,6 +73,7 @@ class SqlAlchemyFixtureRepository(FixtureRepository):
         *,
         limit: int | None = None,
         exclude_fixture_id: UUID | None = None,
+        before: datetime | None = None,
     ) -> list[Fixture]:
         stmt = (
             select(FixtureORM)
@@ -84,16 +85,40 @@ class SqlAlchemyFixtureRepository(FixtureRepository):
         )
         if exclude_fixture_id is not None:
             stmt = stmt.where(FixtureORM.id != exclude_fixture_id)
+        if before is not None:
+            stmt = stmt.where(FixtureORM.kickoff < before)
         if limit is not None:
             stmt = stmt.limit(limit)
         rows = (await self._session.execute(stmt)).scalars().all()
         return [FixtureMapper.to_domain(r) for r in rows]
 
-    async def list_finished_by_competition(self, competition_id: UUID) -> list[Fixture]:
+    async def list_finished_by_competition(
+        self, competition_id: UUID, *, before: datetime | None = None
+    ) -> list[Fixture]:
         stmt = select(FixtureORM).where(
             FixtureORM.competition_id == competition_id,
             FixtureORM.status == _FINISHED,
         )
+        if before is not None:
+            stmt = stmt.where(FixtureORM.kickoff < before)
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [FixtureMapper.to_domain(r) for r in rows]
+
+    async def list_finished(
+        self,
+        *,
+        competition_id: UUID | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> list[Fixture]:
+        stmt = select(FixtureORM).where(FixtureORM.status == _FINISHED)
+        if competition_id is not None:
+            stmt = stmt.where(FixtureORM.competition_id == competition_id)
+        if start is not None:
+            stmt = stmt.where(FixtureORM.kickoff >= start)
+        if end is not None:
+            stmt = stmt.where(FixtureORM.kickoff < end)
+        stmt = stmt.order_by(FixtureORM.kickoff)
         rows = (await self._session.execute(stmt)).scalars().all()
         return [FixtureMapper.to_domain(r) for r in rows]
 
