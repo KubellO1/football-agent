@@ -8,6 +8,7 @@ markets; we flatten bookmaker×market into one :class:`BookmakerMarket` each.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -58,6 +59,27 @@ class TheOddsApiProvider(BaseHTTPProvider, OddsProvider):
         payload = await self._get_json(f"/sports/{sport}/odds", params=params)
         # The v4 odds endpoint returns a bare JSON array of events.
         return [self._parse_event(event) for event in payload]
+
+    async def get_historical_odds(
+        self,
+        *,
+        sport: str,
+        at: datetime,
+        markets: Sequence[str] = ("h2h",),
+        regions: Sequence[str] = ("eu",),
+    ) -> list[ProviderFixtureOdds]:
+        params = {
+            "apiKey": self._api_key,
+            "regions": ",".join(regions),
+            "markets": ",".join(markets),
+            "oddsFormat": "decimal",
+            "date": at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+        payload = await self._get_json(f"/historical/sports/{sport}/odds", params=params)
+        # Unlike the live endpoint, the historical endpoint wraps the event array
+        # in a snapshot envelope: {timestamp, previous_timestamp, next_timestamp, data}.
+        events = payload.get("data", []) if isinstance(payload, dict) else []
+        return [self._parse_event(event) for event in events]
 
     @staticmethod
     def _parse_event(event: dict[str, Any]) -> ProviderFixtureOdds:

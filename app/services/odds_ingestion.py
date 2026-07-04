@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -24,7 +25,7 @@ from app.providers.schemas.odds import ProviderFixtureOdds
 from app.repositories.interfaces.fixture_repository import FixtureRepository
 from app.repositories.interfaces.odds_snapshot_repository import OddsSnapshotRepository
 from app.repositories.interfaces.reference import BookmakerRepository, TeamRepository
-from app.schemas.odds_sync import OddsSyncReport
+from app.schemas.odds_sync import HistoricalOddsBackfillReport, OddsSyncReport
 from app.services.odds_matching import (
     MatchCandidate,
     MatchOutcome,
@@ -100,32 +101,14 @@ class OddsIngestionService:
             events = await self._odds.get_odds(
                 sport=sport_key, markets=("h2h",), regions=tuple(self._regions)
             )
-            for event in events:
-                counters.fetched += 1
-                result = match_event(
-                    event_home=event.home_team,
-                    event_away=event.away_team,
-                    commence_time=event.commence_time,
-                    candidates=candidates,
-                    tolerance=self._tolerance,
-                )
-                label = (
-                    f"{event.home_team} vs {event.away_team} @ {event.commence_time.isoformat()}"
-                )
-                if result.outcome is MatchOutcome.UNMATCHED:
-                    counters.unmatched += 1
-                    if len(unmatched_samples) < _SAMPLE_CAP:
-                        unmatched_samples.append(label)
-                    continue
-                if result.outcome is MatchOutcome.AMBIGUOUS:
-                    counters.ambiguous += 1
-                    if len(ambiguous_samples) < _SAMPLE_CAP:
-                        ambiguous_samples.append(f"{label} ({result.candidate_count} candidates)")
-                    continue
-
-                counters.matched += 1
-                assert result.fixture_id is not None
-                await self._ingest_event_odds(event, result.fixture_id, bookmaker_cache, counters)
+            await self._process_events(
+                events,
+                candidates,
+                counters=counters,
+                unmatched_samples=unmatched_samples,
+                ambiguous_samples=ambiguous_samples,
+                bookmaker_cache=bookmaker_cache,
+            )
 
         logger.info(
             "Odds sync %s: fetched=%d matched=%d unmatched=%d ambiguous=%d "
@@ -154,10 +137,136 @@ class OddsIngestionService:
             ambiguous_samples=ambiguous_samples,
         )
 
-    async def _build_candidates(self, on_date: date) -> list[MatchCandidate]:
+    async def backfill_historical(
+        self,
+        *,
+        sport: str,
+        start: date,
+        end: date,
+        competition_id: UUID | None = None,
+        competition_scope: str | None = None,
+        snapshot_hour: int = 12,
+        regions: Sequence[str] | None = None,
+    ) -> HistoricalOddsBackfillReport:
+        """回填 ``[start, end]``（含）内每天一份历史赔率快照并幂等写入。
+
+        每天在 ``snapshot_hour``(UTC) 取一份快照，只与**当天开赛**的比赛匹配
+        （复用 sync 相同的保守匹配 + 幂等写入）。``competition_id`` 用于把候选限定
+        到某赛事（宪法：绝不猜测）。可安全重复运行：同一快照的 last_update 稳定，
+        命中幂等键即静默跳过。
+        """
+        regions_t = tuple(regions) if regions is not None else tuple(self._regions)
+        counters = _Counters()
+        unmatched_samples: list[str] = []
+        ambiguous_samples: list[str] = []
+        bookmaker_cache: dict[str, Bookmaker] = {}
+        days_processed = 0
+
+        day = start
+        while day <= end:
+            candidates = await self._build_candidates(day, competition_id=competition_id)
+            snapshot_at = datetime(day.year, day.month, day.day, snapshot_hour, tzinfo=UTC)
+            events = await self._odds.get_historical_odds(
+                sport=sport, at=snapshot_at, markets=("h2h",), regions=regions_t
+            )
+            days_processed += 1
+            # 只处理「当天开赛」的事件；快照里其它日期的赛事留给对应那天处理，
+            # 避免把未来场次误计为未匹配。
+            day_start = datetime(day.year, day.month, day.day, tzinfo=UTC)
+            day_end = day_start + timedelta(days=1)
+            same_day = [
+                e
+                for e in events
+                if day_start - self._tolerance <= e.commence_time < day_end + self._tolerance
+            ]
+            await self._process_events(
+                same_day,
+                candidates,
+                counters=counters,
+                unmatched_samples=unmatched_samples,
+                ambiguous_samples=ambiguous_samples,
+                bookmaker_cache=bookmaker_cache,
+            )
+            day += timedelta(days=1)
+
+        logger.info(
+            "Historical odds backfill %s %s..%s: days=%d fetched=%d matched=%d "
+            "unmatched=%d ambiguous=%d snapshots(created=%d existing=%d) outcomes_skipped=%d",
+            sport,
+            start.isoformat(),
+            end.isoformat(),
+            days_processed,
+            counters.fetched,
+            counters.matched,
+            counters.unmatched,
+            counters.ambiguous,
+            counters.created,
+            counters.existing,
+            counters.outcomes_skipped,
+        )
+        return HistoricalOddsBackfillReport(
+            source=self._source,
+            sport=sport,
+            date_from=start.isoformat(),
+            date_to=end.isoformat(),
+            days_processed=days_processed,
+            competition_scope=competition_scope,
+            events_fetched=counters.fetched,
+            events_matched=counters.matched,
+            events_unmatched=counters.unmatched,
+            events_ambiguous=counters.ambiguous,
+            snapshots_created=counters.created,
+            snapshots_existing=counters.existing,
+            outcomes_skipped=counters.outcomes_skipped,
+            unmatched_samples=unmatched_samples,
+            ambiguous_samples=ambiguous_samples,
+        )
+
+    async def _process_events(
+        self,
+        events: list[ProviderFixtureOdds],
+        candidates: list[MatchCandidate],
+        *,
+        counters: _Counters,
+        unmatched_samples: list[str],
+        ambiguous_samples: list[str],
+        bookmaker_cache: dict[str, Bookmaker],
+    ) -> None:
+        """把一批赔率事件保守匹配到候选比赛并幂等写入（sync/backfill 共用）。"""
+        for event in events:
+            counters.fetched += 1
+            result = match_event(
+                event_home=event.home_team,
+                event_away=event.away_team,
+                commence_time=event.commence_time,
+                candidates=candidates,
+                tolerance=self._tolerance,
+            )
+            label = f"{event.home_team} vs {event.away_team} @ {event.commence_time.isoformat()}"
+            if result.outcome is MatchOutcome.UNMATCHED:
+                counters.unmatched += 1
+                if len(unmatched_samples) < _SAMPLE_CAP:
+                    unmatched_samples.append(label)
+                continue
+            if result.outcome is MatchOutcome.AMBIGUOUS:
+                counters.ambiguous += 1
+                if len(ambiguous_samples) < _SAMPLE_CAP:
+                    ambiguous_samples.append(f"{label} ({result.candidate_count} candidates)")
+                continue
+
+            counters.matched += 1
+            assert result.fixture_id is not None
+            await self._ingest_event_odds(event, result.fixture_id, bookmaker_cache, counters)
+
+    async def _build_candidates(
+        self, on_date: date, *, competition_id: UUID | None = None
+    ) -> list[MatchCandidate]:
         start = datetime(on_date.year, on_date.month, on_date.day, tzinfo=UTC)
         end = start + timedelta(days=1)
         fixtures = await self._fixtures.list_by_kickoff_window(start, end)
+        if competition_id is not None:
+            # 按赛事限定候选：赔率事件只能匹配到该赛事内的比赛（更保守）。
+            fixtures = [f for f in fixtures if f.competition_id == competition_id]
 
         team_ids = {f.home_team_id for f in fixtures} | {f.away_team_id for f in fixtures}
         team_names = {t.id: t.name for t in await self._teams.list_by_ids(team_ids)}

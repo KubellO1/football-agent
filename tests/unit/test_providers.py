@@ -139,6 +139,47 @@ async def test_odds_api_parses_and_flattens_markets() -> None:
     assert market.outcomes[0].price == 2.5
 
 
+_HISTORICAL_PAYLOAD = {
+    "timestamp": "2024-08-17T11:00:00Z",
+    "previous_timestamp": "2024-08-17T10:00:00Z",
+    "next_timestamp": "2024-08-17T12:00:00Z",
+    "data": _ODDS_PAYLOAD,
+}
+
+
+@pytest.mark.unit
+async def test_odds_api_parses_historical_envelope() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        # 历史端点路径 + date 参数（ISO8601 UTC）
+        assert request.url.path == "/historical/sports/soccer_epl/odds"
+        assert request.url.params["apiKey"] == "test-key"
+        assert request.url.params["date"] == "2024-08-17T11:00:00Z"
+        return httpx.Response(200, json=_HISTORICAL_PAYLOAD)
+
+    provider = TheOddsApiProvider(**_provider_kwargs(_client(handler)))
+    events = await provider.get_historical_odds(
+        sport="soccer_epl", at=datetime(2024, 8, 17, 11, 0, tzinfo=UTC)
+    )
+
+    # 从 envelope 的 data 数组解出事件，形状与 live 相同
+    assert len(events) == 1
+    assert events[0].provider_id == "abc123"
+    assert events[0].bookmakers[0].outcomes[0].price == 2.5
+
+
+@pytest.mark.unit
+async def test_odds_api_historical_handles_empty_snapshot() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        # 该时点无数据：data 为空数组
+        return httpx.Response(200, json={"timestamp": "2024-08-17T11:00:00Z", "data": []})
+
+    provider = TheOddsApiProvider(**_provider_kwargs(_client(handler)))
+    events = await provider.get_historical_odds(
+        sport="soccer_epl", at=datetime(2024, 8, 17, 11, 0, tzinfo=UTC)
+    )
+    assert events == []
+
+
 # --- 重试 / 超时 ------------------------------------------------------------
 
 

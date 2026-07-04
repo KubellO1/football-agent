@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from datetime import datetime
 
 from app.providers.schemas.odds import ProviderFixtureOdds
 
@@ -27,5 +28,21 @@ class OddsProvider(ABC):
 
         ``markets`` selects bet types (e.g. ``h2h``, ``totals``); ``regions``
         selects the bookmaker set (e.g. ``eu``, ``uk``).
+        """
+        raise NotImplementedError
+
+    async def get_historical_odds(
+        self,
+        *,
+        sport: str,
+        at: datetime,
+        markets: Sequence[str] = ("h2h",),
+        regions: Sequence[str] = ("eu",),
+    ) -> list[ProviderFixtureOdds]:
+        """Return the bookmaker odds snapshot for ``sport`` as of ``at`` (UTC).
+
+        Point-in-time historical odds: the feed returns the closest snapshot at
+        or before ``at``. Same event/market shape as :meth:`get_odds`. Optional
+        capability — providers without a historical feed leave this unimplemented.
         """
         raise NotImplementedError
