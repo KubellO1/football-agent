@@ -74,6 +74,17 @@ class SqlAlchemyTeamRepository(TeamRepository):
         rows = (await self._session.execute(stmt)).scalars().all()
         return [TeamMapper.to_domain(r) for r in rows]
 
+    async def update(self, entity: Team) -> Team:
+        row = await self._session.get(TeamORM, entity.id)
+        if row is None:
+            raise KeyError(f"team {entity.id} not found for update")
+        row.name = entity.name
+        row.short_name = entity.short_name
+        row.country = entity.country
+        row.elo = entity.elo.value if entity.elo is not None else None
+        await self._session.flush()
+        return TeamMapper.to_domain(row)
+
 
 class SqlAlchemyCompetitionRepository(CompetitionRepository):
     """基于 AsyncSession 的赛事仓储实现。"""

@@ -20,6 +20,8 @@ dependencies = [
     "redis>=5.0",
     # --- External I/O ---
     "httpx>=0.27",
+    # --- Spreadsheet import (dev/ops tooling) ---
+    "openpyxl>=3.1",
     # --- AI reasoning ---
     "anthropic>=0.34",
 ]

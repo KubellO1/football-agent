@@ -35,3 +35,7 @@ Thumbs.db
 *.log
 pgdata/
 redisdata/
+
+# Imported spreadsheets / local data files (never commit raw data)
+data/
+*.xlsx

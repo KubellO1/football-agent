@@ -47,6 +47,11 @@ class TeamRepository(ReferenceRepository[Team]):
         """按一组 id 批量获取（用于读端点批量解析，避免 N+1）。"""
         ...
 
+    @abstractmethod
+    async def update(self, entity: Team) -> Team:
+        """就地更新一支已存在的球队（按 id），返回更新后的实体。"""
+        ...
+
 
 class CompetitionRepository(ReferenceRepository[Competition]):
     """赛事仓储。"""
