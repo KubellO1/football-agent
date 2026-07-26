@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
-from uuid import UUID
+from uuid import UUID  # noqa: TC003 - Pydantic 会在运行时解析字段注解
 
 from pydantic import BaseModel, Field
 

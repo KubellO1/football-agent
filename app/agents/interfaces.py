@@ -7,9 +7,11 @@ be swapped or faked in tests without touching business logic.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
-from app.schemas.committee_review import CommitteeReview, CommitteeReviewContext
-from app.schemas.reasoning import ReasoningContext, ReasoningOutput
+if TYPE_CHECKING:
+    from app.schemas.committee_review import CommitteeReview, CommitteeReviewContext
+    from app.schemas.reasoning import ReasoningContext, ReasoningOutput
 
 
 class ReasoningEngine(ABC):

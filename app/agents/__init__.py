@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from app.agents.gpt_committee_reviewer import GPTCommitteeReviewer
 from app.agents.gpt_reasoning_agent import GPTReasoningAgent
 from app.agents.interfaces import CommitteeReviewer, ReasoningEngine
 from app.agents.openai_client import OpenAIClient
-from app.config.settings import Settings
+
+if TYPE_CHECKING:
+    from app.config.settings import Settings
 
 
 def build_reasoning_agent(settings: Settings) -> ReasoningEngine:
