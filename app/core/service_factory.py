@@ -8,8 +8,10 @@ Provider / 数学模型 / gate / 评审器等单例从容器解析；仓储按�
 
 from __future__ import annotations
 
+from contextlib import suppress
+from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 from app.agents.interfaces import CommitteeReviewer
 from app.config.whitelist import get_whitelist
@@ -26,21 +28,21 @@ from app.repositories.sqlalchemy.reference_repositories import (
     SqlAlchemyCompetitionRepository,
     SqlAlchemyTeamRepository,
 )
-from app.repositories.sqlalchemy.value_bet_repository import SqlAlchemyValueBetRepository
 from app.repositories.sqlalchemy.settlement_repository import (
     SqlAlchemyBankrollRepository,
     SqlAlchemyPerformanceSnapshotRepository,
     SqlAlchemySettlementRepository,
 )
+from app.repositories.sqlalchemy.value_bet_repository import SqlAlchemyValueBetRepository
 from app.services.committee_review import CommitteeReviewService
 from app.services.daily_top_picks import DailyRecommendationsReader, DailyTopPicksService
 from app.services.fixture_analysis import FixtureAnalysisService, MatchAnalysisInputBuilder
 from app.services.ingestion import IngestionService
 from app.services.modeling import MatchModel
 from app.services.odds_ingestion import OddsIngestionService
+from app.services.performance_tracker import PerformanceTracker
 from app.services.recommendation_gate import RecommendationGate
 from app.services.settlement import SettlementService
-from app.services.performance_tracker import PerformanceTracker
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,7 +50,20 @@ if TYPE_CHECKING:
     from app.core.container import Container
 
 
-async def derive_today_sport_keys(session: AsyncSession, on_date: date) -> dict:
+class SportKeyDiagnostics(TypedDict):
+    """今日动态赔率联赛键的诊断结果。"""
+
+    needed: list[str]
+    configured: int
+    saved: int
+    saved_pct: float
+    empty_keys: list[str]
+
+
+async def derive_today_sport_keys(
+    session: AsyncSession,
+    on_date: date,
+) -> SportKeyDiagnostics:
     """Derive the minimal set of Odds API sport_keys needed for today.
 
     Queries today's fixtures, extracts unique competition names,
@@ -62,17 +77,12 @@ async def derive_today_sport_keys(session: AsyncSession, on_date: date) -> dict:
         - saved_pct: float — percentage saved
         - empty_keys: list[str] — whitelist keys with zero fixtures today
     """
-    from datetime import datetime, timezone as tz
-
-    from app.config.whitelist import get_whitelist
-    from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
-
     whitelist = get_whitelist()
     all_keys = sorted(whitelist.sport_keys)
     configured = len(all_keys)
 
-    day_start = datetime(on_date.year, on_date.month, on_date.day, tzinfo=tz.utc)
-    day_end = datetime(on_date.year, on_date.month, on_date.day, 23, 59, 59, tzinfo=tz.utc)
+    day_start = datetime(on_date.year, on_date.month, on_date.day, tzinfo=UTC)
+    day_end = datetime(on_date.year, on_date.month, on_date.day, 23, 59, 59, tzinfo=UTC)
 
     fixture_repo = SqlAlchemyFixtureRepository(session)
     fixtures = await fixture_repo.list_by_kickoff_window(day_start, day_end)
@@ -80,9 +90,6 @@ async def derive_today_sport_keys(session: AsyncSession, on_date: date) -> dict:
     needed: set[str] = set()
     for fixture in fixtures:
         # Resolve competition → whitelist entry → sport_key
-        from app.repositories.sqlalchemy.reference_repositories import (
-            SqlAlchemyCompetitionRepository,
-        )
         comp_repo = SqlAlchemyCompetitionRepository(session)
         comp = await comp_repo.get(fixture.competition_id)
         comp_name = comp.name if comp else ""
@@ -90,10 +97,8 @@ async def derive_today_sport_keys(session: AsyncSession, on_date: date) -> dict:
         league_id: int | None = None
         country = comp.country if comp else None
         if comp and comp.external_id:
-            try:
+            with suppress(ValueError, TypeError):
                 league_id = int(comp.external_id)
-            except (ValueError, TypeError):
-                pass
 
         if whitelist.is_allowed(comp_name, league_id=league_id, country=country):
             sk = whitelist.get_sport_key_for(comp_name, league_id=league_id, country=country)
@@ -108,7 +113,10 @@ async def derive_today_sport_keys(session: AsyncSession, on_date: date) -> dict:
     logger_ = get_logger(__name__)
     logger_.info(
         "Dynamic sport_key derivation: configured=%d needed=%d saved=%d (%.1f%%)",
-        configured, len(needed_sorted), saved, saved_pct,
+        configured,
+        len(needed_sorted),
+        saved,
+        saved_pct,
     )
     if empty_keys:
         logger_.info("Empty whitelist sport_keys (0 fixtures today): %s", empty_keys)
@@ -132,7 +140,8 @@ def build_ingestion_service(container: Container, session: AsyncSession) -> Inge
 
 
 def build_odds_ingestion_service(
-    container: Container, session: AsyncSession,
+    container: Container,
+    session: AsyncSession,
     *,
     sport_keys: list[str] | None = None,
 ) -> OddsIngestionService:
@@ -144,6 +153,7 @@ def build_odds_ingestion_service(
     if sport_keys is not None:
         used_keys = sport_keys
         from app.core.logging import get_logger
+
         get_logger(__name__).info(
             "Odds ingestion using caller-supplied sport_keys (n=%d)", len(used_keys)
         )
@@ -153,6 +163,7 @@ def build_odds_ingestion_service(
             used_keys = sorted(whitelist.sport_keys)
             if used_keys:
                 from app.core.logging import get_logger
+
                 get_logger(__name__).info(
                     "Odds ingestion using whitelist sport_keys (n=%d)", len(used_keys)
                 )
@@ -247,9 +258,7 @@ def build_settlement_service(container: Container, session: AsyncSession) -> Set
         value_bets=SqlAlchemyValueBetRepository(session),
         settlements=SqlAlchemySettlementRepository(session),
         bankroll=SqlAlchemyBankrollRepository(session),
-        initial_bankroll=Money(
-            Decimal(str(s.analysis_default_bankroll)), s.analysis_currency
-        ),
+        initial_bankroll=Money(Decimal(str(s.analysis_default_bankroll)), s.analysis_currency),
     )
 
 

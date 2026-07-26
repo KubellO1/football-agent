@@ -7,7 +7,7 @@ pulling in the whole application.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime  # noqa: TC003 - SQLAlchemy 会在运行时解析 Mapped 注解
 
 from sqlalchemy import DateTime, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
