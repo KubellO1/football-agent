@@ -211,13 +211,13 @@ def get_committee_review_service(
     decision_logs: DecisionLogRepositoryDep,
     value_bets: ValueBetRepositoryDep,
 ) -> CommitteeReviewService:
-    """组装 AI 评审服务：确定性分析 + 容器中的 Claude 评审器 + 请求作用域仓储。"""
+    """组装 AI 评审服务：确定性分析 + 容器中的 GPT 评审器 + 请求作用域仓储。"""
     return CommitteeReviewService(
         analysis=analysis,
         reviewer=container.resolve(CommitteeReviewer),
         decision_logs=decision_logs,
         value_bets=value_bets,
-        model_version=container.settings.anthropic_model,
+        model_version=container.settings.openai_model,
     )
 
 
@@ -230,7 +230,7 @@ def get_daily_top_picks_service(
     fixtures: FixtureRepositoryDep,
     decision_logs: DecisionLogRepositoryDep,
 ) -> DailyTopPicksService:
-    """组装每日 Top Picks 批处理：确定性分析 + Claude 评审 + 阈值/上限（settings）。"""
+    """组装每日 Top Picks 批处理：确定性分析 + GPT 评审 + 阈值/上限（settings）。"""
     settings = container.settings
     return DailyTopPicksService(
         fixtures=fixtures,
@@ -252,7 +252,7 @@ def get_daily_recommendations_reader(
     value_bets: ValueBetRepositoryDep,
     decision_logs: DecisionLogRepositoryDep,
 ) -> DailyRecommendationsReader:
-    """组装当日推荐读取器（纯读库，不触发 Claude）。"""
+    """组装当日推荐读取器（纯读库，不触发 GPT）。"""
     return DailyRecommendationsReader(
         fixtures=fixtures, value_bets=value_bets, decision_logs=decision_logs
     )

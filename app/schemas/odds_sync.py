@@ -27,6 +27,11 @@ class OddsSyncReport(BaseModel):
     ambiguous_samples: list[str] = Field(
         default_factory=list, description="歧义事件样例（最多若干条）。"
     )
+    primary_provider_hits: int = Field(default=0, description="由 primary provider 成功返回的事件数。")
+    fallback_provider_hits: int = Field(default=0, description="由 fallback provider 成功返回的事件数。")
+    provider_errors_by_source: dict[str, int] = Field(
+        default_factory=dict, description="各 provider 的错误次数，如 {'odds-api.io': 1, 'the-odds-api': 0}。"
+    )
 
 
 class HistoricalOddsBackfillReport(BaseModel):

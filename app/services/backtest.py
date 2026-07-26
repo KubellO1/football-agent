@@ -5,7 +5,7 @@
   避免未来信息泄漏；
 - 纯函数 ``compute_stats``：把逐场结果汇总为准确率/ROI/回撤等统计（可单测）。
 
-结果全程在内存计算，导出 CSV/Markdown；不创建 ValueBet/DecisionLog、不调用 Claude。
+结果全程在内存计算，导出 CSV/Markdown；不创建 ValueBet/DecisionLog、不调用 LLM。
 """
 
 from __future__ import annotations

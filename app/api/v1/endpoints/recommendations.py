@@ -1,8 +1,8 @@
 """每日推荐（Top Picks）端点。
 
 - POST /recommendations/today/run：跑当日批处理（数学分析全部比赛 → gate+阈值预筛
-  → 按 EV 取 Top-N → 仅这几场调用 Claude 评审并落库）。这是唯一会花费 Claude 的入口。
-- GET  /recommendations/today：读取已落库的当日推荐，**绝不**调用 Claude。
+  → 按 EV 取 Top-N → 仅这几场调用 LLM 评审并落库）。这是唯一会花费 LLM 的入口。
+- GET  /recommendations/today：读取已落库的当日推荐，**绝不**调用 LLM。
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ async def run_today(
     picks: DailyTopPicksServiceDep,
     on_date: date | None = None,
 ) -> DailyRunResponse:
-    """跑当日 Top Picks 批处理。仅对通过 gate+阈值的前 N 场调用 Claude（成本可控）。"""
+    """跑当日 Top Picks 批处理。仅对通过 gate+阈值的前 N 场调用 LLM（成本可控）。"""
     target = on_date or datetime.now(UTC).date()
     try:
         report = await picks.run(target)
@@ -51,7 +51,7 @@ async def recommendations_today(
     reader: DailyRecommendationsReaderDep,
     on_date: date | None = None,
 ) -> RecommendationsTodayResponse:
-    """读取当日已落库的推荐（含 Claude 评审摘要）。纯读库，不触发任何 Claude 调用。"""
+    """读取当日已落库的推荐（含 LLM 评审摘要）。纯读库，不触发任何 LLM 调用。"""
     target = on_date or datetime.now(UTC).date()
     view: RecommendationsView = await reader.read(target)
     return RecommendationsTodayResponse(

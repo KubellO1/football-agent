@@ -48,6 +48,7 @@ class ModelInput:
 
     数据完整度与证据等级由数据层评估后填入（模型不臆造这些属性）。
     home_elo/away_elo 为球队当前 Elo 评分（可选，由数据层提供）。
+    sportmonks_predictions 字段已弃用（Sportmonks 于 2026-07-17 下线）。
     """
 
     fixture: Fixture
@@ -60,6 +61,7 @@ class ModelInput:
     evidence_level: EvidenceLevel
     home_elo: float | None = None
     away_elo: float | None = None
+    sportmonks_predictions: list[dict] = field(default_factory=list)  # DEPRECATED: 2026-07-17 - Sportmonks removed from production
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +93,7 @@ class ModelOutput:
     elo_away: float | None = None
     elo_expected_home: float | None = None
     candidates: list[ModelCandidate] = field(default_factory=list)
+    confidence_killer: str | None = None
 
 
 class MatchModel(ABC):

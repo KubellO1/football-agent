@@ -46,3 +46,7 @@ class OddsProvider(ABC):
         capability — providers without a historical feed leave this unimplemented.
         """
         raise NotImplementedError
+
+    def pop_errors(self) -> dict[str, int]:
+        """Return and clear per-source error counts (used by PrioritizedOddsProvider)."""
+        return {}

@@ -44,3 +44,4 @@ class ProviderFixtureOdds(BaseModel):
     away_team: str
     sport_key: str | None = None
     bookmakers: list[BookmakerMarket] = Field(default_factory=list)
+    source: str = "unknown"

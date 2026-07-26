@@ -1,37 +1,39 @@
-"""AI reasoning agents (Claude)."""
+"""AI 推理 Agent 的组合入口。"""
 
 from __future__ import annotations
 
-from app.agents.claude_client import ClaudeClient
-from app.agents.committee_reviewer import ClaudeCommitteeReviewer
+from app.agents.gpt_committee_reviewer import GPTCommitteeReviewer
+from app.agents.gpt_reasoning_agent import GPTReasoningAgent
 from app.agents.interfaces import CommitteeReviewer, ReasoningEngine
-from app.agents.reasoning_agent import ClaudeReasoningAgent
+from app.agents.openai_client import OpenAIClient
 from app.config.settings import Settings
 
 
 def build_reasoning_agent(settings: Settings) -> ReasoningEngine:
-    """Composition helper: wire a Claude-backed reasoning engine from settings."""
-    client = ClaudeClient(
-        api_key=settings.anthropic_api_key,
-        model=settings.anthropic_model,
+    """根据配置构造当前 GPT 推理 Agent。"""
+    client = OpenAIClient(
+        api_key=settings.openai_api_key,
+        model=settings.openai_model,
+        reasoning_effort=settings.openai_reasoning_effort,
     )
-    return ClaudeReasoningAgent(client)
+    return GPTReasoningAgent(client)
 
 
 def build_committee_reviewer(settings: Settings) -> CommitteeReviewer:
-    """Composition helper: wire a Claude-backed committee reviewer from settings."""
-    client = ClaudeClient(
-        api_key=settings.anthropic_api_key,
-        model=settings.anthropic_model,
+    """根据配置构造当前 GPT 决策委员会 Reviewer。"""
+    client = OpenAIClient(
+        api_key=settings.openai_api_key,
+        model=settings.openai_model,
+        reasoning_effort=settings.openai_reasoning_effort,
     )
-    return ClaudeCommitteeReviewer(client)
+    return GPTCommitteeReviewer(client)
 
 
 __all__ = [
-    "ClaudeClient",
-    "ClaudeCommitteeReviewer",
-    "ClaudeReasoningAgent",
     "CommitteeReviewer",
+    "GPTCommitteeReviewer",
+    "GPTReasoningAgent",
+    "OpenAIClient",
     "ReasoningEngine",
     "build_committee_reviewer",
     "build_reasoning_agent",

@@ -50,7 +50,7 @@ class AnalyzeRequest(BaseModel):
 
 
 class ValueBetOut(BaseModel):
-    """推荐输出（数值来自模型，confidence/rationale 来自 Claude）。"""
+    """推荐输出（数值来自模型，confidence/rationale 来自 LLM）。"""
 
     selection_label: str
     decimal_odds: float

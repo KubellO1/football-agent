@@ -10,10 +10,10 @@ recommendations —— ValueBet 是独立聚合根、独立表（带 fixture_id�
 
 from __future__ import annotations
 
-from datetime import date, datetime
-from decimal import Decimal
+from datetime import date, datetime  # noqa: TC003 - SQLAlchemy 会在运行时解析 Mapped 注解
+from decimal import Decimal  # noqa: TC003 - SQLAlchemy 会在运行时解析 Mapped 注解
 from typing import Any
-from uuid import UUID
+from uuid import UUID  # noqa: TC003 - SQLAlchemy 会在运行时解析 Mapped 注解
 
 from sqlalchemy import (
     JSON,
@@ -21,6 +21,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -126,15 +127,20 @@ class FixtureORM(TimestampMixin, Base):
 
 
 class PredictionORM(TimestampMixin, Base):
-    """比赛预测表。胜平负概率拆为三列；xG 拆为两列；均可空。
+    """比赛预测表。每行对应一个 selection 的完整决策记录。
 
+    旧字段（prob_home/prob_draw/prob_away/xg_home/xg_away）保留并可空，
+    兼容早期 per-fixture 预测记录。新字段覆盖完整决策引擎输出：
+    比赛上下文、市场决策、价值评估、最终判定、数据质量。
     recommendations 不在此存储（由 value_bets 表管理）。
     """
 
     __tablename__ = "predictions"
+    __table_args__ = (Index("ix_predictions_fixture_decision", "fixture_id", "final_decision"),)
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     fixture_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("fixtures.id"), index=True)
+    # -- 旧字段（per-fixture 数学输出，向后兼容） --
     prob_home: Mapped[float | None] = mapped_column(Float, nullable=True)
     prob_draw: Mapped[float | None] = mapped_column(Float, nullable=True)
     prob_away: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -142,6 +148,28 @@ class PredictionORM(TimestampMixin, Base):
     xg_away: Mapped[float | None] = mapped_column(Float, nullable=True)
     model_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # -- 新字段（per-selection 决策引擎输出） --
+    kickoff_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    competition: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    home_team: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    away_team: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    prediction_timestamp: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    prediction_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    market: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    selection: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    odds: Mapped[Decimal | None] = mapped_column(Numeric(6, 3), nullable=True)
+    market_probability: Mapped[float | None] = mapped_column(Float, nullable=True)
+    model_probability: Mapped[float | None] = mapped_column(Float, nullable=True)
+    expected_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    kelly_stake: Mapped[float | None] = mapped_column(Float, nullable=True)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    final_decision: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    why_not_bet: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confidence_killer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    provider_sources: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    data_quality: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class ValueBetORM(TimestampMixin, Base):
@@ -153,6 +181,7 @@ class ValueBetORM(TimestampMixin, Base):
     """
 
     __tablename__ = "value_bets"
+    __table_args__ = (Index("ix_value_bets_created_at", "created_at"),)
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     fixture_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("fixtures.id"), index=True)
@@ -208,6 +237,7 @@ class DecisionLogORM(TimestampMixin, Base):
     """决策日志表（宪法第 16 节）。列表字段用 JSON 存储，避免多张关联表。"""
 
     __tablename__ = "decision_logs"
+    __table_args__ = (Index("ix_decision_logs_created_at", "created_at"),)
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     fixture_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("fixtures.id"), index=True)
@@ -223,3 +253,63 @@ class DecisionLogORM(TimestampMixin, Base):
     model_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     prompt_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     review: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# 结算与追踪
+# ---------------------------------------------------------------------------
+
+
+class SettlementORM(TimestampMixin, Base):
+    """结算记录：每一条 value_bet 对应的比赛结果。唯一约束防止重复结算。"""
+
+    __tablename__ = "settlements"
+    __table_args__ = (UniqueConstraint("value_bet_id", name="uq_settlements_value_bet"),)
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    value_bet_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("value_bets.id"), index=True)
+    fixture_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("fixtures.id"), index=True)
+    result: Mapped[str] = mapped_column(String(1))  # W / L / P
+    score_home: Mapped[int] = mapped_column(Integer)
+    score_away: Mapped[int] = mapped_column(Integer)
+    profit_loss: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    closing_odds: Mapped[Decimal | None] = mapped_column(Numeric(6, 3), nullable=True)
+    clv: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bankroll_before: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    bankroll_after: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    settlement_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class BankrollEntryORM(TimestampMixin, Base):
+    """银行余额流水表。每条记录代表一次余额变动（初始化、结算、调整）。"""
+
+    __tablename__ = "bankroll_entries"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    balance_after: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    reason: Mapped[str] = mapped_column(String(200))
+
+
+class PerformanceSnapshotORM(TimestampMixin, Base):
+    """定期性能统计快照表。"""
+
+    __tablename__ = "performance_snapshots"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    total_bets: Mapped[int] = mapped_column(Integer)
+    win_count: Mapped[int] = mapped_column(Integer)
+    push_count: Mapped[int] = mapped_column(Integer)
+    loss_count: Mapped[int] = mapped_column(Integer)
+    win_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    total_pl: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    roi: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_ev: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_clv: Mapped[float | None] = mapped_column(Float, nullable=True)
+    brier_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    log_loss: Mapped[float | None] = mapped_column(Float, nullable=True)
+    max_drawdown: Mapped[float | None] = mapped_column(Float, nullable=True)
+    sharpe_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    breakdown_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)

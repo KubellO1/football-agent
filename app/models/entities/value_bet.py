@@ -2,7 +2,7 @@
 
 Ties together the market selection, the best available price, the model's
 probability, the computed edge, and the recommended stake. ``rationale`` holds
-the human-readable reasoning (later produced by the Claude agent); the numbers
+the human-readable reasoning (later produced by the LLM agent); the numbers
 above it always come from the quantitative models, never the LLM.
 """
 
@@ -26,9 +26,9 @@ class ValueBet(Entity):
     fixture_id: UUID
     selection: Selection
     odds: Odds
-    bookmaker_id: UUID | None = None
     model_probability: Probability
     edge: ValueEdge
+    bookmaker_id: UUID | None = None
     stake: Stake | None = None
     confidence: float | None = None
     rationale: str | None = None

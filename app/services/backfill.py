@@ -1,4 +1,4 @@
-"""API-Football 历史回填的可复用核心（无预测/下注/Claude）。
+"""API-Football 历史回填的可复用核心（无预测/下注/LLM）。
 
 逐日调用既有的 IngestionService.sync_today —— 已是幂等的（按 external_id 去重）。
 本模块只负责：日期区间迭代、断点续跑、限速与计数。

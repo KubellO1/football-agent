@@ -1,7 +1,7 @@
 """比赛分析端点（DB 驱动，纯数学，无外部 API）。
 
 从数据库读取比赛与赔率，用既有的 Poisson/Elo/Kelly/Value 模型产出概率、EV、
-Kelly 下注与推荐判定；不访问任何外部数据源，也不调用 Claude。
+Kelly 下注与推荐判定；不访问任何外部数据源，也不调用 LLM。
 """
 
 from __future__ import annotations

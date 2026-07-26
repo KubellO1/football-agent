@@ -1,0 +1,765 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "created_at": "2026-07-12",
+    "description": "Production competition whitelist for football-agent. Only whitelisted competitions are analyzed, consume API quota, appear on Dashboard, and generate BET/WATCH/NO BET predictions. All others are skipped with SKIPPED_UNSUPPORTED_COMPETITION.",
+    "maintainer_note": "To add a competition, add an entry under the appropriate category below. To temporarily disable a competition without removing it, set its 'enabled' field to false."
+  },
+  "filter_mode": "whitelist",
+  "excluded_categories": {
+    "youth_competitions": true,
+    "reserve_leagues": true,
+    "womens_competitions": true,
+    "friendly_matches": true,
+    "exhibition_matches": true,
+    "amateur_leagues": true,
+    "regional_leagues": true,
+    "very_low_divisions": true,
+    "competitions_without_reliable_odds": true,
+    "competitions_without_sufficient_data": true,
+    "note": "Women's competitions can be enabled by setting womens_competitions to false and adding relevant entries to the whitelist."
+  },
+  "competitions": {
+    "international": [
+      {
+        "name": "FIFA World Cup",
+        "sport_keys": [
+          "soccer_fifa_world_cup"
+        ],
+        "match_names": [
+          "World Cup",
+          "FIFA World Cup",
+          "World Cup 2026"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "FIFA World Cup Qualifiers",
+        "sport_keys": [
+          "soccer_fifa_world_cup_qualifiers"
+        ],
+        "match_names": [
+          "World Cup - Qualification",
+          "WC Qualification",
+          "World Cup Qualifiers",
+          "FIFA World Cup Qualifiers"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "UEFA EURO",
+        "sport_keys": [
+          "soccer_uefa_euro"
+        ],
+        "match_names": [
+          "European Championship",
+          "UEFA EURO",
+          "Euro Championship",
+          "Euro 2028"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "UEFA EURO Qualifiers",
+        "sport_keys": [
+          "soccer_uefa_euro_qualification"
+        ],
+        "match_names": [
+          "Euro Championship - Qualification",
+          "UEFA EURO Qualifiers",
+          "Euro Qualification"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "UEFA Nations League",
+        "sport_keys": [
+          "soccer_uefa_nations_league"
+        ],
+        "match_names": [
+          "UEFA Nations League"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Copa América",
+        "sport_keys": [
+          "soccer_copa_america"
+        ],
+        "match_names": [
+          "Copa America",
+          "Copa América"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "CONMEBOL World Cup Qualifiers",
+        "sport_keys": [
+          "soccer_fifa_world_cup_qualifiers"
+        ],
+        "match_names": [
+          "CONMEBOL World Cup Qualifiers",
+          "WC Qualification South America"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "AFC Asian Cup",
+        "sport_keys": [
+          "soccer_afc_asian_cup"
+        ],
+        "match_names": [
+          "Asian Cup",
+          "AFC Asian Cup"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "AFC Asian Cup Qualifiers",
+        "sport_keys": [
+          "soccer_afc_asian_cup"
+        ],
+        "match_names": [
+          "Asian Cup - Qualification",
+          "AFC Asian Cup Qualifiers"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "AFC World Cup Qualifiers",
+        "sport_keys": [
+          "soccer_fifa_world_cup_qualifiers"
+        ],
+        "match_names": [
+          "AFC World Cup Qualifiers",
+          "WC Qualification Asia"
+        ],
+        "enabled": true
+      }
+    ],
+    "europe_top": [
+      {
+        "name": "English Premier League",
+        "sport_keys": [
+          "soccer_epl"
+        ],
+        "match_names": [
+          "EPL",
+          "English Premier League",
+          "Premier League"
+        ],
+        "api_football_league_id": 39,
+        "country": "England",
+        "enabled": true
+      },
+      {
+        "name": "Spanish La Liga",
+        "sport_keys": [
+          "soccer_spain_la_liga"
+        ],
+        "match_names": [
+          "La Liga",
+          "LaLiga"
+        ],
+        "api_football_league_id": 140,
+        "country": "Spain",
+        "enabled": true
+      },
+      {
+        "name": "Italian Serie A",
+        "sport_keys": [
+          "soccer_italy_serie_a"
+        ],
+        "match_names": [
+          "Serie A TIM",
+          "Italian Serie A",
+          "Serie A"
+        ],
+        "api_football_league_id": 135,
+        "country": "Italy",
+        "enabled": true
+      },
+      {
+        "name": "German Bundesliga",
+        "sport_keys": [
+          "soccer_germany_bundesliga"
+        ],
+        "match_names": [
+          "Bundesliga",
+          "Bundesliga 1"
+        ],
+        "api_football_league_id": 78,
+        "country": "Germany",
+        "enabled": true
+      },
+      {
+        "name": "French Ligue 1",
+        "sport_keys": [
+          "soccer_france_ligue_one"
+        ],
+        "match_names": [
+          "Ligue 1",
+          "Ligue 1 Uber Eats"
+        ],
+        "api_football_league_id": 61,
+        "country": "France",
+        "enabled": true
+      }
+    ],
+    "europe_secondary": [
+      {
+        "name": "Portuguese Primeira Liga",
+        "sport_keys": [
+          "soccer_portugal_primeira_liga"
+        ],
+        "match_names": [
+          "Primeira Liga",
+          "Liga Portugal"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Dutch Eredivisie",
+        "sport_keys": [
+          "soccer_netherlands_eredivisie"
+        ],
+        "match_names": [
+          "Eredivisie"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Belgian Pro League",
+        "sport_keys": [
+          "soccer_belgium_first_div"
+        ],
+        "match_names": [
+          "Jupiler Pro League",
+          "Belgian Pro League"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Scottish Premiership",
+        "sport_keys": [
+          "soccer_spl"
+        ],
+        "match_names": [
+          "Premiership",
+          "Scottish Premiership"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Turkish Süper Lig",
+        "sport_keys": [
+          "soccer_turkey_super_lig"
+        ],
+        "match_names": [
+          "Süper Lig",
+          "Turkish Super Lig"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Swiss Super League",
+        "sport_keys": [
+          "soccer_switzerland_super_league"
+        ],
+        "match_names": [
+          "Swiss Super League"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Austrian Bundesliga",
+        "sport_keys": [
+          "soccer_austria_bundesliga"
+        ],
+        "match_names": [
+          "Austrian Bundesliga",
+          "Admiral Bundesliga"
+        ],
+        "enabled": true
+      }
+    ],
+    "nordic": [
+      {
+        "name": "Danish Superliga",
+        "sport_keys": [
+          "soccer_denmark_superliga"
+        ],
+        "match_names": [
+          "Danish Superliga",
+          "Superligaen"
+        ],
+        "enabled": true,
+        "api_football_league_id": 119,
+        "country": "Denmark"
+      },
+      {
+        "name": "Swedish Allsvenskan",
+        "sport_keys": [
+          "soccer_sweden_allsvenskan"
+        ],
+        "match_names": [
+          "Allsvenskan"
+        ],
+        "enabled": true,
+        "api_football_league_id": 113,
+        "country": "Sweden"
+      },
+      {
+        "name": "Norwegian Eliteserien",
+        "sport_keys": [
+          "soccer_norway_eliteserien"
+        ],
+        "match_names": [
+          "Eliteserien"
+        ],
+        "api_football_league_id": 103,
+        "country": "Norway",
+        "enabled": true
+      },
+      {
+        "name": "Finnish Veikkausliiga",
+        "sport_keys": [
+          "soccer_finland_veikkausliiga"
+        ],
+        "match_names": [
+          "Veikkausliiga"
+        ],
+        "enabled": true,
+        "api_football_league_id": 244,
+        "country": "Finland"
+      },
+      {
+        "name": "Iceland Besta deild karla",
+        "sport_keys": [
+          "soccer_iceland_pepsimax_deildin"
+        ],
+        "match_names": [
+          "Besta deild karla",
+          "Pepsi Max deildin",
+          "Icelandic Premier League"
+        ],
+        "enabled": true
+      }
+    ],
+    "eastern_europe": [
+      {
+        "name": "Polish Ekstraklasa",
+        "sport_keys": [
+          "soccer_poland_ekstraklasa"
+        ],
+        "match_names": [
+          "Ekstraklasa"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Czech First League",
+        "sport_keys": [
+          "soccer_czech_republic_first_league"
+        ],
+        "match_names": [
+          "Czech Liga",
+          "Fortuna Liga",
+          "Czech First League",
+          "1. Liga"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Romanian SuperLiga",
+        "sport_keys": [
+          "soccer_romania_superliga"
+        ],
+        "match_names": [
+          "SuperLiga",
+          "Liga I",
+          "Romanian SuperLiga"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Hungarian NB I",
+        "sport_keys": [
+          "soccer_hungary_nb_i"
+        ],
+        "match_names": [
+          "NB I",
+          "OTP Bank Liga",
+          "Hungarian NB I"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Croatian HNL",
+        "sport_keys": [
+          "soccer_croatia_hnl"
+        ],
+        "match_names": [
+          "HNL",
+          "SuperSport HNL",
+          "Croatian HNL",
+          "1. HNL"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Serbian SuperLiga",
+        "sport_keys": [
+          "soccer_serbia_super_liga"
+        ],
+        "match_names": [
+          "Serbian SuperLiga",
+          "Mozzart Bet SuperLiga"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Slovak Super Liga",
+        "sport_keys": [
+          "soccer_slovakia_super_liga"
+        ],
+        "match_names": [
+          "Slovak Super Liga",
+          "Niké Liga"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Slovenian PrvaLiga",
+        "sport_keys": [
+          "soccer_slovenia_prva_liga"
+        ],
+        "match_names": [
+          "PrvaLiga",
+          "Slovenian PrvaLiga",
+          "1. SNL"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Bulgarian First League",
+        "sport_keys": [
+          "soccer_bulgaria_first_league"
+        ],
+        "match_names": [
+          "Bulgarian First League",
+          "Parva Liga",
+          "efbet Liga"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Ukrainian Premier League",
+        "sport_keys": [
+          "soccer_ukraine_premier_league"
+        ],
+        "match_names": [
+          "Ukrainian Premier League",
+          "UPL",
+          "VBET League"
+        ],
+        "enabled": true
+      }
+    ],
+    "european_club": [
+      {
+        "name": "UEFA Champions League",
+        "sport_keys": [
+          "soccer_uefa_champs_league"
+        ],
+        "match_names": [
+          "UEFA Champions League"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "UEFA Europa League",
+        "sport_keys": [
+          "soccer_uefa_europa_league"
+        ],
+        "match_names": [
+          "UEFA Europa League"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "UEFA Conference League",
+        "sport_keys": [
+          "soccer_uefa_europa_conference_league"
+        ],
+        "match_names": [
+          "UEFA Conference League",
+          "UEFA Europa Conference League"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "UEFA Super Cup",
+        "sport_keys": [
+          "soccer_uefa_super_cup"
+        ],
+        "match_names": [
+          "UEFA Super Cup"
+        ],
+        "enabled": true
+      }
+    ],
+    "south_america": [
+      {
+        "name": "Brazilian Série A",
+        "sport_keys": [
+          "soccer_brazil_campeonato"
+        ],
+        "match_names": [
+          "Brasileirão",
+          "Brazilian Serie A",
+          "Campeonato Brasileiro"
+        ],
+        "api_football_league_id": 71,
+        "country": "Brazil",
+        "enabled": true
+      },
+      {
+        "name": "Argentine Primera División",
+        "sport_keys": [
+          "soccer_argentina_primera_division"
+        ],
+        "match_names": [
+          "Liga Profesional",
+          "Argentine Primera División",
+          "Liga Profesional Argentina"
+        ],
+        "api_football_league_id": 128,
+        "country": "Argentina",
+        "enabled": true
+      },
+      {
+        "name": "Chilean Primera División",
+        "sport_keys": [
+          "soccer_chile_primera_division"
+        ],
+        "match_names": [
+          "Chilean Primera División",
+          "Campeonato Nacional"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Colombian Primera A",
+        "sport_keys": [
+          "soccer_colombia_primera_a"
+        ],
+        "match_names": [
+          "Colombian Primera A",
+          "Liga BetPlay",
+          "Categoría Primera A"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Uruguayan Primera División",
+        "sport_keys": [
+          "soccer_uruguay_primera_division"
+        ],
+        "match_names": [
+          "Uruguayan Primera División",
+          "Campeonato Uruguayo"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Copa Libertadores",
+        "sport_keys": [
+          "soccer_copa_libertadores"
+        ],
+        "match_names": [
+          "Copa Libertadores",
+          "CONMEBOL Libertadores"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Copa Sudamericana",
+        "sport_keys": [
+          "soccer_copa_sudamericana"
+        ],
+        "match_names": [
+          "Copa Sudamericana",
+          "CONMEBOL Sudamericana"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Recopa Sudamericana",
+        "sport_keys": [
+          "soccer_recopa_sudamericana"
+        ],
+        "match_names": [
+          "Recopa Sudamericana"
+        ],
+        "enabled": true
+      }
+    ],
+    "asia": [
+      {
+        "name": "Japanese J1 League",
+        "sport_keys": [
+          "soccer_japan_j_league"
+        ],
+        "match_names": [
+          "J1 League",
+          "J. League",
+          "J-League",
+          "J.League"
+        ],
+        "enabled": true,
+        "api_football_league_id": 98,
+        "country": "Japan"
+      },
+      {
+        "name": "Korean K League 1",
+        "sport_keys": [
+          "soccer_korea_kleague1"
+        ],
+        "match_names": [
+          "K League 1",
+          "K-League 1"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Chinese Super League",
+        "sport_keys": [
+          "soccer_china_superleague"
+        ],
+        "match_names": [
+          "Chinese Super League",
+          "CSL"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Saudi Pro League",
+        "sport_keys": [
+          "soccer_saudi_arabia_pro_league"
+        ],
+        "match_names": [
+          "Saudi Pro League",
+          "Roshn Saudi League"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "UAE Pro League",
+        "sport_keys": [
+          "soccer_uae_pro_league"
+        ],
+        "match_names": [
+          "UAE Pro League",
+          "ADNOC Pro League",
+          "Arabian Gulf League"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "Qatar Stars League",
+        "sport_keys": [
+          "soccer_qatar_stars_league"
+        ],
+        "match_names": [
+          "Stars League",
+          "Qatar Stars League",
+          "QSL"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "AFC Champions League Elite",
+        "sport_keys": [
+          "soccer_afc_champions_league"
+        ],
+        "match_names": [
+          "AFC Champions League Elite",
+          "AFC Champions League"
+        ],
+        "enabled": true
+      },
+      {
+        "name": "AFC Champions League Two",
+        "sport_keys": [
+          "soccer_afc_champions_league_two"
+        ],
+        "match_names": [
+          "AFC Champions League Two",
+          "AFC Cup"
+        ],
+        "enabled": true
+      }
+    ],
+    "north_america": [
+      {
+        "name": "MLS",
+        "sport_keys": [
+          "soccer_usa_mls"
+        ],
+        "match_names": [
+          "Major League Soccer",
+          "MLS"
+        ],
+        "enabled": true,
+        "api_football_league_id": 253,
+        "country": "USA"
+      },
+      {
+        "name": "Liga MX",
+        "sport_keys": [
+          "soccer_mexico_ligamx"
+        ],
+        "match_names": [
+          "Liga MX",
+          "Liga BBVA MX"
+        ],
+        "enabled": true,
+        "api_football_league_id": 262,
+        "country": "Mexico"
+      },
+      {
+        "name": "CONCACAF Champions Cup",
+        "sport_keys": [
+          "soccer_concacaf_champions_cup"
+        ],
+        "match_names": [
+          "CONCACAF Champions Cup",
+          "CONCACAF Champions League"
+        ],
+        "enabled": true
+      }
+    ]
+  },
+  "normalization_rules": {
+    "case_insensitive": true,
+    "strip_accents": true,
+    "collapse_whitespace": true,
+    "common_variations": {
+      "Primera División": [
+        "Primera Division",
+        "Primera División"
+      ],
+      "Süper Lig": [
+        "Super Lig",
+        "Süper Lig",
+        "Turkish Super Lig"
+      ],
+      "Serie A": [
+        "Serie A",
+        "Serie A TIM",
+        "Serie A Enilive"
+      ]
+    }
+  }
+}

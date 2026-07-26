@@ -36,9 +36,9 @@ from app.services.team_aliases import accepted_names
 
 logger = get_logger(__name__)
 
-SOURCE_THE_ODDS_API = "the-odds-api"
 _H2H_MARKET = "h2h"
 _SAMPLE_CAP = 20  # 报告中未匹配/歧义样例的最大条数
+_BOOKMAKER_SOURCE = "the-odds-api"  # 博彩公司 external_source 幂等键（不随 provider 切换改变）
 
 
 def classify_outcome(name: str, home_team: str, away_team: str) -> str | None:
@@ -78,7 +78,6 @@ class OddsIngestionService:
         sport_keys: list[str],
         regions: list[str],
         tolerance_minutes: int,
-        source: str = SOURCE_THE_ODDS_API,
         alias_names: Callable[[str], frozenset[str]] = accepted_names,
     ) -> None:
         self._odds = odds_provider
@@ -89,7 +88,6 @@ class OddsIngestionService:
         self._sport_keys = sport_keys
         self._regions = regions
         self._tolerance = timedelta(minutes=tolerance_minutes)
-        self._source = source
         self._alias_names = alias_names
 
     async def sync_odds_today(self, on_date: date) -> OddsSyncReport:
@@ -99,11 +97,23 @@ class OddsIngestionService:
         unmatched_samples: list[str] = []
         ambiguous_samples: list[str] = []
         bookmaker_cache: dict[str, Bookmaker] = {}
+        all_events: list[ProviderFixtureOdds] = []
 
         for sport_key in self._sport_keys:
             events = await self._odds.get_odds(
                 sport=sport_key, markets=("h2h",), regions=tuple(self._regions)
             )
+            if events:
+                logger.info(
+                    "Odds API sport_key=%s returned %d events (candidates=%d)",
+                    sport_key, len(events), len(candidates),
+                )
+            else:
+                logger.info(
+                    "Odds API sport_key=%s returned 0 events (API empty/error or no data)",
+                    sport_key,
+                )
+            all_events.extend(events)
             await self._process_events(
                 events,
                 candidates,
@@ -113,9 +123,23 @@ class OddsIngestionService:
                 bookmaker_cache=bookmaker_cache,
             )
 
+        primary_provider_hits = sum(1 for e in all_events if e.source == "odds-api.io")
+        fallback_provider_hits = sum(1 for e in all_events if e.source == "the-odds-api")
+
+        if primary_provider_hits > 0 and fallback_provider_hits == 0:
+            source_label = "odds-api.io"
+        elif primary_provider_hits == 0 and fallback_provider_hits > 0:
+            source_label = "the-odds-api"
+        elif primary_provider_hits > 0 and fallback_provider_hits > 0:
+            source_label = "odds-api.io-primary_with_the-odds-api-fallback"
+        else:
+            source_label = "unknown"
+
+        provider_errors = getattr(self._odds, "pop_errors", lambda: {})()
         logger.info(
             "Odds sync %s: fetched=%d matched=%d unmatched=%d ambiguous=%d "
-            "snapshots(created=%d existing=%d) outcomes_skipped=%d",
+            "snapshots(created=%d existing=%d) outcomes_skipped=%d "
+            "source=%s primary_hits=%d fallback_hits=%d",
             on_date.isoformat(),
             counters.fetched,
             counters.matched,
@@ -124,9 +148,12 @@ class OddsIngestionService:
             counters.created,
             counters.existing,
             counters.outcomes_skipped,
+            source_label,
+            primary_provider_hits,
+            fallback_provider_hits,
         )
         return OddsSyncReport(
-            source=self._source,
+            source=source_label,
             date=on_date.isoformat(),
             sport_keys=list(self._sport_keys),
             events_fetched=counters.fetched,
@@ -138,6 +165,9 @@ class OddsIngestionService:
             outcomes_skipped=counters.outcomes_skipped,
             unmatched_samples=unmatched_samples,
             ambiguous_samples=ambiguous_samples,
+            primary_provider_hits=primary_provider_hits,
+            fallback_provider_hits=fallback_provider_hits,
+            provider_errors_by_source=provider_errors,
         )
 
     async def backfill_historical(
@@ -164,6 +194,7 @@ class OddsIngestionService:
         ambiguous_samples: list[str] = []
         bookmaker_cache: dict[str, Bookmaker] = {}
         days_processed = 0
+        all_events: list[ProviderFixtureOdds] = []
 
         day = start
         days_skipped_empty = 0
@@ -188,6 +219,7 @@ class OddsIngestionService:
                 for e in events
                 if day_start - self._tolerance <= e.commence_time < day_end + self._tolerance
             ]
+            all_events.extend(same_day)
             await self._process_events(
                 same_day,
                 candidates,
@@ -214,8 +246,18 @@ class OddsIngestionService:
             counters.existing,
             counters.outcomes_skipped,
         )
+        primary_provider_hits = sum(1 for e in all_events if e.source == "odds-api.io")
+        fallback_provider_hits = sum(1 for e in all_events if e.source == "the-odds-api")
+        if primary_provider_hits > 0 and fallback_provider_hits == 0:
+            source_label = "odds-api.io"
+        elif primary_provider_hits == 0 and fallback_provider_hits > 0:
+            source_label = "the-odds-api"
+        elif primary_provider_hits > 0 and fallback_provider_hits > 0:
+            source_label = "odds-api.io-primary_with_the-odds-api-fallback"
+        else:
+            source_label = "unknown"
         return HistoricalOddsBackfillReport(
-            source=self._source,
+            source=source_label,
             sport=sport,
             date_from=start.isoformat(),
             date_to=end.isoformat(),
@@ -338,12 +380,12 @@ class OddsIngestionService:
     ) -> Bookmaker:
         if key in cache:
             return cache[key]
-        existing = await self._bookmakers.get_by_external_id(self._source, key)
+        existing = await self._bookmakers.get_by_external_id(_BOOKMAKER_SOURCE, key)
         if existing is not None:
             cache[key] = existing
             return existing
         created = await self._bookmakers.add(
-            Bookmaker(name=title, external_id=key, external_source=self._source)
+            Bookmaker(name=title, external_id=key, external_source=_BOOKMAKER_SOURCE)
         )
         cache[key] = created
         return created

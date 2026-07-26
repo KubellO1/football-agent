@@ -6,7 +6,7 @@
   把双方近期完赛战绩汇总为 TeamStatistics、由赛事历史算出联赛场均进球基准、
   从赔率快照取每个 1X2 选项的最优赔率，组装成**不可变**的 ModelInput。
 - ``FixtureAnalysisService``：用既有的 Poisson/Elo/Kelly/Value 集成模型产出概率、
-  edge、EV、Kelly 下注，并用 RecommendationGate 判定是否推荐；**不调用 Claude、
+  edge、EV、Kelly 下注，并用 RecommendationGate 判定是否推荐；**不调用 LLM、
   不访问任何外部数据源**，confidence 与 explanation 均由数值确定性地导出。
 
 红线：本路径不做任何网络抓取（宪法：分析基于已入库数据）；xG 未采集，故以实际
@@ -29,6 +29,7 @@ from app.models.value_objects.markets import MarketType
 from app.models.value_objects.money import Money
 from app.models.value_objects.odds import Odds
 from app.models.value_objects.statistics import TeamStatistics
+from app.providers.interfaces.injury_provider import InjuryProvider
 from app.repositories.interfaces.fixture_repository import FixtureRepository
 from app.repositories.interfaces.odds_snapshot_repository import OddsSnapshotRepository
 from app.repositories.interfaces.reference import TeamRepository
@@ -75,6 +76,7 @@ class SelectionAnalysis:
     confidence: float
     reasons: list[str]
     explanation: str
+    confidence_killer: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +90,7 @@ class FixtureAnalysisResult:
     selections: list[SelectionAnalysis] = field(default_factory=list)
     data_completeness: float = 0.0
     message: str | None = None
+    confidence_killer: str | None = None
 
 
 class MatchAnalysisInputBuilder:
@@ -101,12 +104,14 @@ class MatchAnalysisInputBuilder:
         odds_snapshots: OddsSnapshotRepository,
         bankroll: Money,
         form_window: int = 10,
+        injury_provider: InjuryProvider | None = None,
     ) -> None:
         self._fixtures = fixtures
         self._teams = teams
         self._odds = odds_snapshots
         self._bankroll = bankroll
         self._form_window = form_window
+        self._injury = injury_provider
 
     async def build(self, fixture: Fixture) -> ModelInput | None:
         """组装 ModelInput；数据不足以建模（缺战绩/联赛基准）时返回 None。"""
@@ -118,7 +123,13 @@ class MatchAnalysisInputBuilder:
 
         quotes = await self._quotes(fixture.id)
         home_elo, away_elo = await self._elos(fixture.home_team_id, fixture.away_team_id)
-        completeness = self._completeness(home_stats, away_stats, quotes, home_elo, away_elo)
+
+        # Query injury data for this fixture (if provider available).
+        injury_count = await self._query_injury_count(fixture)
+
+        completeness = self._completeness(
+            home_stats, away_stats, quotes, home_elo, away_elo, injury_count
+        )
 
         return ModelInput(
             fixture=fixture,
@@ -251,14 +262,31 @@ class MatchAnalysisInputBuilder:
         quotes: list[MarketQuote],
         home_elo: float | None,
         away_elo: float | None,
+        injury_count: int = 0,
     ) -> DataCompleteness:
-        # 可解释启发式（0-100）：近况覆盖 40 + 联赛基准 20 + 赔率 30 + Elo 10。
+        # 可解释启发式（0-100）：近况覆盖 40 + 联赛基准 20 + 赔率 30 + Elo 10 - 伤病惩罚。
         form_ratio = min(home_stats.matches_played, away_stats.matches_played) / self._form_window
         score = 40.0 * min(form_ratio, 1.0)
         score += 20.0  # 能走到这里说明联赛基准已具备
         score += 30.0 if quotes else 0.0
         score += 10.0 if home_elo is not None and away_elo is not None else 0.0
-        return DataCompleteness(min(100.0, score))
+        # Injury penalty: -5 per injured player, max -20.
+        score -= min(injury_count * 5.0, 20.0)
+        return DataCompleteness(max(0.0, min(100.0, score)))
+
+    async def _query_injury_count(self, fixture: Fixture) -> int:
+        """Query injury data for fixture; return total player count or 0 if unavailable."""
+        if self._injury is None:
+            return 0
+        try:
+            ext_id = fixture.external_id
+            if ext_id is None:
+                return 0
+            teams = await self._injury.get_injuries(fixture_id=int(ext_id))
+            return sum(t.total_injured for t in teams)
+        except Exception:
+            logger.debug("Injury query failed for fixture %s", fixture.id, exc_info=True)
+            return 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -320,7 +348,7 @@ class FixtureAnalysisService:
         reviewed = [
             ReviewedSelection(candidate=c, decision=self._evaluate(c)) for c in output.candidates
         ]
-        selections = [self._to_selection_analysis(rs) for rs in reviewed]
+        selections = [self._to_selection_analysis(rs, confidence_killer=output.confidence_killer) for rs in reviewed]
 
         probabilities = {
             result.value: prob.value for result, prob in output.outcome_probabilities.items()
@@ -339,6 +367,7 @@ class FixtureAnalysisService:
             selections=selections,
             data_completeness=model_input.data_completeness.value,
             message=message,
+            confidence_killer=output.confidence_killer,
         )
         return DetailedAnalysis(
             fixture=fixture,
@@ -359,7 +388,7 @@ class FixtureAnalysisService:
             )
         )
 
-    def _to_selection_analysis(self, reviewed: ReviewedSelection) -> SelectionAnalysis:
+    def _to_selection_analysis(self, reviewed: ReviewedSelection, *, confidence_killer: str | None = None) -> SelectionAnalysis:
         candidate = reviewed.candidate
         decision = reviewed.decision
         stake = candidate.stake
@@ -391,4 +420,5 @@ class FixtureAnalysisService:
             confidence=confidence,
             reasons=list(decision.reasons),
             explanation=explanation,
+            confidence_killer=confidence_killer,
         )

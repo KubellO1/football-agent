@@ -1,4 +1,4 @@
-"""每日 Top Picks 合格判定的单元测试（纯阈值逻辑，无 DB / 无 Claude）。"""
+"""每日 Top Picks 合格判定的单元测试（纯阈值逻辑，无 DB / 无 LLM）。"""
 
 from __future__ import annotations
 
@@ -15,6 +15,9 @@ def _service() -> DailyTopPicksService:
         analysis=None,  # type: ignore[arg-type]
         review=None,  # type: ignore[arg-type]
         decision_logs=None,  # type: ignore[arg-type]
+        teams=None,  # type: ignore[arg-type]
+        competitions=None,  # type: ignore[arg-type]
+        session=None,
         min_ev=0.05,
         min_kelly=0.02,
         min_confidence=0.70,

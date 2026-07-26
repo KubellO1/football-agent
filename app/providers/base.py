@@ -103,8 +103,20 @@ class BaseHTTPProvider:
                     path,
                     response.text[:500],
                 )
+                # Detect quota exhaustion on 401 (The Odds API returns 401 instead of 429)
+                detail = f"failed with status {response.status_code}"
+                if response.status_code == 401:
+                    x_rem = response.headers.get("x-requests-remaining")
+                    if x_rem is not None and str(x_rem) == "0":
+                        detail = f"QUOTA_EXHAUSTED (x-requests-remaining=0, status 401)"
+                    else:
+                        body = (response.text or "").lower()
+                        if any(kw in body for kw in ("out_of_usage", "quota", "usage limit")):
+                            detail = f"QUOTA_EXHAUSTED (body indicates quota, status 401)"
+                        else:
+                            detail = f"INVALID_API_KEY (status 401)"
                 raise ExternalServiceError(
-                    f"provider request to {path} failed with status {response.status_code}"
+                    f"provider request to {path} {detail}"
                 )
 
             try:

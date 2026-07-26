@@ -1,13 +1,13 @@
-"""AI 评审委员会编排（工作流第 5 步：Claude Review → Final Decision）。
+"""AI 评审委员会编排（工作流第 5 步：LLM Review → Final Decision）。
 
 在**不改动**确定性数学管线的前提下，叠加一层专家评审：
 
     FixtureAnalysisService（Poisson/Elo/EV/Kelly + gate，权威）
-        → 组装证据包 → CommitteeReviewer（Claude，仅解释与批判）
+        → 组装证据包 → CommitteeReviewer（LLM，仅解释与批判）
         → 落库：被 gate 批准的推荐写入 ValueBet；整场评审写入 DecisionLog
 
-红线：Claude 不得改动任何数值，也不能否决 gate。是否落 ValueBet 完全由确定性
-gate 决定；Claude 的不同意见（disagreements）只作留痕，写进 DecisionLog。
+红线：LLM 不得改动任何数值，也不能否决 gate。是否落 ValueBet 完全由确定性
+gate 决定；LLM 的不同意见（disagreements）只作留痕，写进 DecisionLog。
 可复现性：DecisionLog 存档模型版本、提示词版本与评审的完整结构化产出。
 """
 
@@ -53,7 +53,7 @@ class CommitteeReviewResult:
 
 
 class CommitteeReviewService:
-    """把确定性分析交给 Claude 评审并落库（数值不变，异议留痕）。"""
+    """把确定性分析交给 LLM 评审并落库（数值不变，异议留痕）。"""
 
     def __init__(
         self,
@@ -71,7 +71,7 @@ class CommitteeReviewService:
         self._model_version = model_version
 
     async def review(self, fixture: Fixture) -> CommitteeReviewResult:
-        """跑确定性分析后交给 Claude 评审并落库。"""
+        """跑确定性分析后交给 LLM 评审并落库。"""
         detailed = await self._analysis.analyze_detailed(fixture)
         return await self.review_detailed(detailed)
 
@@ -79,7 +79,7 @@ class CommitteeReviewService:
         """基于**已算好**的确定性分析做评审并落库（供每日批处理复用，避免重复计算）。"""
         fixture = detailed.fixture
 
-        # 无法建模或没有候选（无赔率）→ 无可评审内容，不调用 Claude、不落库。
+        # 无法建模或没有候选（无赔率）→ 无可评审内容，不调用 LLM、不落库。
         if detailed.model_input is None or not detailed.reviewed:
             return CommitteeReviewResult(
                 fixture_id=fixture.id,
@@ -180,7 +180,7 @@ class CommitteeReviewService:
                 model_probability=candidate.model_probability,
                 edge=candidate.edge,
                 stake=candidate.stake,
-                # 数值来自模型（信心=综合评分/100）；文字理由来自 Claude。
+                # 数值来自模型（信心=综合评分/100）；文字理由来自 LLM。
                 confidence=candidate.decision_score.value / 100.0,
                 rationale=rationale_by_label.get(label, review.betting_recommendation_explanation),
             )
@@ -209,7 +209,7 @@ class CommitteeReviewService:
     def _collect_disagreements(
         reviewed: list[ReviewedSelection], review: CommitteeReview
     ) -> list[str]:
-        """合并 Claude 自述分歧与「评审立场 vs gate 结论」的确定性冲突（仅留痕）。"""
+        """合并 LLM 自述分歧与「评审立场 vs gate 结论」的确定性冲突（仅留痕）。"""
         notes = list(review.disagreements)
         by_label = {sr.selection_label: sr for sr in review.selection_reviews}
         for rs in reviewed:

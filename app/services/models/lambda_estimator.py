@@ -8,13 +8,49 @@
     defense_i = 场均失球_i / 联赛场均进球
     λ_home = attack_home × defense_away × 联赛场均 × 主场优势
     λ_away = attack_away × defense_home × 联赛场均
+
+2026-07-11: 添加 λ 下限保护 (0.05)，防止零进球/无历史球队导致 Poisson 崩溃。
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import logging
+from dataclasses import dataclass, field
+from enum import Enum
 
 from app.models.value_objects.statistics import TeamStatistics
+
+logger = logging.getLogger(__name__)
+
+# λ 安全下限：防止零/负 λ 导致 PoissonModel.score_matrix() 抛出 ValueError。
+# 0.05 代表每 20 场比赛预期进 1 球——极保守，但保证数值稳定。
+LAMBDA_FLOOR: float = 0.05
+
+
+class LambdaWarningType(str, Enum):
+    GENUINE_LOW = "genuine_low"
+    INSUFFICIENT_DATA = "insufficient_data"
+
+
+@dataclass(frozen=True, slots=True)
+class LambdaWarning:
+    team: str
+    raw_lambda: float
+    warning_type: LambdaWarningType
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class LambdaEstimate:
+    """λ 估计结果，含警告列表（供下游降级决策）。"""
+
+    lam_home: float
+    lam_away: float
+    warnings: list[LambdaWarning] = field(default_factory=list)
+
+    @property
+    def has_insufficient_data(self) -> bool:
+        return any(w.warning_type == LambdaWarningType.INSUFFICIENT_DATA for w in self.warnings)
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,11 +67,20 @@ class LeagueAverages:
 class LambdaEstimator:
     """由球队统计估计主客队 λ。"""
 
-    def __init__(self, *, home_advantage: float = 1.15, use_xg: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        home_advantage: float = 1.15,
+        use_xg: bool = True,
+        lambda_floor: float = LAMBDA_FLOOR,
+    ) -> None:
         if home_advantage <= 0:
             raise ValueError("主场优势系数必须为正数")
+        if lambda_floor <= 0:
+            raise ValueError("λ 下限必须为正数")
         self._home_advantage = home_advantage
         self._use_xg = use_xg
+        self._floor = lambda_floor
 
     def _scored_per_game(self, stats: TeamStatistics) -> float:
         total = stats.xg_for if self._use_xg else float(stats.goals_for)
@@ -45,15 +90,77 @@ class LambdaEstimator:
         total = stats.xg_against if self._use_xg else float(stats.goals_against)
         return total / stats.matches_played
 
+    def _apply_floor(
+        self, raw: float, team_name: str, goals_for: int, matches: int
+    ) -> tuple[float, LambdaWarning | None]:
+        """对单个 λ 值应用下限保护，返回 (安全值, 警告或 None)。"""
+        if raw > self._floor:
+            return raw, None
+
+        if raw <= 0:
+            warning = LambdaWarning(
+                team=team_name,
+                raw_lambda=raw,
+                warning_type=LambdaWarningType.INSUFFICIENT_DATA,
+                reason=(
+                    f"insufficient scoring history: goals_for={goals_for}, "
+                    f"matches={matches}, raw λ={raw:.4f} ≤ 0"
+                ),
+            )
+            logger.warning(
+                "Lambda floor applied [INSUFFICIENT_DATA] team=%s raw_λ=%.4f floor=%.4f "
+                "goals_for=%d matches=%d",
+                team_name, raw, self._floor, goals_for, matches,
+            )
+        else:
+            warning = LambdaWarning(
+                team=team_name,
+                raw_lambda=raw,
+                warning_type=LambdaWarningType.GENUINE_LOW,
+                reason=(
+                    f"genuine low-scoring estimate: raw λ={raw:.4f} below floor={self._floor}"
+                ),
+            )
+            logger.info(
+                "Lambda floor applied [GENUINE_LOW] team=%s raw_λ=%.4f floor=%.4f",
+                team_name, raw, self._floor,
+            )
+
+        return self._floor, warning
+
     def estimate(
         self,
         home_stats: TeamStatistics,
         away_stats: TeamStatistics,
         league: LeagueAverages,
-    ) -> tuple[float, float]:
-        """返回 (λ_home, λ_away)。"""
+    ) -> LambdaEstimate:
+        """返回 LambdaEstimate（含 λ 值与保护警告）；任一 λ 低于 floor 时自动应用保护。
+
+        当任一球队 matches_played <= 0 时，直接返回双方均为 floor 值 + INSUFFICIENT_DATA
+        警告，不再抛出异常——保证生产管道不会因缺失历史数据而崩溃。
+        """
+        warnings: list[LambdaWarning] = []
+
         if home_stats.matches_played <= 0 or away_stats.matches_played <= 0:
-            raise ValueError("球队场次为 0，数据不足以估计 λ")
+            # 无法估计：双方统一退回下限，标记 INSUFFICIENT_DATA
+            zero_home_warn = LambdaWarning(
+                team="home",
+                raw_lambda=0.0,
+                warning_type=LambdaWarningType.INSUFFICIENT_DATA,
+                reason=(
+                    f"matches_played={home_stats.matches_played} (home) / "
+                    f"{away_stats.matches_played} (away): cannot estimate λ"
+                ),
+            )
+            warnings.append(zero_home_warn)
+            logger.warning(
+                "Lambda floor applied [INSUFFICIENT_DATA] matches_played <= 0 "
+                "(home=%d, away=%d), forcing both λ to floor=%.4f",
+                home_stats.matches_played, away_stats.matches_played, self._floor,
+            )
+            return LambdaEstimate(
+                lam_home=self._floor, lam_away=self._floor, warnings=warnings,
+            )
 
         avg = league.goals_per_game
         home_attack = self._scored_per_game(home_stats) / avg
@@ -61,6 +168,19 @@ class LambdaEstimator:
         away_attack = self._scored_per_game(away_stats) / avg
         away_defense = self._conceded_per_game(away_stats) / avg
 
-        lam_home = home_attack * away_defense * avg * self._home_advantage
-        lam_away = away_attack * home_defense * avg
-        return lam_home, lam_away
+        raw_home = home_attack * away_defense * avg * self._home_advantage
+        raw_away = away_attack * home_defense * avg
+
+        safe_home, warn_home = self._apply_floor(
+            raw_home, "home", home_stats.goals_for, home_stats.matches_played
+        )
+        safe_away, warn_away = self._apply_floor(
+            raw_away, "away", away_stats.goals_for, away_stats.matches_played
+        )
+
+        if warn_home is not None:
+            warnings.append(warn_home)
+        if warn_away is not None:
+            warnings.append(warn_away)
+
+        return LambdaEstimate(lam_home=safe_home, lam_away=safe_away, warnings=warnings)

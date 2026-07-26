@@ -22,13 +22,16 @@ from app.models.value_objects.odds import Odds
 from app.models.value_objects.probability import Probability
 from app.models.value_objects.score import MatchResult, Score
 from app.repositories.sqlalchemy.models import (
+    BankrollEntryORM,
     BookmakerORM,
     CompetitionORM,
     DecisionLogORM,
     FixtureORM,
     OddsSnapshotORM,
+    PerformanceSnapshotORM,
     PredictionORM,
     SeasonORM,
+    SettlementORM,
     TeamORM,
     ValueBetORM,
 )
@@ -350,5 +353,123 @@ class DecisionLogMapper:
             model_version=entity.model_version,
             prompt_version=entity.prompt_version,
             review=entity.review,
+            created_at=entity.created_at,
+        )
+
+
+# ---------------------------------------------------------------------------
+# 结算与追踪
+# ---------------------------------------------------------------------------
+
+from app.models.entities.settlement import (  # noqa: E402
+    BankrollEntry,
+    PerformanceSnapshot,
+    Settlement,
+    SettlementResult,
+)
+
+
+class SettlementMapper:
+    @staticmethod
+    def to_domain(row: SettlementORM) -> Settlement:
+        return Settlement(
+            id=row.id,
+            value_bet_id=row.value_bet_id,
+            fixture_id=row.fixture_id,
+            result=SettlementResult(row.result),
+            score_home=row.score_home,
+            score_away=row.score_away,
+            profit_loss=row.profit_loss,
+            closing_odds=row.closing_odds,
+            clv=row.clv,
+            bankroll_before=row.bankroll_before,
+            bankroll_after=row.bankroll_after,
+            settlement_timestamp=row.settlement_timestamp,
+        )
+
+    @staticmethod
+    def to_orm(entity: Settlement) -> SettlementORM:
+        return SettlementORM(
+            id=entity.id,
+            value_bet_id=entity.value_bet_id,
+            fixture_id=entity.fixture_id,
+            result=entity.result.value,
+            score_home=entity.score_home,
+            score_away=entity.score_away,
+            profit_loss=entity.profit_loss,
+            closing_odds=entity.closing_odds,
+            clv=entity.clv,
+            bankroll_before=entity.bankroll_before,
+            bankroll_after=entity.bankroll_after,
+            settlement_timestamp=entity.settlement_timestamp,
+        )
+
+
+class BankrollEntryMapper:
+    @staticmethod
+    def to_domain(row: BankrollEntryORM) -> BankrollEntry:
+        return BankrollEntry(
+            id=row.id,
+            amount=row.amount,
+            balance_after=row.balance_after,
+            reason=row.reason,
+            created_at=row.created_at,
+        )
+
+    @staticmethod
+    def to_orm(entity: BankrollEntry) -> BankrollEntryORM:
+        return BankrollEntryORM(
+            id=entity.id,
+            amount=entity.amount,
+            balance_after=entity.balance_after,
+            reason=entity.reason,
+            created_at=entity.created_at,
+        )
+
+
+class PerformanceSnapshotMapper:
+    @staticmethod
+    def to_domain(row: PerformanceSnapshotORM) -> PerformanceSnapshot:
+        return PerformanceSnapshot(
+            id=row.id,
+            period_start=row.period_start,
+            period_end=row.period_end,
+            total_bets=row.total_bets,
+            win_count=row.win_count,
+            push_count=row.push_count,
+            loss_count=row.loss_count,
+            win_rate=row.win_rate,
+            total_pl=row.total_pl,
+            roi=row.roi,
+            avg_ev=row.avg_ev,
+            avg_clv=row.avg_clv,
+            brier_score=row.brier_score,
+            log_loss=row.log_loss,
+            max_drawdown=row.max_drawdown,
+            sharpe_ratio=row.sharpe_ratio,
+            breakdown_json=row.breakdown_json,
+            created_at=row.created_at,
+        )
+
+    @staticmethod
+    def to_orm(entity: PerformanceSnapshot) -> PerformanceSnapshotORM:
+        return PerformanceSnapshotORM(
+            id=entity.id,
+            period_start=entity.period_start,
+            period_end=entity.period_end,
+            total_bets=entity.total_bets,
+            win_count=entity.win_count,
+            push_count=entity.push_count,
+            loss_count=entity.loss_count,
+            win_rate=entity.win_rate,
+            total_pl=entity.total_pl,
+            roi=entity.roi,
+            avg_ev=entity.avg_ev,
+            avg_clv=entity.avg_clv,
+            brier_score=entity.brier_score,
+            log_loss=entity.log_loss,
+            max_drawdown=entity.max_drawdown,
+            sharpe_ratio=entity.sharpe_ratio,
+            breakdown_json=entity.breakdown_json,
             created_at=entity.created_at,
         )

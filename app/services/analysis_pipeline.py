@@ -2,10 +2,10 @@
 
 把已有的积木串成主流程（对应宪法工作流第 4–11 步）：
     数学模型产出 → 逐候选准入 gate → 日级 Top-N 选择
-    → 组装证据包 → Claude 评审 → 融合并落库。
+    → 组装证据包 → LLM 评审 → 融合并落库。
 
 红线：落库的 ValueBet 数值全部来自数学模型（ModelCandidate）；只有 confidence
-与 rationale 取自 Claude 评审。若 Claude 对某候选裁决为 DISCARD，则剔除不落库。
+与 rationale 取自 LLM 评审。若 LLM 对某候选裁决为 DISCARD，则剔除不落库。
 """
 
 from __future__ import annotations
@@ -73,11 +73,11 @@ class MatchAnalysisPipeline:
         by_label = {c.selection.label: c for c in output.candidates}
         selected_candidates = [by_label[e.label] for e in selection.selected]
 
-        # Step 9-10：组装证据包 → Claude 评审（只产出定性评审，不含数值）
+        # Step 9-10：组装证据包 → LLM 评审（只产出定性评审，不含数值）
         context = self._build_context(fixture, output, selected_candidates)
         reasoning = await self._reasoning.analyze(context)
 
-        # Step 11：融合并落库（数值来自模型，confidence/rationale 来自 Claude）
+        # Step 11：融合并落库（数值来自模型，confidence/rationale 来自 LLM）
         value_bets = await self._persist(fixture, selected_candidates, reasoning)
         return AnalysisResult(selected=value_bets, reasoning=reasoning)
 
@@ -129,7 +129,7 @@ class MatchAnalysisPipeline:
         saved: list[ValueBet] = []
         for candidate in candidates:
             assessment = assessments.get(candidate.selection.label)
-            # 尊重 Claude 评审：裁决为放弃则不落库
+            # 尊重 LLM 评审：裁决为放弃则不落库
             if assessment is not None and assessment.verdict is Verdict.DISCARD:
                 continue
             value_bet = ValueBet(
@@ -148,7 +148,7 @@ class MatchAnalysisPipeline:
 
 
 def _to_candidate_bet(candidate: ModelCandidate) -> CandidateBet:
-    """把模型候选转换为证据包中的候选条目（供 Claude 评审阅读）。"""
+    """把模型候选转换为证据包中的候选条目（供 LLM 评审阅读）。"""
     stake = candidate.stake
     return CandidateBet(
         selection_label=candidate.selection.label,

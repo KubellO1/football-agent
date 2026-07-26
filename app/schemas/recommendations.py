@@ -13,9 +13,9 @@ class DailyRunResponse(BaseModel):
 
     date: str
     fixtures_analyzed: int = Field(description="跑过确定性数学分析的比赛数（全部当日比赛）。")
-    fixtures_qualified: int = Field(description="通过 gate + 阈值、值得 Claude 评审的比赛数。")
-    fixtures_reviewed: int = Field(description="本次实际调用 Claude 评审的比赛数（≤ 上限）。")
-    fixtures_skipped_existing: int = Field(description="已有评审记录而跳过（不重复花费 Claude）。")
+    fixtures_qualified: int = Field(description="通过 gate + 阈值、值得 LLM 评审的比赛数。")
+    fixtures_reviewed: int = Field(description="本次实际调用 LLM 评审的比赛数（≤ 上限）。")
+    fixtures_skipped_existing: int = Field(description="已有评审记录而跳过（不重复花费 LLM）。")
     value_bets_created: int
     reviewed_fixture_ids: list[UUID] = Field(default_factory=list)
 
@@ -41,7 +41,7 @@ class FixtureRecommendationOut(BaseModel):
 
 
 class RecommendationsTodayResponse(BaseModel):
-    """当日推荐读取响应（纯读库，不触发 Claude）。"""
+    """当日推荐读取响应（纯读库，不触发 LLM）。"""
 
     date: str
     count: int

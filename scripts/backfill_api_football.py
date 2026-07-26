@@ -1,6 +1,6 @@
 """按日期区间从 API-Football 回填历史赛程（幂等、可续跑、限速）。
 
-只复用既有 provider + IngestionService；不做预测/下注，不调用 Claude。
+只复用既有 provider + IngestionService；不做预测/下注，不调用 LLM。
 
 用法：
     python scripts/backfill_api_football.py --from 2022-01-01 --to 2026-07-04

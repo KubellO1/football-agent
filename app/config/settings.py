@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -16,7 +17,7 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file="C:\\Users\\ruowa\\Projects\\football-agent\\.env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -43,9 +44,17 @@ class Settings(BaseSettings):
     redis_db: int = 0
     redis_url: str | None = None
 
-    # --- AI reasoning (Claude) ---
-    anthropic_api_key: str = ""
-    anthropic_model: str = "claude-opus-4-8"
+    # --- AI reasoning (OpenAI) ---
+    openai_api_key: str = ""
+    openai_model: str = "gpt-5.6-sol"
+    openai_reasoning_effort: Literal[
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+    ] = "high"
 
     # --- External data providers ---
     # API-Football (fixtures / results / league data).
@@ -54,6 +63,13 @@ class Settings(BaseSettings):
     # The Odds API (bookmaker odds across markets).
     odds_api_key: str = ""
     odds_api_base_url: str = "https://api.the-odds-api.com/v4"
+    # Odds-API.io (primary bookmaker odds provider).
+    odds_api_io_api_key: str = ""
+    odds_api_io_base_url: str = "https://api.odds-api.io/v3"
+    # WeatherAPI (venue weather / sports events).
+    weatherapi_key: str = ""
+    # DEPRECATED: 2026-07-17 - Sportmonks removed from production. No consumer modules.
+    # sportmonks_api_key: str = ""
 
     # Shared HTTP client behaviour for all providers.
     provider_timeout_seconds: float = 10.0
@@ -77,8 +93,8 @@ class Settings(BaseSettings):
     # 概率校准温度（温度缩放）。1.0=不校准；>1 降低过度自信。由 fit_calibration 拟合得到。
     analysis_calibration_temperature: float = 1.0
 
-    # --- Daily recommendations (cost control for the Claude review) ---
-    # Thresholds a selection must clear (on top of the gate) to be worth a Claude
+    # --- Daily recommendations (cost control for the GPT review) ---
+    # Thresholds a selection must clear (on top of the gate) to be worth a GPT
     # review, plus the daily cap on how many fixtures get reviewed.
     recommendations_min_ev: float = 0.05  # expected value >= 5%
     recommendations_min_kelly: float = 0.02  # Kelly fraction >= 2%

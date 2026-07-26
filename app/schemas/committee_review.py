@@ -1,7 +1,7 @@
 """AI 评审委员会的输入上下文与结构化产出 DTO。
 
 上下文里的所有数值均来自数学模型（唯一真相来源）；产出只包含定性文字，
-不含任何 Claude 自造的数值——Claude 只解释与批判，不改动数字。
+不含任何 LLM 自造的数值——LLM 只解释与批判，不改动数字。
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from app.schemas.analysis import ProbabilitiesOut, SelectionAnalysisOut
 
 # ---------------------------------------------------------------------------
-# 输入：交给 Claude 的证据包（数值均来自数学模型 / gate）
+# 输入：交给 LLM 的证据包（数值均来自数学模型 / gate）
 # ---------------------------------------------------------------------------
 
 
@@ -65,7 +65,7 @@ class CommitteeReviewContext(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# 输出：Claude 的结构化评审（纯定性，无数值）
+# 输出：LLM 的结构化评审（纯定性，无数值）
 # ---------------------------------------------------------------------------
 
 
@@ -87,7 +87,7 @@ class SelectionReview(BaseModel):
 
 
 class CommitteeReview(BaseModel):
-    """Claude 对一场比赛的结构化评审产出。"""
+    """LLM 对一场比赛的结构化评审产出。"""
 
     executive_summary: str = Field(description="面向决策者的执行摘要（中文）。")
     key_strengths: list[str] = Field(default_factory=list, description="本次机会的核心优势。")
@@ -115,7 +115,7 @@ class CommitteeReview(BaseModel):
 
 
 class CommitteeReviewResponse(BaseModel):
-    """评审端点响应：确定性分析 + Claude 评审 + 落库结果。"""
+    """评审端点响应：确定性分析 + LLM 评审 + 落库结果。"""
 
     fixture_id: UUID
     message: str | None = None

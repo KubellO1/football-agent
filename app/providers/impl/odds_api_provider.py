@@ -13,6 +13,7 @@ from typing import Any
 
 import httpx
 
+from app.core.exceptions import ExternalServiceError
 from app.core.logging import get_logger
 from app.providers.base import BaseHTTPProvider
 from app.providers.interfaces.odds_provider import OddsProvider
@@ -56,7 +57,41 @@ class TheOddsApiProvider(BaseHTTPProvider, OddsProvider):
             "markets": ",".join(markets),
             "oddsFormat": "decimal",
         }
-        payload = await self._get_json(f"/sports/{sport}/odds", params=params)
+        try:
+            payload = await self._get_json(f"/sports/{sport}/odds", params=params)
+        except ExternalServiceError as exc:
+            err_msg = str(exc)
+            if "QUOTA_EXHAUSTED" in err_msg:
+                logger.error(
+                    "Odds API quota exhausted for sport key '%s'. Monthly limit reached.",
+                    sport,
+                )
+            elif "INVALID_API_KEY" in err_msg:
+                logger.error(
+                    "Odds API key invalid for sport key '%s'. Check ODDS_API_KEY in .env.",
+                    sport,
+                )
+            elif "404" in err_msg:
+                logger.warning(
+                    "Odds API sport key '%s' returned 404 (not supported by The Odds API). Skipping.",
+                    sport,
+                )
+            elif "401" in err_msg or "403" in err_msg:
+                logger.warning(
+                    "Odds API sport key '%s' returned %s (auth failed). Skipping.",
+                    sport, "401" if "401" in err_msg else "403",
+                )
+            elif "422" in err_msg:
+                logger.warning(
+                    "Odds API sport key '%s' returned 422 (invalid parameters). Skipping.",
+                    sport,
+                )
+            else:
+                logger.warning(
+                    "Odds API sport key '%s' failed: %s. Skipping.",
+                    sport, exc,
+                )
+            return []
         # The v4 odds endpoint returns a bare JSON array of events.
         return [self._parse_event(event) for event in payload]
 
@@ -75,7 +110,36 @@ class TheOddsApiProvider(BaseHTTPProvider, OddsProvider):
             "oddsFormat": "decimal",
             "date": at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
-        payload = await self._get_json(f"/historical/sports/{sport}/odds", params=params)
+        try:
+            payload = await self._get_json(f"/historical/sports/{sport}/odds", params=params)
+        except ExternalServiceError as exc:
+            err_msg = str(exc)
+            if "QUOTA_EXHAUSTED" in err_msg:
+                logger.error(
+                    "Historical odds API quota exhausted for sport key '%s'. Monthly limit reached.",
+                    sport,
+                )
+            elif "INVALID_API_KEY" in err_msg:
+                logger.error(
+                    "Historical odds API key invalid for sport key '%s'. Check ODDS_API_KEY in .env.",
+                    sport,
+                )
+            elif "404" in err_msg:
+                logger.warning(
+                    "Historical odds sport key '%s' returned 404. Skipping.",
+                    sport,
+                )
+            elif "401" in err_msg or "403" in err_msg:
+                logger.warning(
+                    "Historical odds sport key '%s' returned %s (auth failed). Skipping.",
+                    sport, "401" if "401" in err_msg else "403",
+                )
+            else:
+                logger.warning(
+                    "Historical odds sport key '%s' failed: %s. Skipping.",
+                    sport, exc,
+                )
+            return []
         # Unlike the live endpoint, the historical endpoint wraps the event array
         # in a snapshot envelope: {timestamp, previous_timestamp, next_timestamp, data}.
         events = payload.get("data", []) if isinstance(payload, dict) else []
@@ -111,4 +175,5 @@ class TheOddsApiProvider(BaseHTTPProvider, OddsProvider):
             away_team=event.get("away_team", ""),
             sport_key=event.get("sport_key"),
             bookmakers=bookmaker_markets,
+            source="the-odds-api",
         )

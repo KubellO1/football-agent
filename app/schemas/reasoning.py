@@ -1,10 +1,10 @@
-"""Claude 推理 Agent 的数据传输对象（DTO）。
+"""LLM 推理 Agent 的数据传输对象（DTO）。
 
 ``ReasoningContext`` 是「证据包」，由量化模型（Poisson / Elo / xG / 蒙特卡洛
 等）的产出与定性信号组装而成，是 LLM 的**输入**。
 
-``ReasoningOutput`` 是 Claude 被约束产出的**结构化结果**。按设计，它**不包含
-任何概率、EV、盘口价值或下注单位**——这些数值均由数学模型负责。Claude 只能
+``ReasoningOutput`` 是 LLM 被约束产出的**结构化结果**。按设计，它**不包含
+任何概率、EV、盘口价值或下注单位**——这些数值均由数学模型负责。LLM 只能
 评审（保留/降低/放弃）、给出信心、解释、并提出反方理由与未知因素。
 
 详见 docs/agent-constitution.md（系统宪法）。
@@ -33,7 +33,7 @@ class OutcomeProbability(BaseModel):
 class CandidateBet(BaseModel):
     """模型标记、等待定性评审的候选价值投注。
 
-    这里的每个数值字段都由量化层产出，具有权威性——Claude 只评审，不重算。
+    这里的每个数值字段都由量化层产出，具有权威性——LLM 只评审，不重算。
     """
 
     selection_label: str
@@ -108,7 +108,7 @@ class ReasoningContext(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# 输出：Claude 的受约束评审（不含任何它可能凭空编造的数值）
+# 输出：LLM 的受约束评审（不含任何它可能凭空编造的数值）
 # ---------------------------------------------------------------------------
 
 
@@ -175,7 +175,7 @@ class SelectionAssessment(BaseModel):
 
 
 class ReasoningOutput(BaseModel):
-    """Claude 对某场比赛候选投注的结构化评审结果。"""
+    """LLM 对某场比赛候选投注的结构化评审结果。"""
 
     chief_summary: str = Field(description="首席分析师对整场比赛的综合汇总（中文）。")
     committee_opinions: list[CommitteeOpinion] = Field(

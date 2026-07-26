@@ -66,7 +66,7 @@ async def _fixture_count(container: Container) -> int:
 
 @pytest_asyncio.fixture
 async def container():
-    settings = Settings(database_url=_test_dsn(), anthropic_api_key="test")
+    settings = Settings(database_url=_test_dsn(), openai_api_key="test")
     ctx = Container(settings)
     ctx.init_resources()
     async with ctx.database.engine.begin() as conn:

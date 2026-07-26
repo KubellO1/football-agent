@@ -1,7 +1,7 @@
 """定向回填：只回填指定联赛×赛季的 API-Football 赛程（幂等、可续跑、限速）。
 
 只复用既有 provider + IngestionService.sync_league_season；导入赛事/球队/比赛/
-比分/状态，不导入赔率、不预测、不调用 Claude。默认联赛与赛季见下。
+比分/状态，不导入赔率、不预测、不调用 LLM。默认联赛与赛季见下。
 
 用法：
     python scripts/backfill_leagues.py                       # 默认 10 联赛 × 5 赛季

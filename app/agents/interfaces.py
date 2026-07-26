@@ -1,6 +1,6 @@
 """Abstract contract for the reasoning layer.
 
-Services depend on ``ReasoningEngine``, not on Claude directly — so the LLM can
+Services depend on ``ReasoningEngine``, not on a specific LLM provider — so it can
 be swapped or faked in tests without touching business logic.
 """
 

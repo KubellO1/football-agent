@@ -12,8 +12,11 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from app.agents.interfaces import CommitteeReviewer
+from app.config.whitelist import get_whitelist
+from app.core.logging import get_logger
 from app.models.value_objects.money import Money
 from app.providers.interfaces.fixtures_provider import FixturesProvider
+from app.providers.interfaces.injury_provider import InjuryProvider
 from app.providers.interfaces.odds_provider import OddsProvider
 from app.repositories.sqlalchemy.decision_log_repository import SqlAlchemyDecisionLogRepository
 from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
@@ -24,6 +27,11 @@ from app.repositories.sqlalchemy.reference_repositories import (
     SqlAlchemyTeamRepository,
 )
 from app.repositories.sqlalchemy.value_bet_repository import SqlAlchemyValueBetRepository
+from app.repositories.sqlalchemy.settlement_repository import (
+    SqlAlchemyBankrollRepository,
+    SqlAlchemyPerformanceSnapshotRepository,
+    SqlAlchemySettlementRepository,
+)
 from app.services.committee_review import CommitteeReviewService
 from app.services.daily_top_picks import DailyRecommendationsReader, DailyTopPicksService
 from app.services.fixture_analysis import FixtureAnalysisService, MatchAnalysisInputBuilder
@@ -31,11 +39,87 @@ from app.services.ingestion import IngestionService
 from app.services.modeling import MatchModel
 from app.services.odds_ingestion import OddsIngestionService
 from app.services.recommendation_gate import RecommendationGate
+from app.services.settlement import SettlementService
+from app.services.performance_tracker import PerformanceTracker
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.core.container import Container
+
+
+async def derive_today_sport_keys(session: AsyncSession, on_date: date) -> dict:
+    """Derive the minimal set of Odds API sport_keys needed for today.
+
+    Queries today's fixtures, extracts unique competition names,
+    maps them to whitelist sport_keys, and returns diagnostics.
+
+    Returns:
+        dict with keys:
+        - needed: list[str] — sport_keys to request today
+        - configured: int — total whitelist sport_keys
+        - saved: int — keys NOT needed today
+        - saved_pct: float — percentage saved
+        - empty_keys: list[str] — whitelist keys with zero fixtures today
+    """
+    from datetime import datetime, timezone as tz
+
+    from app.config.whitelist import get_whitelist
+    from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
+
+    whitelist = get_whitelist()
+    all_keys = sorted(whitelist.sport_keys)
+    configured = len(all_keys)
+
+    day_start = datetime(on_date.year, on_date.month, on_date.day, tzinfo=tz.utc)
+    day_end = datetime(on_date.year, on_date.month, on_date.day, 23, 59, 59, tzinfo=tz.utc)
+
+    fixture_repo = SqlAlchemyFixtureRepository(session)
+    fixtures = await fixture_repo.list_by_kickoff_window(day_start, day_end)
+
+    needed: set[str] = set()
+    for fixture in fixtures:
+        # Resolve competition → whitelist entry → sport_key
+        from app.repositories.sqlalchemy.reference_repositories import (
+            SqlAlchemyCompetitionRepository,
+        )
+        comp_repo = SqlAlchemyCompetitionRepository(session)
+        comp = await comp_repo.get(fixture.competition_id)
+        comp_name = comp.name if comp else ""
+        # Resolve league_id + country for exact-match whitelist
+        league_id: int | None = None
+        country = comp.country if comp else None
+        if comp and comp.external_id:
+            try:
+                league_id = int(comp.external_id)
+            except (ValueError, TypeError):
+                pass
+
+        if whitelist.is_allowed(comp_name, league_id=league_id, country=country):
+            sk = whitelist.get_sport_key_for(comp_name, league_id=league_id, country=country)
+            if sk:
+                needed.add(sk)
+
+    needed_sorted = sorted(needed)
+    empty_keys = sorted(set(all_keys) - needed)
+    saved = len(empty_keys)
+    saved_pct = (saved / configured * 100) if configured else 0.0
+
+    logger_ = get_logger(__name__)
+    logger_.info(
+        "Dynamic sport_key derivation: configured=%d needed=%d saved=%d (%.1f%%)",
+        configured, len(needed_sorted), saved, saved_pct,
+    )
+    if empty_keys:
+        logger_.info("Empty whitelist sport_keys (0 fixtures today): %s", empty_keys)
+
+    return {
+        "needed": needed_sorted,
+        "configured": configured,
+        "saved": saved,
+        "saved_pct": saved_pct,
+        "empty_keys": empty_keys,
+    }
 
 
 def build_ingestion_service(container: Container, session: AsyncSession) -> IngestionService:
@@ -48,16 +132,41 @@ def build_ingestion_service(container: Container, session: AsyncSession) -> Inge
 
 
 def build_odds_ingestion_service(
-    container: Container, session: AsyncSession
+    container: Container, session: AsyncSession,
+    *,
+    sport_keys: list[str] | None = None,
 ) -> OddsIngestionService:
     s = container.settings
+    # Derive sport_keys from production whitelist when available,
+    # falling back to the configured ODDS_SPORT_KEYS env var.
+    # A caller may override by passing sport_keys explicitly
+    # (useful for dynamic derivation after fixture ingestion).
+    if sport_keys is not None:
+        used_keys = sport_keys
+        from app.core.logging import get_logger
+        get_logger(__name__).info(
+            "Odds ingestion using caller-supplied sport_keys (n=%d)", len(used_keys)
+        )
+    else:
+        try:
+            whitelist = get_whitelist()
+            used_keys = sorted(whitelist.sport_keys)
+            if used_keys:
+                from app.core.logging import get_logger
+                get_logger(__name__).info(
+                    "Odds ingestion using whitelist sport_keys (n=%d)", len(used_keys)
+                )
+            else:
+                used_keys = s.odds_sport_keys
+        except Exception:
+            used_keys = s.odds_sport_keys
     return OddsIngestionService(
         odds_provider=container.resolve(OddsProvider),
         fixtures=SqlAlchemyFixtureRepository(session),
         teams=SqlAlchemyTeamRepository(session),
         bookmakers=SqlAlchemyBookmakerRepository(session),
         odds_snapshots=SqlAlchemyOddsSnapshotRepository(session),
-        sport_keys=s.odds_sport_keys,
+        sport_keys=used_keys,
         regions=s.odds_regions,
         tolerance_minutes=s.odds_match_tolerance_minutes,
     )
@@ -68,12 +177,14 @@ def build_fixture_analysis_service(
 ) -> FixtureAnalysisService:
     s = container.settings
     bankroll = Money(Decimal(str(s.analysis_default_bankroll)), s.analysis_currency)
+    injury = container.resolve(InjuryProvider)
     builder = MatchAnalysisInputBuilder(
         fixtures=SqlAlchemyFixtureRepository(session),
         teams=SqlAlchemyTeamRepository(session),
         odds_snapshots=SqlAlchemyOddsSnapshotRepository(session),
         bankroll=bankroll,
         form_window=s.analysis_form_window,
+        injury_provider=injury,
     )
     return FixtureAnalysisService(
         builder=builder,
@@ -93,7 +204,7 @@ def build_committee_review_service(
         reviewer=container.resolve(CommitteeReviewer),
         decision_logs=SqlAlchemyDecisionLogRepository(session),
         value_bets=SqlAlchemyValueBetRepository(session),
-        model_version=container.settings.anthropic_model,
+        model_version=container.settings.openai_model,
     )
 
 
@@ -108,10 +219,14 @@ def build_daily_top_picks_service(
         analysis=analysis,
         review=review,
         decision_logs=SqlAlchemyDecisionLogRepository(session),
+        teams=SqlAlchemyTeamRepository(session),
+        competitions=SqlAlchemyCompetitionRepository(session),
+        session=session,
         min_ev=s.recommendations_min_ev,
         min_kelly=s.recommendations_min_kelly,
         min_confidence=s.recommendations_min_confidence,
         max_picks=s.recommendations_max_picks,
+        model_version=s.openai_model,
     )
 
 
@@ -122,4 +237,25 @@ def build_daily_recommendations_reader(
         fixtures=SqlAlchemyFixtureRepository(session),
         value_bets=SqlAlchemyValueBetRepository(session),
         decision_logs=SqlAlchemyDecisionLogRepository(session),
+    )
+
+
+def build_settlement_service(container: Container, session: AsyncSession) -> SettlementService:
+    s = container.settings
+    return SettlementService(
+        fixtures=SqlAlchemyFixtureRepository(session),
+        value_bets=SqlAlchemyValueBetRepository(session),
+        settlements=SqlAlchemySettlementRepository(session),
+        bankroll=SqlAlchemyBankrollRepository(session),
+        initial_bankroll=Money(
+            Decimal(str(s.analysis_default_bankroll)), s.analysis_currency
+        ),
+    )
+
+
+def build_performance_tracker(container: Container, session: AsyncSession) -> PerformanceTracker:
+    return PerformanceTracker(
+        settlements=SqlAlchemySettlementRepository(session),
+        value_bets=SqlAlchemyValueBetRepository(session),
+        snapshots=SqlAlchemyPerformanceSnapshotRepository(session),
     )

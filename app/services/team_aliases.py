@@ -40,6 +40,16 @@ _ALIAS_GROUPS: list[list[str]] = [
     ["Stade Brestois 29", "Brest"],
     ["Lens", "RC Lens"],
     ["Reims", "Stade de Reims"],
+    # --- National Teams (World Cup 2026) ---
+    ["United States", "USA", "USMNT"],
+    ["Ivory Coast", "Côte d'Ivoire", "Cote d'Ivoire"],
+    ["DR Congo", "Congo DR", "Democratic Republic of the Congo"],
+    ["South Korea", "Korea Republic"],
+    ["Cape Verde", "Cabo Verde"],
+    ["Czechia", "Czech Republic"],
+    ["Bosnia-Herzegovina", "Bosnia and Herzegovina"],
+    ["Türkiye", "Turkey"],
+    ["Iran", "IR Iran"],
 ]
 
 

@@ -2,8 +2,8 @@
 
 用真实数学模型 + 准入 gate + 日级选择，配合假 ReasoningEngine 与内存仓储，
 验证主流程三条路径：
-① 通过 gate 且 Claude 保留 → 落库；
-② 通过 gate 但 Claude 放弃(DISCARD) → 剔除不落库；
+① 通过 gate 且 LLM 保留 → 落库；
+② 通过 gate 但 LLM 放弃(DISCARD) → 剔除不落库；
 ③ 无正 EV(gate 全拒) → 返回“今天没有值得下注的比赛”。
 """
 
@@ -102,7 +102,12 @@ def _model_input(*, home_odds: float, completeness: float = 95.0) -> ModelInput:
         home_stats=_stats(gf=20, ga=10),  # 强主队 → 主胜概率高
         away_stats=_stats(gf=10, ga=20),
         league=LeagueAverages(goals_per_game=1.4),
-        quotes=[MarketQuote(Selection(MarketType.MATCH_RESULT, "home"), Odds(Decimal(str(home_odds))))],
+        quotes=[
+            MarketQuote(
+                Selection(MarketType.MATCH_RESULT, "home"),
+                Odds(Decimal(str(home_odds))),
+            )
+        ],
         bankroll=Money(Decimal("1000")),
         data_completeness=DataCompleteness(completeness),
         evidence_level=EvidenceLevel.B,
@@ -131,7 +136,7 @@ async def test_value_bet_is_persisted_when_kept() -> None:
     assert len(result.selected) >= 1
     bet = result.selected[0]
     assert bet.fixture_id == model_input.fixture.id
-    # confidence/rationale 来自 Claude，数值来自模型
+    # confidence/rationale 来自 LLM，数值来自模型
     assert bet.confidence == pytest.approx(0.7)
     assert bet.rationale == "测试理由"
     assert bet.edge.edge > 0.0
@@ -141,14 +146,14 @@ async def test_value_bet_is_persisted_when_kept() -> None:
 
 
 @pytest.mark.unit
-async def test_discarded_by_claude_is_not_persisted() -> None:
+async def test_discarded_by_reviewer_is_not_persisted() -> None:
     repo = InMemoryValueBetRepository()
     pipeline = _pipeline(FakeReasoningEngine(Verdict.DISCARD), repo)
     model_input = _model_input(home_odds=2.5)
 
     result = await pipeline.analyze(model_input)
 
-    # 通过 gate 但 Claude 放弃 → 不落库
+    # 通过 gate 但 LLM 放弃 → 不落库
     assert result.selected == []
     assert result.reasoning is not None
     assert result.message is None

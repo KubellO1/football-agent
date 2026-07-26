@@ -42,3 +42,15 @@ data/
 
 # Generated backtest / model-validation reports
 reports/
+
+# Local agent configuration
+.claude/
+
+# Runtime state and generated artifacts
+app/state/
+output/
+temp/
+temp_*.py
+archive/
+backup/
+backups/

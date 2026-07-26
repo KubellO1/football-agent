@@ -6,6 +6,8 @@ clients bound to it. Managed by the DI container / app lifespan.
 
 from __future__ import annotations
 
+import json
+
 import redis.asyncio as redis
 
 
@@ -34,3 +36,31 @@ class RedisConnection:
     async def dispose(self) -> None:
         """Disconnect the pool (called on shutdown)."""
         await self._pool.disconnect()
+
+    async def cache_get(self, key: str) -> str | None:
+        """Retrieve a cached value by key. Returns ``None`` on cache miss."""
+        client = self.client()
+        try:
+            value = await client.get(key)
+            return value
+        finally:
+            await client.aclose()
+
+    async def cache_set(self, key: str, value: str, ttl: int = 300) -> None:
+        """Set a cached value with TTL in seconds (default 5 minutes).
+
+        ``value`` is stored as-is (caller is responsible for serialisation).
+        """
+        client = self.client()
+        try:
+            await client.set(key, value, ex=ttl)
+        finally:
+            await client.aclose()
+
+    async def cache_delete(self, key: str) -> None:
+        """Delete a cached key. No-op if the key does not exist."""
+        client = self.client()
+        try:
+            await client.delete(key)
+        finally:
+            await client.aclose()

@@ -20,10 +20,10 @@ class Fixture(Entity):
     """
 
     competition_id: UUID
-    season_id: UUID | None = None
     home_team_id: UUID
     away_team_id: UUID
     kickoff: datetime
+    season_id: UUID | None = None
     status: MatchStatus = MatchStatus.SCHEDULED
     score: Score | None = None
     # Upstream feed id + source (idempotency key for ingestion).

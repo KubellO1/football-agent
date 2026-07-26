@@ -1,10 +1,10 @@
 """CommitteeReviewService 的集成测试（需真实 Postgres）。
 
-用假的 CommitteeReviewer（不触达 Claude）+ 真实数学模型 + 真实仓储，验证：
+用假的 CommitteeReviewer（不触达 LLM）+ 真实数学模型 + 真实仓储，验证：
 - 每次评审落一条 DecisionLog（含 model_version / prompt_version / 完整 review JSON）；
-- gate 批准的推荐落入 ValueBet，且数值与模型一致（Claude 不改数值）；
-- Claude 的异议被记录进 DecisionLog（不改变落库决策）；
-- 数据不足 / 无赔率时不调用 Claude、不落库。
+- gate 批准的推荐落入 ValueBet，且数值与模型一致（LLM 不改数值）；
+- LLM 的异议被记录进 DecisionLog（不改变落库决策）；
+- 数据不足 / 无赔率时不调用 LLM、不落库。
 """
 
 from __future__ import annotations
@@ -112,7 +112,7 @@ def _service(
         reviewer=reviewer,
         decision_logs=SqlAlchemyDecisionLogRepository(session),
         value_bets=SqlAlchemyValueBetRepository(session),
-        model_version="claude-test",
+        model_version="gpt-test",
     )
 
 
@@ -200,7 +200,7 @@ async def test_review_persists_decision_log_and_value_bets(db_session: AsyncSess
 
     # DecisionLog：可复现性元数据 + 完整 review 存档
     log = (await db_session.execute(select(DecisionLogORM))).scalar_one()
-    assert log.model_version == "claude-test"
+    assert log.model_version == "gpt-test"
     assert log.prompt_version == "committee-review/zh-v1"
     assert log.summary == "执行摘要"
     assert log.review is not None and log.review["executive_summary"] == "执行摘要"
@@ -210,10 +210,10 @@ async def test_review_persists_decision_log_and_value_bets(db_session: AsyncSess
 @pytest.mark.integration
 async def test_reviewer_disagreement_is_recorded_not_acted_on(db_session: AsyncSession) -> None:
     fixture = await _seed(db_session, with_odds=True)
-    reviewer = FakeReviewer(agree=False)  # Claude 不认同模型
+    reviewer = FakeReviewer(agree=False)  # LLM 不认同模型
     result = await _service(db_session, reviewer, permissive_gate=True).review(fixture)
 
-    # 尽管 Claude 反对，被 gate 批准的推荐仍照常落库（数值/决策不受 Claude 影响）
+    # 尽管 LLM 反对，被 gate 批准的推荐仍照常落库（数值/决策不受 LLM 影响）
     approved = [s for s in result.analysis.selections if s.recommended]
     assert len(result.value_bet_ids) == len(approved) >= 1
 
@@ -223,12 +223,12 @@ async def test_reviewer_disagreement_is_recorded_not_acted_on(db_session: AsyncS
 
 
 @pytest.mark.integration
-async def test_no_odds_skips_claude_and_persistence(db_session: AsyncSession) -> None:
+async def test_no_odds_skips_reviewer_and_persistence(db_session: AsyncSession) -> None:
     fixture = await _seed(db_session, with_odds=False)
     reviewer = FakeReviewer()
     result = await _service(db_session, reviewer).review(fixture)
 
-    assert reviewer.calls == 0  # 无候选可评审 → 不调用 Claude
+    assert reviewer.calls == 0  # 无候选可评审 → 不调用 LLM
     assert result.review is None
     assert result.decision_log_id is None
     assert await _count(db_session, DecisionLogORM) == 0
@@ -236,7 +236,7 @@ async def test_no_odds_skips_claude_and_persistence(db_session: AsyncSession) ->
 
 
 @pytest.mark.integration
-async def test_insufficient_history_skips_claude(db_session: AsyncSession) -> None:
+async def test_insufficient_history_skips_reviewer(db_session: AsyncSession) -> None:
     comp = (
         await SqlAlchemyCompetitionRepository(db_session).add(Competition(name="L", country="C"))
     ).id

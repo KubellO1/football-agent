@@ -1,7 +1,7 @@
 """run_daily_job 的集成测试（需真实 Postgres）。
 
 用绑定到测试库的独立容器 + 假 provider/评审器，验证：三步按序执行并落库、
-复用既有服务、且重复运行不重复调用 Claude。不触达真实外部 API。
+复用既有服务、且重复运行不重复调用 LLM。不触达真实外部 API。
 """
 
 from __future__ import annotations
@@ -61,7 +61,13 @@ class FakeFixturesProvider(FixturesProvider):
     def __init__(self, fixtures: list[ProviderFixture]) -> None:
         self._fixtures = fixtures
 
-    async def get_fixtures(self, *, on_date=None, league=None, season=None):  # type: ignore[no-untyped-def]
+    async def get_fixtures(
+        self,
+        *,
+        on_date=None,
+        league=None,
+        season=None,
+    ):
         return self._fixtures
 
     async def get_fixture(self, provider_id: str):  # type: ignore[no-untyped-def]
@@ -72,7 +78,13 @@ class FakeOddsProvider(OddsProvider):
     def __init__(self, events: list[ProviderFixtureOdds]) -> None:
         self._events = events
 
-    async def get_odds(self, *, sport, markets=("h2h",), regions=("eu",)):  # type: ignore[no-untyped-def]
+    async def get_odds(
+        self,
+        *,
+        sport,
+        markets=("h2h",),
+        regions=("eu",),
+    ):
         return self._events
 
 
@@ -105,7 +117,7 @@ class FakeReviewer(CommitteeReviewer):
 
 @pytest_asyncio.fixture
 async def container():
-    settings = Settings(database_url=_test_dsn(), anthropic_api_key="test")
+    settings = Settings(database_url=_test_dsn(), openai_api_key="test")
     ctx = Container(settings)
     ctx.init_resources()
     async with ctx.database.engine.begin() as conn:
@@ -130,9 +142,9 @@ def _pf(pid: str, home: str, away: str) -> ProviderFixture:
         status="NS",
         home=ProviderTeam(provider_id=f"t-{home}", name=home),
         away=ProviderTeam(provider_id=f"t-{away}", name=away),
-        league="Dev League",
-        league_id="99",
-        league_country="Testland",
+        league="English Premier League",
+        league_id="39",
+        league_country="England",
         season=2026,
     )
 
@@ -175,7 +187,7 @@ async def test_job_runs_all_steps_and_persists(container: Container) -> None:
     # Step 2：赔率匹配并入库
     assert report.odds.events_matched == 1
     assert await _count(container, OddsSnapshotORM) == 3
-    # Step 3：跑了数学分析；新同步的球队没有历史 → 无合格项、不调用 Claude
+    # Step 3：跑了数学分析；新同步的球队没有历史 → 无合格项、不调用 LLM
     assert report.picks.fixtures_analyzed == 1
     assert report.picks.fixtures_reviewed == 0
     assert reviewer.calls == 0
@@ -184,7 +196,14 @@ async def test_job_runs_all_steps_and_persists(container: Container) -> None:
 async def _seed_qualifying(session: AsyncSession) -> None:
     """强主队情景：足够历史 + 慷慨赔率，能通过严格 gate 与阈值。"""
     comp = (
-        await SqlAlchemyCompetitionRepository(session).add(Competition(name="L", country="C"))
+        await SqlAlchemyCompetitionRepository(session).add(
+            Competition(
+                name="English Premier League",
+                country="England",
+                external_id="39",
+                external_source="api-football",
+            )
+        )
     ).id
     teams_repo = SqlAlchemyTeamRepository(session)
     elos = {"Alpha": 1650.0, "Bravo": 1350.0, "Charlie": 1500.0, "Delta": 1500.0}
@@ -235,7 +254,7 @@ async def _seed_qualifying(session: AsyncSession) -> None:
 
 
 @pytest.mark.integration
-async def test_job_reviews_qualifying_once_and_no_duplicate_claude(
+async def test_job_reviews_qualifying_once_and_no_duplicate_reviewer_calls(
     container: Container,
 ) -> None:
     # 预置一个可通过严格 gate 的强主队情景（直接入库并提交）。
@@ -256,5 +275,5 @@ async def test_job_reviews_qualifying_once_and_no_duplicate_claude(
     second = await run_daily_job(container, TARGET)
     assert second.picks.fixtures_skipped_existing == 1
     assert second.picks.fixtures_reviewed == 0
-    assert reviewer.calls == 1  # 未再调用 Claude
+    assert reviewer.calls == 1  # 未再调用 LLM
     assert await _count(container, DecisionLogORM) == 1  # 未重复落库
