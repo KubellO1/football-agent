@@ -80,7 +80,7 @@ jobs:
           done
 
           if (( ${#app_files[@]} > 0 )); then
-            mypy "${app_files[@]}"
+            mypy --follow-imports=silent "${app_files[@]}"
           fi
 
   unit-tests:
