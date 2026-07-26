@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 from sqlalchemy import text
 
-from app.api.deps import RedisDep, SessionDep
+from app.api.deps import RedisDep, SessionDep  # noqa: TC001 - FastAPI 会在运行时解析依赖注解
 
 router = APIRouter(tags=["health"])
 

@@ -6,17 +6,23 @@ Kelly 下注与推荐判定；不访问任何外部数据源，也不调用 LLM�
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
+from uuid import UUID  # noqa: TC003 - FastAPI 会在运行时解析端点注解
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.api.deps import FixtureAnalysisServiceDep, FixtureRepositoryDep
+from app.api.deps import (  # noqa: TC001 - FastAPI 会在运行时解析依赖注解
+    FixtureAnalysisServiceDep,
+    FixtureRepositoryDep,
+)
 from app.schemas.analysis import (
     FixtureAnalysisResponse,
     ProbabilitiesOut,
     SelectionAnalysisOut,
 )
-from app.services.fixture_analysis import FixtureAnalysisResult
+
+if TYPE_CHECKING:
+    from app.services.fixture_analysis import FixtureAnalysisResult
 
 router = APIRouter(tags=["analysis"])
 

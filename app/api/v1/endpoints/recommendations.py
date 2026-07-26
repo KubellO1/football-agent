@@ -8,10 +8,14 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.api.deps import DailyRecommendationsReaderDep, DailyTopPicksServiceDep
+from app.api.deps import (  # noqa: TC001 - FastAPI 会在运行时解析依赖注解
+    DailyRecommendationsReaderDep,
+    DailyTopPicksServiceDep,
+)
 from app.core.exceptions import ExternalServiceError
 from app.schemas.recommendations import (
     DailyRunResponse,
@@ -19,7 +23,9 @@ from app.schemas.recommendations import (
     RecommendationBetOut,
     RecommendationsTodayResponse,
 )
-from app.services.daily_top_picks import RecommendationsView
+
+if TYPE_CHECKING:
+    from app.services.daily_top_picks import RecommendationsView
 
 router = APIRouter(tags=["recommendations"])
 

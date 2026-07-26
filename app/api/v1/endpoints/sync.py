@@ -6,7 +6,10 @@ from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.api.deps import IngestionServiceDep, OddsIngestionServiceDep
+from app.api.deps import (  # noqa: TC001 - FastAPI 会在运行时解析依赖注解
+    IngestionServiceDep,
+    OddsIngestionServiceDep,
+)
 from app.core.exceptions import ExternalServiceError
 from app.schemas.odds_sync import OddsSyncReport
 from app.schemas.sync import SyncReport
