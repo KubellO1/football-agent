@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from uuid import UUID
+from datetime import datetime  # noqa: TC003 - Pydantic 会在运行时解析字段注解
+from uuid import UUID  # noqa: TC003 - Pydantic 会在运行时解析字段注解
 
 from pydantic import BaseModel, Field
 

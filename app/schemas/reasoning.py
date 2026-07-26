@@ -12,7 +12,7 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
@@ -112,7 +112,7 @@ class ReasoningContext(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class Verdict(str, Enum):
+class Verdict(StrEnum):
     """针对候选投注的裁决。"""
 
     KEEP = "keep"  # 保留
@@ -120,7 +120,7 @@ class Verdict(str, Enum):
     DISCARD = "discard"  # 放弃
 
 
-class CommitteeRole(str, Enum):
+class CommitteeRole(StrEnum):
     """决策委员会角色（对应宪法第 6 节）。"""
 
     DATA = "data_analyst"  # 数据分析师
@@ -135,7 +135,7 @@ class CommitteeRole(str, Enum):
     RED_TEAM = "red_team"  # 反方分析
 
 
-class Stance(str, Enum):
+class Stance(StrEnum):
     """某角色相对模型建议的立场。"""
 
     SUPPORT = "support"  # 支持

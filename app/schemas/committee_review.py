@@ -6,12 +6,15 @@
 
 from __future__ import annotations
 
-from enum import Enum
-from uuid import UUID
+from enum import StrEnum
+from uuid import UUID  # noqa: TC003 - Pydantic 会在运行时解析字段注解
 
 from pydantic import BaseModel, Field
 
-from app.schemas.analysis import ProbabilitiesOut, SelectionAnalysisOut
+from app.schemas.analysis import (  # noqa: TC001 - Pydantic 会在运行时解析字段注解
+    ProbabilitiesOut,
+    SelectionAnalysisOut,
+)
 
 # ---------------------------------------------------------------------------
 # 输入：交给 LLM 的证据包（数值均来自数学模型 / gate）
@@ -69,7 +72,7 @@ class CommitteeReviewContext(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class SelectionStance(str, Enum):
+class SelectionStance(StrEnum):
     """评审对某候选相对模型/gate 结论的立场。"""
 
     SUPPORT = "support"  # 支持
