@@ -6,17 +6,15 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter
 
-from app.api.deps import (
+from app.api.deps import (  # noqa: TC001 - FastAPI 会在运行时解析依赖注解
     CompetitionRepositoryDep,
     FixtureRepositoryDep,
     TeamRepositoryDep,
 )
-from app.models.entities.fixture import Fixture
-from app.repositories.interfaces.fixture_repository import FixtureRepository
-from app.repositories.interfaces.reference import CompetitionRepository, TeamRepository
 from app.schemas.fixtures import (
     CompetitionOut,
     FixtureOut,
@@ -24,6 +22,11 @@ from app.schemas.fixtures import (
     ScoreOut,
     TeamOut,
 )
+
+if TYPE_CHECKING:
+    from app.models.entities.fixture import Fixture
+    from app.repositories.interfaces.fixture_repository import FixtureRepository
+    from app.repositories.interfaces.reference import CompetitionRepository, TeamRepository
 
 router = APIRouter(tags=["fixtures"])
 

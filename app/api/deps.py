@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator  # noqa: TC003 - FastAPI 会在运行时解析依赖注解
 from decimal import Decimal
 from typing import Annotated, cast
 
@@ -229,6 +229,9 @@ def get_daily_top_picks_service(
     review: CommitteeReviewServiceDep,
     fixtures: FixtureRepositoryDep,
     decision_logs: DecisionLogRepositoryDep,
+    teams: TeamRepositoryDep,
+    competitions: CompetitionRepositoryDep,
+    session: SessionDep,
 ) -> DailyTopPicksService:
     """组装每日 Top Picks 批处理：确定性分析 + GPT 评审 + 阈值/上限（settings）。"""
     settings = container.settings
@@ -237,6 +240,9 @@ def get_daily_top_picks_service(
         analysis=analysis,
         review=review,
         decision_logs=decision_logs,
+        teams=teams,
+        competitions=competitions,
+        session=session,
         min_ev=settings.recommendations_min_ev,
         min_kelly=settings.recommendations_min_kelly,
         min_confidence=settings.recommendations_min_confidence,

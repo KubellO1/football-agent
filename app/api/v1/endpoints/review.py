@@ -6,15 +6,21 @@
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
+from uuid import UUID  # noqa: TC003 - FastAPI 会在运行时解析端点注解
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.api.deps import CommitteeReviewServiceDep, FixtureRepositoryDep
+from app.api.deps import (  # noqa: TC001 - FastAPI 会在运行时解析依赖注解
+    CommitteeReviewServiceDep,
+    FixtureRepositoryDep,
+)
 from app.core.exceptions import ExternalServiceError
 from app.schemas.analysis import ProbabilitiesOut, SelectionAnalysisOut
 from app.schemas.committee_review import CommitteeReviewResponse
-from app.services.committee_review import CommitteeReviewResult
+
+if TYPE_CHECKING:
+    from app.services.committee_review import CommitteeReviewResult
 
 router = APIRouter(tags=["review"])
 
