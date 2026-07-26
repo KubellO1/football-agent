@@ -6,8 +6,6 @@ clients bound to it. Managed by the DI container / app lifespan.
 
 from __future__ import annotations
 
-import json
-
 import redis.asyncio as redis
 
 
@@ -42,6 +40,8 @@ class RedisConnection:
         client = self.client()
         try:
             value = await client.get(key)
+            if isinstance(value, bytes):
+                return value.decode("utf-8")
             return value
         finally:
             await client.aclose()

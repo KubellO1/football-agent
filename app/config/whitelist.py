@@ -61,8 +61,13 @@ class WhitelistEntry:
     """A single competition on the whitelist."""
 
     __slots__ = (
-        "name", "sport_keys", "match_names_norm", "category",
-        "enabled", "api_football_league_id", "country",
+        "name",
+        "sport_keys",
+        "match_names_norm",
+        "category",
+        "enabled",
+        "api_football_league_id",
+        "country",
     )
 
     def __init__(
@@ -126,9 +131,7 @@ class CompetitionWhitelist:
                     if lid is not None:
                         existing_lid = self._league_id_lookup.get(lid)
                         if existing_lid is not None:
-                            collisions.append(
-                                (f"league_id={lid}", existing_lid.name, we.name)
-                            )
+                            collisions.append((f"league_id={lid}", existing_lid.name, we.name))
                         else:
                             self._league_id_lookup[lid] = we
                     for norm in we.match_names_norm:
@@ -146,10 +149,12 @@ class CompetitionWhitelist:
                 "Alias collisions detected in whitelist (%d):",
                 len(collisions),
             )
-            for norm, existing, new_entry in collisions:
+            for norm, existing_name, new_entry in collisions:
                 logger.warning(
                     "  alias='%s' first-claimed='%s' ignored='%s'",
-                    norm, existing, new_entry,
+                    norm,
+                    existing_name,
+                    new_entry,
                 )
             logger.warning(
                 "Only the first-claimed entry will match. Remove ambiguous generic "
@@ -221,10 +226,11 @@ class CompetitionWhitelist:
         entry = self._norm_lookup.get(norm)
         if entry is None or not entry.enabled:
             return False
-        if country is not None and entry.country is not None:
-            if _normalize(country) != _normalize(entry.country):
-                return False
-        return True
+        return (
+            country is None
+            or entry.country is None
+            or _normalize(country) == _normalize(entry.country)
+        )
 
     def get_entry(
         self,
@@ -249,9 +255,12 @@ class CompetitionWhitelist:
         entry = self._norm_lookup.get(norm)
         if entry is None or not entry.enabled:
             return None
-        if country is not None and entry.country is not None:
-            if _normalize(country) != _normalize(entry.country):
-                return None
+        if (
+            country is not None
+            and entry.country is not None
+            and _normalize(country) != _normalize(entry.country)
+        ):
+            return None
         return entry
 
     def get_sport_key_for(
