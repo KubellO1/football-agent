@@ -8,7 +8,7 @@ domain is a service-layer concern and is *not* wired here yet.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime  # noqa: TC003 - Pydantic 会在运行时解析字段注解
 
 from pydantic import BaseModel, Field
 

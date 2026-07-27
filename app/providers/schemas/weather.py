@@ -6,7 +6,7 @@ WeatherAPI provides forecast and sports endpoints; this schema covers both.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime  # noqa: TC003 - Pydantic 会在运行时解析字段注解
 from typing import Any
 
 from pydantic import BaseModel, Field

@@ -5,7 +5,7 @@ Normalized DTOs from API-Football /v3/injuries endpoint.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date  # noqa: TC003 - Pydantic 会在运行时解析字段注解
 
 from pydantic import BaseModel, Field
 

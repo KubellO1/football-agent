@@ -7,7 +7,7 @@ object happens here (that is a service-layer concern, not wired yet).
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime  # noqa: TC003 - Pydantic 会在运行时解析字段注解
 
 from pydantic import BaseModel, Field
 

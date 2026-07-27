@@ -9,6 +9,7 @@ from app.providers.schemas.odds import (
     OddsOutcome,
     ProviderFixtureOdds,
 )
+
 # from app.providers.schemas.sportmonks import (  # DEPRECATED: 2026-07-17
 #     SportmonksFixturePredictions,
 #     SportmonksOdds,
