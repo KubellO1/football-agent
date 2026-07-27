@@ -7,7 +7,10 @@ system prompt 在所有比赛间保持稳定（会被缓存），并固化最核
 
 from __future__ import annotations
 
-from app.schemas.reasoning import ReasoningContext
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.schemas.reasoning import ReasoningContext
 
 # 提示词版本号：中文版第 1 版。改动提示词时递增，便于回溯。
 PROMPT_VERSION = "match-reasoning/zh-v1"
