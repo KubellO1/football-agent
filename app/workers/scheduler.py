@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
-from app.core.container import Container
 from app.core.logging import get_logger
 from app.workers.daily_job import run_daily_job
+
+if TYPE_CHECKING:
+    from app.core.container import Container
 
 logger = get_logger(__name__)
 
