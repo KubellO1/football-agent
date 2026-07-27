@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from datetime import datetime
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from app.models.entities.value_bet import ValueBet
 from app.repositories.interfaces.base import Repository
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 
 class ValueBetRepository(Repository[ValueBet]):
