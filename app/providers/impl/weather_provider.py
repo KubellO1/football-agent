@@ -7,14 +7,17 @@ parameter. Supports forecast.json and sports.json endpoints.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
-
-import httpx
+from typing import TYPE_CHECKING, Any, cast
 
 from app.core.logging import get_logger
 from app.providers.base import BaseHTTPProvider
 from app.providers.interfaces.weather_provider import WeatherProvider
 from app.providers.schemas.weather import VenueWeather, WeatherCondition
+
+if TYPE_CHECKING:
+    import httpx
+
+    from app.providers.interfaces.weather_provider import SportsEvent
 
 logger = get_logger(__name__)
 
@@ -66,7 +69,7 @@ class WeatherApiProvider(BaseHTTPProvider, WeatherProvider):
         self,
         *,
         sport: str = "football",
-    ) -> list[dict]:
+    ) -> list[SportsEvent]:
         params: dict[str, Any] = {
             "key": self._api_key,
             "q": sport,
@@ -75,16 +78,18 @@ class WeatherApiProvider(BaseHTTPProvider, WeatherProvider):
             payload = await self._get_json("/sports.json", params=params)
             # sports.json wraps data in a "football" (or other sport) key
             if isinstance(payload, dict):
-                return payload.get(sport, payload.get("football", []))
+                events = payload.get(sport, payload.get("football", []))
+                if isinstance(events, list):
+                    return [
+                        cast("SportsEvent", event) for event in events if isinstance(event, dict)
+                    ]
             return []
         except Exception:
             logger.warning("WeatherAPI sports endpoint failed for sport=%s", sport, exc_info=True)
             return []
 
     @staticmethod
-    def _parse_forecast(
-        payload: dict[str, Any], city: str, dt: datetime | None
-    ) -> VenueWeather:
+    def _parse_forecast(payload: dict[str, Any], city: str, dt: datetime | None) -> VenueWeather:
         location = payload.get("location", {})
         forecast = payload.get("forecast", {})
         forecastday = (forecast.get("forecastday") or [{}])[0]

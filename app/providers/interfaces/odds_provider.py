@@ -7,10 +7,13 @@ Odds API today), keeping the pricing source swappable and testable.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
-from datetime import datetime
+from typing import TYPE_CHECKING
 
-from app.providers.schemas.odds import ProviderFixtureOdds
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from datetime import datetime
+
+    from app.providers.schemas.odds import ProviderFixtureOdds
 
 
 class OddsProvider(ABC):

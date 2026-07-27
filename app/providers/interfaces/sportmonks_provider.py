@@ -14,19 +14,21 @@ Boundary: Sportmonks is an enhancement provider. It does NOT replace:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
-from app.providers.schemas.sportmonks import (
-    InjuryReport,
-    LineupReport,
-    MatchCentreData,
-    RecentForm,
-    SportmonksFixturePredictions,
-    SportmonksOdds,
-    SportmonksTeamStats,
-    SportmonksTransfer,
-    StandingsTable,
-    TVStation,
-)
+if TYPE_CHECKING:
+    from app.providers.schemas.sportmonks import (
+        InjuryReport,
+        LineupReport,
+        MatchCentreData,
+        RecentForm,
+        SportmonksFixturePredictions,
+        SportmonksOdds,
+        SportmonksTeamStats,
+        SportmonksTransfer,
+        StandingsTable,
+        TVStation,
+    )
 
 
 class SportmonksProvider(ABC):

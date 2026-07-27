@@ -6,9 +6,14 @@ Services depend on ``WeatherProvider``, never on a concrete vendor client.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from datetime import datetime
+from typing import TYPE_CHECKING
 
-from app.providers.schemas.weather import VenueWeather
+if TYPE_CHECKING:
+    from datetime import datetime
+
+    from app.providers.schemas.weather import VenueWeather
+
+type SportsEvent = dict[str, object]
 
 
 class WeatherProvider(ABC):
@@ -29,7 +34,7 @@ class WeatherProvider(ABC):
         self,
         *,
         sport: str = "football",
-    ) -> list[dict]:
+    ) -> list[SportsEvent]:
         """Return sports events from WeatherAPI's sports endpoint.
 
         Raw upstream format — mapping to domain entities is a service-layer concern.

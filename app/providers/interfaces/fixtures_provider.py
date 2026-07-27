@@ -8,9 +8,12 @@ without touching business logic.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from datetime import date
+from typing import TYPE_CHECKING
 
-from app.providers.schemas.fixtures import ProviderFixture
+if TYPE_CHECKING:
+    from datetime import date
+
+    from app.providers.schemas.fixtures import ProviderFixture
 
 
 class FixturesProvider(ABC):
