@@ -17,10 +17,12 @@ from uuid import UUID  # noqa: TC003 - SQLAlchemy 会在运行时解析 Mapped �
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Date,
     DateTime,
     Float,
     ForeignKey,
+    Identity,
     Index,
     Integer,
     Numeric,
@@ -284,8 +286,10 @@ class BankrollEntryORM(TimestampMixin, Base):
     """银行余额流水表。每条记录代表一次余额变动（初始化、结算、调整）。"""
 
     __tablename__ = "bankroll_entries"
+    __table_args__ = (UniqueConstraint("sequence", name="uq_bankroll_entries_sequence"),)
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    sequence: Mapped[int] = mapped_column(BigInteger, Identity(), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     balance_after: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     reason: Mapped[str] = mapped_column(String(200))
