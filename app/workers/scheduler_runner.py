@@ -666,10 +666,21 @@ async def _run_daily_report(log: logging.Logger) -> None:
         async with container.database.session() as session:
             from sqlalchemy import func, select
 
-            from app.repositories.sqlalchemy.models import PredictionORM, SettlementORM, ValueBetORM
+            from app.repositories.sqlalchemy.models import (
+                PREDICTION_RECORD_DECISION,
+                PredictionORM,
+                SettlementORM,
+                ValueBetORM,
+            )
 
             # Predictions count (all-time, for reference)
-            pred_total = (await session.scalar(select(func.count(PredictionORM.id)))) or 0
+            pred_total = (
+                await session.scalar(
+                    select(func.count(PredictionORM.id)).where(
+                        PredictionORM.record_kind == PREDICTION_RECORD_DECISION
+                    )
+                )
+            ) or 0
 
             # Today's settlements
             settled_row = (
@@ -740,7 +751,12 @@ async def _run_weekly_report(log: logging.Logger) -> None:
         async with container.database.session() as session:
             from sqlalchemy import func, select
 
-            from app.repositories.sqlalchemy.models import PredictionORM, SettlementORM, ValueBetORM
+            from app.repositories.sqlalchemy.models import (
+                PREDICTION_RECORD_DECISION,
+                PredictionORM,
+                SettlementORM,
+                ValueBetORM,
+            )
 
             # 7-day settlements
             settled_row = (
@@ -758,7 +774,8 @@ async def _run_weekly_report(log: logging.Logger) -> None:
             pred_7d = (
                 await session.scalar(
                     select(func.count(PredictionORM.id)).where(
-                        func.date(PredictionORM.created_at) >= week_start
+                        PredictionORM.record_kind == PREDICTION_RECORD_DECISION,
+                        func.date(PredictionORM.created_at) >= week_start,
                     )
                 )
             ) or 0

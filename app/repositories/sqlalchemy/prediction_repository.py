@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.entities.prediction import MatchPrediction
 from app.repositories.interfaces.prediction_repository import PredictionRepository
 from app.repositories.sqlalchemy.mappers import PredictionMapper
-from app.repositories.sqlalchemy.models import PredictionORM
+from app.repositories.sqlalchemy.models import (
+    PREDICTION_RECORD_AGGREGATE,
+    PredictionORM,
+)
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.models.entities.prediction import MatchPrediction
 
 
 class SqlAlchemyPredictionRepository(PredictionRepository):
@@ -20,7 +28,11 @@ class SqlAlchemyPredictionRepository(PredictionRepository):
         self._session = session
 
     async def get(self, entity_id: UUID) -> MatchPrediction | None:
-        row = await self._session.get(PredictionORM, entity_id)
+        stmt = select(PredictionORM).where(
+            PredictionORM.id == entity_id,
+            PredictionORM.record_kind == PREDICTION_RECORD_AGGREGATE,
+        )
+        row = (await self._session.execute(stmt)).scalars().first()
         return PredictionMapper.to_domain(row) if row is not None else None
 
     async def add(self, entity: MatchPrediction) -> MatchPrediction:
@@ -33,8 +45,11 @@ class SqlAlchemyPredictionRepository(PredictionRepository):
         # 取该场比赛最新一条预测（按生成时间倒序）
         stmt = (
             select(PredictionORM)
-            .where(PredictionORM.fixture_id == fixture_id)
-            .order_by(PredictionORM.generated_at.desc())
+            .where(
+                PredictionORM.fixture_id == fixture_id,
+                PredictionORM.record_kind == PREDICTION_RECORD_AGGREGATE,
+            )
+            .order_by(PredictionORM.generated_at.desc(), PredictionORM.id.desc())
             .limit(1)
         )
         row = (await self._session.execute(stmt)).scalars().first()

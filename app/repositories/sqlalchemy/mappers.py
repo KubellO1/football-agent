@@ -22,6 +22,7 @@ from app.models.value_objects.odds import Odds
 from app.models.value_objects.probability import Probability
 from app.models.value_objects.score import MatchResult, Score
 from app.repositories.sqlalchemy.models import (
+    PREDICTION_RECORD_AGGREGATE,
     BankrollEntryORM,
     BookmakerORM,
     CompetitionORM,
@@ -189,6 +190,9 @@ class PredictionMapper:
 
     @staticmethod
     def to_domain(row: PredictionORM) -> MatchPrediction:
+        if row.record_kind != PREDICTION_RECORD_AGGREGATE:
+            raise ValueError("decision records cannot be mapped to MatchPrediction")
+
         probabilities: dict[MatchResult, Probability] = {}
         if row.prob_home is not None:
             probabilities[MatchResult.HOME] = Probability(row.prob_home)
@@ -219,6 +223,7 @@ class PredictionMapper:
         return PredictionORM(
             id=entity.id,
             fixture_id=entity.fixture_id,
+            record_kind=PREDICTION_RECORD_AGGREGATE,
             prob_home=home.value if home is not None else None,
             prob_draw=draw.value if draw is not None else None,
             prob_away=away.value if away is not None else None,

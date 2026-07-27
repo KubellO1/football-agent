@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dashboard.db_builder import build_daily_dashboard
 from app.dashboard.types import DailyDashboardData, TopPick
 from app.repositories.sqlalchemy.models import (
+    PREDICTION_RECORD_DECISION,
     FixtureORM,
     PredictionORM,
     ValueBetORM,
@@ -27,7 +27,7 @@ def _make_fixture() -> FixtureORM:
         competition_id=uuid4(),
         home_team_id=uuid4(),
         away_team_id=uuid4(),
-        kickoff=datetime(2026, 7, 16, 14, 0, tzinfo=timezone.utc),
+        kickoff=datetime(2026, 7, 16, 14, 0, tzinfo=UTC),
         status="upcoming",
     )
 
@@ -36,10 +36,11 @@ def _make_prediction(fixture_id, home: str, away: str) -> PredictionORM:
     return PredictionORM(
         id=uuid4(),
         fixture_id=fixture_id,
+        record_kind=PREDICTION_RECORD_DECISION,
         home_team=home,
         away_team=away,
         final_decision="WATCH",
-        generated_at=datetime(2026, 7, 16, 8, 0, tzinfo=timezone.utc),
+        generated_at=datetime(2026, 7, 16, 8, 0, tzinfo=UTC),
     )
 
 
@@ -72,14 +73,27 @@ def _patch_comp_repo():
     """返回 mock CompRepo: get() 返回简单 competition 对象。"""
     m = MagicMock()
     m.get = AsyncMock(return_value=MagicMock(name="MockComp"))
-    return patch("app.repositories.sqlalchemy.reference_repositories.SqlAlchemyCompetitionRepository", return_value=m)
+    return patch(
+        "app.repositories.sqlalchemy.reference_repositories.SqlAlchemyCompetitionRepository",
+        return_value=m,
+    )
 
 
 # ── Tests ────────────────────────────────────────────────────────────
 
-def _setup_session(*, fixtures=None, predictions=None, value_bets=None,
-                   odds_count=0, vb_count=0, decision_count=0,
-                   settlement_count=0, pl_sum=0.0, latest_perf=None):
+
+def _setup_session(
+    *,
+    fixtures=None,
+    predictions=None,
+    value_bets=None,
+    odds_count=0,
+    vb_count=0,
+    decision_count=0,
+    settlement_count=0,
+    pl_sum=0.0,
+    latest_perf=None,
+):
     """返回一个配置好的 AsyncMock session，无需手动排列 side_effect。"""
     session = AsyncMock(spec=AsyncSession)
 
@@ -149,9 +163,7 @@ def test_empty_value_bets_yields_empty_top_picks() -> None:
         )
 
         with _patch_whitelist(), _patch_comp_repo():
-            data: DailyDashboardData = await build_daily_dashboard(
-                session, date(2026, 7, 16)
-            )
+            data: DailyDashboardData = await build_daily_dashboard(session, date(2026, 7, 16))
 
         assert data.top_picks == []
         assert data.top_recommendations == []
@@ -181,9 +193,7 @@ def test_value_bets_become_top_picks_and_recommendations() -> None:
         )
 
         with _patch_whitelist(), _patch_comp_repo():
-            data: DailyDashboardData = await build_daily_dashboard(
-                session, date(2026, 7, 16)
-            )
+            data: DailyDashboardData = await build_daily_dashboard(session, date(2026, 7, 16))
 
         # Verify TopPick
         assert len(data.top_picks) == 1
@@ -235,9 +245,7 @@ def test_value_bets_no_rationale_uses_empty_string() -> None:
         )
 
         with _patch_whitelist(), _patch_comp_repo():
-            data: DailyDashboardData = await build_daily_dashboard(
-                session, date(2026, 7, 16)
-            )
+            data: DailyDashboardData = await build_daily_dashboard(session, date(2026, 7, 16))
 
         assert data.top_picks[0].reason == ""
         assert data.top_recommendations[0].reason == ""
@@ -253,9 +261,7 @@ def test_fixture_ids_empty_when_no_fixtures() -> None:
         session = _setup_session(fixtures=[], predictions=[])
 
         with _patch_whitelist(), _patch_comp_repo():
-            data: DailyDashboardData = await build_daily_dashboard(
-                session, date(2026, 7, 16)
-            )
+            data: DailyDashboardData = await build_daily_dashboard(session, date(2026, 7, 16))
 
         assert data.top_picks == []
         assert data.top_recommendations == []
@@ -282,26 +288,38 @@ def test_multiple_value_bets_sorted_by_ev_descending() -> None:
         # EV = model_prob * odds - 1.0
         # vb_a: 0.48 * 2.50 - 1 = 0.20
         vb_a = ValueBetORM(
-            id=uuid4(), fixture_id=fix_a.id,
-            selection_market="1x2", selection_code="home",
-            odds_decimal=Decimal("2.50"), model_probability=0.48,
-            confidence=0.85, stake_fraction=0.04,
+            id=uuid4(),
+            fixture_id=fix_a.id,
+            selection_market="1x2",
+            selection_code="home",
+            odds_decimal=Decimal("2.50"),
+            model_probability=0.48,
+            confidence=0.85,
+            stake_fraction=0.04,
             rationale="Value on Arsenal",
         )
         # vb_b: 0.55 * 3.00 - 1 = 0.65 (highest)
         vb_b = ValueBetORM(
-            id=uuid4(), fixture_id=fix_b.id,
-            selection_market="1x2", selection_code="away",
-            odds_decimal=Decimal("3.00"), model_probability=0.55,
-            confidence=0.72, stake_fraction=0.03,
+            id=uuid4(),
+            fixture_id=fix_b.id,
+            selection_market="1x2",
+            selection_code="away",
+            odds_decimal=Decimal("3.00"),
+            model_probability=0.55,
+            confidence=0.72,
+            stake_fraction=0.03,
             rationale="Barca underrated away",
         )
         # vb_c: 0.40 * 2.80 - 1 = 0.12 (lowest)
         vb_c = ValueBetORM(
-            id=uuid4(), fixture_id=fix_c.id,
-            selection_market="1x2", selection_code="draw",
-            odds_decimal=Decimal("2.80"), model_probability=0.40,
-            confidence=0.66, stake_fraction=0.02,
+            id=uuid4(),
+            fixture_id=fix_c.id,
+            selection_market="1x2",
+            selection_code="draw",
+            odds_decimal=Decimal("2.80"),
+            model_probability=0.40,
+            confidence=0.66,
+            stake_fraction=0.02,
             rationale="Draw value",
         )
 
@@ -309,19 +327,20 @@ def test_multiple_value_bets_sorted_by_ev_descending() -> None:
             fixtures=[fix_a, fix_b, fix_c],
             predictions=[pred_a, pred_b, pred_c],
             value_bets=[vb_a, vb_b, vb_c],
-            odds_count=3, vb_count=3, decision_count=3, settlement_count=3,
+            odds_count=3,
+            vb_count=3,
+            decision_count=3,
+            settlement_count=3,
         )
 
         with _patch_whitelist(), _patch_comp_repo():
-            data: DailyDashboardData = await build_daily_dashboard(
-                session, date(2026, 7, 16)
-            )
+            data: DailyDashboardData = await build_daily_dashboard(session, date(2026, 7, 16))
 
         assert len(data.top_picks) == 3
         ev_values = [tp.ev for tp in data.top_picks]
-        assert ev_values == sorted(ev_values, reverse=True), (
-            f"Expected EV descending, got {ev_values}"
-        )
+        assert ev_values == sorted(
+            ev_values, reverse=True
+        ), f"Expected EV descending, got {ev_values}"
         # Verify specific order: Barca(0.65) > Arsenal(0.20) > Bayern(0.12)
         assert data.top_picks[0].match_label == "Barcelona vs Real Madrid"
         assert data.top_picks[0].ev == pytest.approx(0.65)
@@ -342,17 +361,25 @@ def test_multiple_bets_per_fixture_not_deduped() -> None:
         pred = _make_prediction(fix.id, "Man City", "Liverpool")
 
         vb_home = ValueBetORM(
-            id=uuid4(), fixture_id=fix.id,
-            selection_market="1x2", selection_code="home",
-            odds_decimal=Decimal("2.20"), model_probability=0.52,
-            confidence=0.80, stake_fraction=0.04,
+            id=uuid4(),
+            fixture_id=fix.id,
+            selection_market="1x2",
+            selection_code="home",
+            odds_decimal=Decimal("2.20"),
+            model_probability=0.52,
+            confidence=0.80,
+            stake_fraction=0.04,
             rationale="Home edge",
         )
         vb_over = ValueBetORM(
-            id=uuid4(), fixture_id=fix.id,
-            selection_market="over_under_2_5", selection_code="over",
-            odds_decimal=Decimal("1.90"), model_probability=0.60,
-            confidence=0.75, stake_fraction=0.03,
+            id=uuid4(),
+            fixture_id=fix.id,
+            selection_market="over_under_2_5",
+            selection_code="over",
+            odds_decimal=Decimal("1.90"),
+            model_probability=0.60,
+            confidence=0.75,
+            stake_fraction=0.03,
             rationale="Expected goals high",
         )
 
@@ -360,13 +387,14 @@ def test_multiple_bets_per_fixture_not_deduped() -> None:
             fixtures=[fix],
             predictions=[pred],
             value_bets=[vb_home, vb_over],
-            odds_count=1, vb_count=2, decision_count=2, settlement_count=2,
+            odds_count=1,
+            vb_count=2,
+            decision_count=2,
+            settlement_count=2,
         )
 
         with _patch_whitelist(), _patch_comp_repo():
-            data: DailyDashboardData = await build_daily_dashboard(
-                session, date(2026, 7, 16)
-            )
+            data: DailyDashboardData = await build_daily_dashboard(session, date(2026, 7, 16))
 
         assert len(data.top_picks) == 2, f"Expected 2 picks, got {len(data.top_picks)}"
         markets = {tp.market for tp in data.top_picks}
@@ -395,13 +423,14 @@ def test_missing_fixture_in_team_lookup_uses_fallback() -> None:
             fixtures=[fix],
             predictions=[pred],
             value_bets=[vb],
-            odds_count=1, vb_count=1, decision_count=1, settlement_count=1,
+            odds_count=1,
+            vb_count=1,
+            decision_count=1,
+            settlement_count=1,
         )
 
         with _patch_whitelist(), _patch_comp_repo():
-            data: DailyDashboardData = await build_daily_dashboard(
-                session, date(2026, 7, 16)
-            )
+            data: DailyDashboardData = await build_daily_dashboard(session, date(2026, 7, 16))
 
         assert len(data.top_picks) == 1
         assert data.top_picks[0].match_label == "? vs ?"

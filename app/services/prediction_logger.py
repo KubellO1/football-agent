@@ -12,19 +12,23 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.core.logging import get_logger
-from app.models.entities.fixture import Fixture
-from app.repositories.sqlalchemy.models import PredictionORM
+from app.repositories.sqlalchemy.models import (
+    PREDICTION_RECORD_DECISION,
+    PredictionORM,
+)
 from app.services.fixture_analysis import (
     NO_ODDS_MESSAGE,
     DetailedAnalysis,
     SelectionAnalysis,
 )
-from app.services.recommendation_gate import GateDecision
+
+if TYPE_CHECKING:
+    from app.services.recommendation_gate import GateDecision
 
 logger = get_logger(__name__)
 
@@ -57,7 +61,6 @@ def _derive_final_decision(decision: GateDecision, ev: float) -> str:
     if decision.approved:
         return "BET"
 
-    reasons_lower = " ".join(decision.reasons).lower()
     if "风险等级为「高」" in " ".join(decision.reasons) or ev <= 0.0:
         return "NO_BET"
     return "WATCH"
@@ -103,7 +106,7 @@ async def log_fixture_predictions(
     """
     fixture = detailed.fixture
     result = detailed.result
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # 构建 provider_sources 元数据
     provider_sources: dict[str, Any] = {
@@ -134,10 +137,14 @@ async def log_fixture_predictions(
                 why_not = "Odds provider rate limited (HTTP 429). No odds available."
             elif "quota" in killer or "quota_exhausted" in killer:
                 final_decision = "NO_ODDS_QUOTA"
-                why_not = "Odds API monthly quota exhausted (x-requests-remaining=0). No odds available."
+                why_not = (
+                    "Odds API monthly quota exhausted (x-requests-remaining=0). No odds available."
+                )
             elif "api_key" in killer or "invalid_api_key" in killer or "auth" in killer:
                 final_decision = "NO_ODDS_AUTH"
-                why_not = "Odds API key invalid or authentication failed. Check ODDS_API_KEY in .env."
+                why_not = (
+                    "Odds API key invalid or authentication failed. Check ODDS_API_KEY in .env."
+                )
             elif "event_not_found" in killer or "404_event" in killer:
                 final_decision = "NO_ODDS_EVENT_NOT_FOUND"
                 why_not = "Fixture not found in odds provider (no matching event)."
@@ -160,6 +167,7 @@ async def log_fixture_predictions(
         row = PredictionORM(
             id=uuid.uuid4(),
             fixture_id=fixture.id,
+            record_kind=PREDICTION_RECORD_DECISION,
             kickoff_time=fixture.kickoff,
             competition=competition_name or str(fixture.competition_id),
             home_team=home_team_name or str(fixture.home_team_id),
@@ -207,6 +215,7 @@ async def log_fixture_predictions(
             row = PredictionORM(
                 id=uuid.uuid4(),
                 fixture_id=fixture.id,
+                record_kind=PREDICTION_RECORD_DECISION,
                 # 比赛上下文
                 kickoff_time=fixture.kickoff,
                 competition=competition_name or str(fixture.competition_id),
@@ -263,9 +272,7 @@ async def log_fixture_predictions(
     return report
 
 
-def _find_gate_decision(
-    detailed: DetailedAnalysis, code: str
-) -> GateDecision | None:
+def _find_gate_decision(detailed: DetailedAnalysis, code: str) -> GateDecision | None:
     """从 DetailedAnalysis.reviewed 中按 selection code 查找 gate 判定。"""
     for reviewed in detailed.reviewed:
         if reviewed.candidate.selection.code == code:

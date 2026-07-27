@@ -18,6 +18,7 @@ from uuid import UUID  # noqa: TC003 - SQLAlchemy 会在运行时解析 Mapped �
 from sqlalchemy import (
     JSON,
     BigInteger,
+    CheckConstraint,
     Date,
     DateTime,
     Float,
@@ -34,6 +35,9 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base, TimestampMixin
+
+PREDICTION_RECORD_AGGREGATE = "aggregate"
+PREDICTION_RECORD_DECISION = "decision"
 
 # ---------------------------------------------------------------------------
 # 参考数据
@@ -129,19 +133,38 @@ class FixtureORM(TimestampMixin, Base):
 
 
 class PredictionORM(TimestampMixin, Base):
-    """比赛预测表。每行对应一个 selection 的完整决策记录。
+    """比赛预测表，通过 ``record_kind`` 显式区分两种持久化记录。
 
-    旧字段（prob_home/prob_draw/prob_away/xg_home/xg_away）保留并可空，
-    兼容早期 per-fixture 预测记录。新字段覆盖完整决策引擎输出：
-    比赛上下文、市场决策、价值评估、最终判定、数据质量。
+    ``aggregate`` 保存 per-fixture 数学模型输出（1X2 概率、xG、模型版本），只由
+    PredictionRepository 映射为 MatchPrediction；``decision`` 保存逐 selection
+    决策引擎输出（比赛上下文、市场决策、EV、最终判定和数据质量），供日志与
+    Dashboard 使用。两种记录禁止交叉映射。
+
     recommendations 不在此存储（由 value_bets 表管理）。
     """
 
     __tablename__ = "predictions"
-    __table_args__ = (Index("ix_predictions_fixture_decision", "fixture_id", "final_decision"),)
+    __table_args__ = (
+        CheckConstraint(
+            "record_kind IN ('aggregate', 'decision')",
+            name="ck_predictions_record_kind",
+        ),
+        Index("ix_predictions_fixture_decision", "fixture_id", "final_decision"),
+        Index(
+            "ix_predictions_fixture_kind_generated",
+            "fixture_id",
+            "record_kind",
+            "generated_at",
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     fixture_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("fixtures.id"), index=True)
+    record_kind: Mapped[str] = mapped_column(
+        String(20),
+        default=PREDICTION_RECORD_AGGREGATE,
+        server_default=PREDICTION_RECORD_AGGREGATE,
+    )
     # -- 旧字段（per-fixture 数学输出，向后兼容） --
     prob_home: Mapped[float | None] = mapped_column(Float, nullable=True)
     prob_draw: Mapped[float | None] = mapped_column(Float, nullable=True)
