@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from decimal import Decimal
-from uuid import UUID
+from typing import TYPE_CHECKING
 
-from sqlalchemy import select, func
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, text
 
-from app.models.entities.settlement import BankrollEntry, PerformanceSnapshot, Settlement
 from app.repositories.interfaces.settlement_repository import (
     BankrollRepository,
     PerformanceSnapshotRepository,
@@ -25,6 +22,16 @@ from app.repositories.sqlalchemy.models import (
     PerformanceSnapshotORM,
     SettlementORM,
 )
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.models.entities.settlement import BankrollEntry, PerformanceSnapshot, Settlement
+
+_BANKROLL_ADVISORY_LOCK_ID = 6_429_130_700_001
 
 
 class SqlAlchemySettlementRepository(SettlementRepository):
@@ -89,13 +96,23 @@ class SqlAlchemyBankrollRepository(BankrollRepository):
         return BankrollEntryMapper.to_domain(row)
 
     async def get_latest_balance(self) -> Decimal:
+        return await self._get_latest_balance(default=Decimal("0"))
+
+    async def lock_and_get_latest_balance(self, default: Decimal) -> Decimal:
+        await self._session.execute(
+            text("SELECT pg_advisory_xact_lock(:lock_id)"),
+            {"lock_id": _BANKROLL_ADVISORY_LOCK_ID},
+        )
+        return await self._get_latest_balance(default=default)
+
+    async def _get_latest_balance(self, *, default: Decimal) -> Decimal:
         stmt = (
             select(BankrollEntryORM.balance_after)
-            .order_by(BankrollEntryORM.created_at.desc())
+            .order_by(BankrollEntryORM.sequence.desc())
             .limit(1)
         )
         result = (await self._session.execute(stmt)).scalar_one_or_none()
-        return result if result is not None else Decimal("0")
+        return result if result is not None else default
 
 
 class SqlAlchemyPerformanceSnapshotRepository(PerformanceSnapshotRepository):

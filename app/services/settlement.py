@@ -11,26 +11,30 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from app.core.logging import get_logger
-from app.models.entities.fixture import Fixture
 from app.models.entities.settlement import (
     BankrollEntry,
     Settlement,
     SettlementResult,
 )
-from app.models.entities.value_bet import ValueBet
 from app.models.value_objects.markets import MarketType
-from app.models.value_objects.money import Money
-from app.repositories.interfaces.fixture_repository import FixtureRepository
-from app.repositories.interfaces.settlement_repository import (
-    BankrollRepository,
-    SettlementRepository,
-)
-from app.repositories.interfaces.value_bet_repository import ValueBetRepository
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from app.models.entities.fixture import Fixture
+    from app.models.entities.value_bet import ValueBet
+    from app.models.value_objects.money import Money
+    from app.repositories.interfaces.fixture_repository import FixtureRepository
+    from app.repositories.interfaces.settlement_repository import (
+        BankrollRepository,
+        SettlementRepository,
+    )
+    from app.repositories.interfaces.value_bet_repository import ValueBetRepository
 
 logger = get_logger(__name__)
 
@@ -107,9 +111,13 @@ class SettlementService:
                 total_pl=Decimal("0"),
             )
 
-        # 2. 获取未结算的 value_bet IDs
+        # 2. 先锁定资金账本，再读取未结算列表。等待锁的并发任务会在锁释放后
+        #    重新读取已提交状态，避免使用过期列表重复结算。
+        default_balance = (
+            self._initial_bankroll.amount if self._initial_bankroll is not None else Decimal("0")
+        )
+        running_balance = await self._bankroll.lock_and_get_latest_balance(default_balance)
         unsettled_ids = set(await self._settlements.list_unsettled_value_bet_ids())
-        fixture_ids = {f.id for f in scored}
 
         # 3. 按 fixture 匹配
         details: list[SettlementResult_] = []
@@ -130,7 +138,8 @@ class SettlementService:
                     continue
 
                 # 写入结算记录
-                br_before = await self._bankroll.get_latest_balance()
+                br_before = running_balance
+                new_balance = br_before + sr.profit_loss
                 settlement = Settlement(
                     value_bet_id=vb.id,
                     fixture_id=fixture.id,
@@ -139,19 +148,19 @@ class SettlementService:
                     score_away=sr.score_away,
                     profit_loss=sr.profit_loss,
                     bankroll_before=br_before,
-                    bankroll_after=br_before + sr.profit_loss,
-                    settlement_timestamp=datetime.utcnow(),
+                    bankroll_after=new_balance,
+                    settlement_timestamp=datetime.now(UTC),
                 )
                 await self._settlements.add(settlement)
 
                 # 记录 bankroll 变动
-                new_balance = br_before + sr.profit_loss
                 entry = BankrollEntry(
                     amount=sr.profit_loss,
                     balance_after=new_balance,
                     reason=f"Settlement: {fixture.id} | {vb.selection.label} → {sr.result.value}",
                 )
                 await self._bankroll.add(entry)
+                running_balance = new_balance
 
                 sr.bankroll_before = br_before
                 sr.bankroll_after = new_balance
@@ -181,11 +190,29 @@ class SettlementService:
         # 1x2
         if market == MarketType.MATCH_RESULT:
             if code == "home":
-                return self._result(vb, fixture, SettlementResult.WIN if home > away else (SettlementResult.PUSH if home == away else SettlementResult.LOSS))
+                return self._result(
+                    vb,
+                    fixture,
+                    (
+                        SettlementResult.WIN
+                        if home > away
+                        else (SettlementResult.PUSH if home == away else SettlementResult.LOSS)
+                    ),
+                )
             elif code == "draw":
-                return self._result(vb, fixture, SettlementResult.WIN if home == away else SettlementResult.LOSS)
+                return self._result(
+                    vb, fixture, SettlementResult.WIN if home == away else SettlementResult.LOSS
+                )
             elif code == "away":
-                return self._result(vb, fixture, SettlementResult.WIN if away > home else (SettlementResult.PUSH if away == home else SettlementResult.LOSS))
+                return self._result(
+                    vb,
+                    fixture,
+                    (
+                        SettlementResult.WIN
+                        if away > home
+                        else (SettlementResult.PUSH if away == home else SettlementResult.LOSS)
+                    ),
+                )
 
         # Over/Under
         if market == MarketType.OVER_UNDER:
@@ -211,15 +238,17 @@ class SettlementService:
         if market == MarketType.BOTH_TEAMS_TO_SCORE:
             both_scored = home > 0 and away > 0
             if code == "yes":
-                return self._result(vb, fixture, SettlementResult.WIN if both_scored else SettlementResult.LOSS)
+                return self._result(
+                    vb, fixture, SettlementResult.WIN if both_scored else SettlementResult.LOSS
+                )
             elif code == "no":
-                return self._result(vb, fixture, SettlementResult.WIN if not both_scored else SettlementResult.LOSS)
+                return self._result(
+                    vb, fixture, SettlementResult.WIN if not both_scored else SettlementResult.LOSS
+                )
 
         return self._skip(vb, fixture, f"Unsupported market: {market.value}")
 
-    def _result(
-        self, vb: ValueBet, fixture: Fixture, sr: SettlementResult
-    ) -> SettlementResult_:
+    def _result(self, vb: ValueBet, fixture: Fixture, sr: SettlementResult) -> SettlementResult_:
         """计算 P&L。"""
         stake = vb.stake
         if stake is None:

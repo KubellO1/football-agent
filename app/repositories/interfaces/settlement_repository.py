@@ -47,6 +47,15 @@ class BankrollRepository(Repository[BankrollEntry]):
         """返回最新余额，无记录时返回 Decimal('0')。"""
         ...
 
+    @abstractmethod
+    async def lock_and_get_latest_balance(self, default: Decimal) -> Decimal:
+        """在当前事务内串行化资金账本写入，并返回最新余额。
+
+        账本为空时返回调用方提供的 ``default``。锁必须持续到当前事务提交或回滚，
+        以防多个结算任务基于同一余额并发写入。
+        """
+        ...
+
 
 class PerformanceSnapshotRepository(Repository[PerformanceSnapshot]):
     @abstractmethod
