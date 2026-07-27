@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from app.models.entities.odds_snapshot import OddsSnapshot
 from app.repositories.interfaces.base import Repository
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 class OddsSnapshotRepository(Repository[OddsSnapshot]):

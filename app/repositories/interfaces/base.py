@@ -7,15 +7,15 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from app.models.entities.base import Entity
 
-T = TypeVar("T", bound=Entity)
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
-class Repository(ABC, Generic[T]):
+class Repository[T: Entity](ABC):
     """聚合根仓储的通用契约。"""
 
     @abstractmethod

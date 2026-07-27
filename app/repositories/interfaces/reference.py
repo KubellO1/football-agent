@@ -7,15 +7,17 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from collections.abc import Iterable
-from typing import TypeVar
-from uuid import UUID
+from typing import TYPE_CHECKING, TypeVar
 
 from app.models.entities.base import Entity
 from app.models.entities.bookmaker import Bookmaker
 from app.models.entities.competition import Competition, Season
 from app.models.entities.team import Team
 from app.repositories.interfaces.base import Repository
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from uuid import UUID
 
 T = TypeVar("T", bound=Entity)
 

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from app.models.entities.prediction import MatchPrediction
 from app.repositories.interfaces.base import Repository
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 class PredictionRepository(Repository[MatchPrediction]):

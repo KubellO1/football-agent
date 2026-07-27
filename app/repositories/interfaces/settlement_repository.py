@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from datetime import datetime
-from decimal import Decimal
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from app.models.entities.settlement import BankrollEntry, PerformanceSnapshot, Settlement
 from app.repositories.interfaces.base import Repository
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from decimal import Decimal
+    from uuid import UUID
 
 
 class SettlementRepository(Repository[Settlement]):
