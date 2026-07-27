@@ -9,13 +9,11 @@ reasons, and provider health telemetry.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone
-from typing import Any
+from contextlib import suppress
+from datetime import UTC, date, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-logger = logging.getLogger(__name__)
 
 from app.dashboard.types import (
     DailyDashboardData,
@@ -35,14 +33,22 @@ from app.dashboard.types import (
     ValueInfo,
 )
 from app.repositories.sqlalchemy.models import (
+    PREDICTION_RECORD_DECISION,
+    DecisionLogORM,
     FixtureORM,
     OddsSnapshotORM,
-    PredictionORM,
-    ValueBetORM,
-    DecisionLogORM,
-    SettlementORM,
     PerformanceSnapshotORM,
+    PredictionORM,
+    SettlementORM,
+    ValueBetORM,
 )
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
+
+
 async def build_daily_dashboard(
     session: AsyncSession,
     on_date: date,
@@ -51,26 +57,29 @@ async def build_daily_dashboard(
 ) -> DailyDashboardData:
     """Query DB for on_date and build the complete DailyDashboardData."""
 
-    day_start = datetime(on_date.year, on_date.month, on_date.day, tzinfo=timezone.utc)
-    day_end = datetime(on_date.year, on_date.month, on_date.day, 23, 59, 59, tzinfo=timezone.utc)
+    day_start = datetime(on_date.year, on_date.month, on_date.day, tzinfo=UTC)
+    day_end = datetime(on_date.year, on_date.month, on_date.day, 23, 59, 59, tzinfo=UTC)
 
     # ── Fixtures for today ──────────────────────────────────────────────
     fixture_rows = (
-        await session.execute(
-            select(FixtureORM).where(
-                FixtureORM.kickoff >= day_start,
-                FixtureORM.kickoff <= day_end,
+        (
+            await session.execute(
+                select(FixtureORM).where(
+                    FixtureORM.kickoff >= day_start,
+                    FixtureORM.kickoff <= day_end,
+                )
             )
         )
-    ).scalars().all()
-
-    fixture_lookup: dict[str, FixtureORM] = {str(f.id): f for f in fixture_rows}
+        .scalars()
+        .all()
+    )
 
     # ── Whitelist filter: only show accepted competitions ─────────────────
     from app.config.whitelist import get_whitelist
     from app.repositories.sqlalchemy.reference_repositories import (
         SqlAlchemyCompetitionRepository,
     )
+
     whitelist = get_whitelist()
     comp_repo = SqlAlchemyCompetitionRepository(session)
     accepted_fixtures: list[FixtureORM] = []
@@ -83,10 +92,8 @@ async def build_daily_dashboard(
             league_id: int | None = None
             country = comp.country if comp else None
             if comp and comp.external_id:
-                try:
+                with suppress(ValueError, TypeError):
                     league_id = int(comp.external_id)
-                except (ValueError, TypeError):
-                    pass
         except Exception:
             comp_name = ""
             league_id = None
@@ -98,22 +105,27 @@ async def build_daily_dashboard(
 
     logger.info(
         "Dashboard whitelist filter: %d total fixtures → %d accepted, %d skipped",
-        len(fixture_rows), len(accepted_fixtures), skipped_whitelist,
+        len(fixture_rows),
+        len(accepted_fixtures),
+        skipped_whitelist,
     )
     fixture_rows = accepted_fixtures
-    fixture_lookup = {str(f.id): f for f in fixture_rows}
-
     # ── Predictions for today's fixtures ─────────────────────────────────
     fixture_ids = [f.id for f in fixture_rows]
     predictions: list[PredictionORM] = []
     if fixture_ids:
-        predictions = (
-            await session.execute(
-                select(PredictionORM).where(
-                    PredictionORM.fixture_id.in_(fixture_ids)
+        predictions = list(
+            (
+                await session.execute(
+                    select(PredictionORM).where(
+                        PredictionORM.fixture_id.in_(fixture_ids),
+                        PredictionORM.record_kind == PREDICTION_RECORD_DECISION,
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
     preds_by_fixture: dict[str, list[PredictionORM]] = {}
     for p in predictions:
@@ -136,9 +148,7 @@ async def build_daily_dashboard(
     if fixture_ids:
         value_bet_count = (
             await session.scalar(
-                select(func.count(ValueBetORM.id)).where(
-                    ValueBetORM.fixture_id.in_(fixture_ids)
-                )
+                select(func.count(ValueBetORM.id)).where(ValueBetORM.fixture_id.in_(fixture_ids))
             )
         ) or 0
 
@@ -175,36 +185,35 @@ async def build_daily_dashboard(
 
     # ── Latest performance snapshot ─────────────────────────────────────
     latest_perf = (
-        await session.execute(
-            select(PerformanceSnapshotORM)
-            .order_by(PerformanceSnapshotORM.created_at.desc())
-            .limit(1)
+        (
+            await session.execute(
+                select(PerformanceSnapshotORM)
+                .order_by(PerformanceSnapshotORM.created_at.desc())
+                .limit(1)
+            )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
 
     # ── Decision breakdown ──────────────────────────────────────────────
     # Gate Approved: gate.approved=True → final_decision="BET"
     # (WATCH = gate rejected for non-risk reasons; NO_BET = gate rejected
     #  for HIGH risk or EV ≤ 0; NO_ODDS = not evaluated due to missing odds)
-    gate_approved_count = sum(
-        1 for p in predictions if p.final_decision == "BET"
-    )
+    gate_approved_count = sum(1 for p in predictions if p.final_decision == "BET")
     # Final Value Bets: from value_bets table (authoritative source)
     bet_count = value_bet_count
     watch_count = sum(1 for p in predictions if p.final_decision == "WATCH")
     no_bet_count = sum(1 for p in predictions if p.final_decision == "NO_BET")
     no_odds_count = sum(
-        1 for p in predictions
-        if p.why_not_bet and "odds" in (p.why_not_bet or "").lower()
+        1 for p in predictions if p.why_not_bet and "odds" in (p.why_not_bet or "").lower()
     )
 
     # ── Data quality ────────────────────────────────────────────────────
-    fixtures_with_odds = len({
-        str(p.fixture_id) for p in predictions if p.odds is not None
-    })
-    fixtures_with_prob = len({
-        str(p.fixture_id) for p in predictions if p.model_probability is not None
-    })
+    fixtures_with_odds = len({str(p.fixture_id) for p in predictions if p.odds is not None})
+    fixtures_with_prob = len(
+        {str(p.fixture_id) for p in predictions if p.model_probability is not None}
+    )
     data_quality = DataQuality(
         items=[
             DataQualityItem(
@@ -223,7 +232,7 @@ async def build_daily_dashboard(
     )
 
     # ── Executive summary ───────────────────────────────────────────────
-    perf_summary = {}
+    perf_summary: dict[str, int | float | None] = {}
     if latest_perf:
         perf_summary["total_bets"] = latest_perf.total_bets
         perf_summary["win_rate"] = latest_perf.win_rate
@@ -255,12 +264,12 @@ async def build_daily_dashboard(
 
         # Build fixture info
         fixture_info = FixtureInfo(
-            home_team=preds[0].home_team if preds else "",
-            away_team=preds[0].away_team if preds else "",
+            home_team=(preds[0].home_team or "") if preds else "",
+            away_team=(preds[0].away_team or "") if preds else "",
             home_score=fix.score_home,
             away_score=fix.score_away,
             start_time=fix.kickoff,
-            competition=preds[0].competition if preds else "",
+            competition=(preds[0].competition or "") if preds else "",
             status=fix.status,
         )
 
@@ -300,18 +309,22 @@ async def build_daily_dashboard(
                 label = p.confidence_killer or "数据不足"
                 if label not in seen_labels:
                     seen_labels.add(label)
-                    nobet_items.append(NoBetCheckItem(
-                        label=label,
-                        detail=p.why_not_bet[:200],
-                        passed=False,
-                    ))
+                    nobet_items.append(
+                        NoBetCheckItem(
+                            label=label,
+                            detail=p.why_not_bet[:200],
+                            passed=False,
+                        )
+                    )
             elif p.confidence_killer and p.confidence_killer not in seen_labels:
                 seen_labels.add(p.confidence_killer)
-                nobet_items.append(NoBetCheckItem(
-                    label=p.confidence_killer[:60],
-                    detail="",
-                    passed=False,
-                ))
+                nobet_items.append(
+                    NoBetCheckItem(
+                        label=p.confidence_killer[:60],
+                        detail="",
+                        passed=False,
+                    )
+                )
         if nobet_items:
             nobet_checks = NoBetChecks(items=nobet_items, catch_all=nobet_catch_all)
         else:
@@ -380,7 +393,7 @@ async def build_daily_dashboard(
                 model_availability=model_avail,
                 data_completeness=data_completeness,
                 nobet_checks=nobet_checks,
-                generated_at=datetime.now(timezone.utc),
+                generated_at=datetime.now(UTC),
             )
         )
 
@@ -389,12 +402,14 @@ async def build_daily_dashboard(
     top_recommendations: list[TopRecommendation] = []
     if fixture_ids:
         value_bets = (
-            await session.execute(
-                select(ValueBetORM).where(
-                    ValueBetORM.fixture_id.in_(fixture_ids)
+            (
+                await session.execute(
+                    select(ValueBetORM).where(ValueBetORM.fixture_id.in_(fixture_ids))
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         # Build fixture_id → (home_team, away_team) lookup from predictions
         team_lookup: dict[str, tuple[str, str]] = {}
@@ -415,30 +430,34 @@ async def build_daily_dashboard(
             match_label = f"{teams[0]} vs {teams[1]}"
             ev = vb.model_probability * float(vb.odds_decimal) - 1.0
 
-            top_picks.append(TopPick(
-                match_label=match_label,
-                market=vb.selection_market,
-                odds=float(vb.odds_decimal),
-                model_prob=vb.model_probability,
-                ev=ev,
-                confidence=vb.confidence,
-                stake=vb.stake_fraction,
-                reason=vb.rationale or "",
-            ))
+            top_picks.append(
+                TopPick(
+                    match_label=match_label,
+                    market=vb.selection_market,
+                    odds=float(vb.odds_decimal),
+                    model_prob=vb.model_probability,
+                    ev=ev,
+                    confidence=vb.confidence,
+                    stake=vb.stake_fraction,
+                    reason=vb.rationale or "",
+                )
+            )
 
-            top_recommendations.append(TopRecommendation(
-                match_label=match_label,
-                market=vb.selection_market,
-                selection=vb.selection_code,
-                odds=float(vb.odds_decimal),
-                model_prob=vb.model_probability,
-                ev=ev,
-                confidence=vb.confidence,
-                stake=vb.stake_fraction,
-                reason=vb.rationale or "",
-                category="精选",
-                risk_level="",
-            ))
+            top_recommendations.append(
+                TopRecommendation(
+                    match_label=match_label,
+                    market=vb.selection_market,
+                    selection=vb.selection_code,
+                    odds=float(vb.odds_decimal),
+                    model_prob=vb.model_probability,
+                    ev=ev,
+                    confidence=vb.confidence,
+                    stake=vb.stake_fraction,
+                    reason=vb.rationale or "",
+                    category="精选",
+                    risk_level="",
+                )
+            )
 
     return DailyDashboardData(
         date=on_date.isoformat(),
@@ -447,6 +466,6 @@ async def build_daily_dashboard(
         matches=matches,
         top_picks=top_picks,
         top_recommendations=top_recommendations,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         pipeline_version=pipeline_version,
     )
