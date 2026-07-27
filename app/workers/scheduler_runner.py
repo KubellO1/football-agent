@@ -15,8 +15,10 @@ import os
 import sys
 import traceback
 import uuid
-from datetime import datetime
+from contextlib import suppress
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 from zoneinfo import ZoneInfo
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -25,6 +27,8 @@ HEARTBEAT_FILE = PROJECT_ROOT / "app" / "state" / "heartbeat.json"
 LOG_DIR = PROJECT_ROOT / "app" / "state" / "logs"
 
 PARIS = ZoneInfo("Europe/Paris")
+
+type JsonObject = dict[str, object]
 
 # ---------------------------------------------------------------------------
 # Logging setup — rotating file logs per command
@@ -92,12 +96,15 @@ def _ensure_dirs() -> None:
 # ---------------------------------------------------------------------------
 # Heartbeat
 # ---------------------------------------------------------------------------
-def _load_heartbeat() -> dict:
+def _load_heartbeat() -> JsonObject:
     if HEARTBEAT_FILE.exists():
         try:
-            data = json.loads(HEARTBEAT_FILE.read_text(encoding="utf-8"))
+            loaded = json.loads(HEARTBEAT_FILE.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             return {}
+        if not isinstance(loaded, dict):
+            return {}
+        data = cast("JsonObject", loaded)
 
         # ── Staleness cleanup: auto-clear health_check failures older than 24h ──
         # provider_health is the canonical health key; health_check is legacy.
@@ -119,7 +126,7 @@ def _load_heartbeat() -> dict:
     return {}
 
 
-def _save_heartbeat(data: dict) -> None:
+def _save_heartbeat(data: JsonObject) -> None:
     HEARTBEAT_FILE.write_text(
         json.dumps(data, indent=2, ensure_ascii=False, default=str), encoding="utf-8"
     )
@@ -148,7 +155,7 @@ def write_heartbeat(
 ) -> None:
     """Write or update heartbeat record with full diagnostics."""
     heartbeat = _load_heartbeat()
-    record = {
+    record: JsonObject = {
         "trigger_source": trigger_source,
         "task_name": task_name or command_name,
         "scheduled_time": scheduled_time,
@@ -182,19 +189,19 @@ def write_heartbeat(
 # Expected maximum run duration per command (seconds). Used to detect stale locks.
 # Stale threshold = 2× expected, capped at 3600s (1h).
 _EXPECTED_DURATION = {
-    "daily_job": 900,            # 15 min
-    "pre_kickoff": 300,          #  5 min
-    "settlement": 120,           #  2 min
-    "provider_health": 600,      # 10 min
-    "dashboard_refresh": 120,    #  2 min (read-only)
+    "daily_job": 900,  # 15 min
+    "pre_kickoff": 300,  #  5 min
+    "settlement": 120,  #  2 min
+    "provider_health": 600,  # 10 min
+    "dashboard_refresh": 120,  #  2 min (read-only)
     "production_recovery": 900,  # 15 min (may run daily_job)
-    "daily_report": 120,         #  2 min (read-only)
-    "weekly_report": 120,        #  2 min (read-only)
-    "health_check": 120,         #  2 min (10 component checks)
-    "coverage_monitor": 300,     #  5 min (DB queries across leagues)
-    "gate_funnel": 120,          #  2 min (DB queries, read-only)
-    "alert_monitor": 120,        #  2 min (DB + file checks)
-    "season_prep": 900,          # 15 min (API calls for 5 leagues)
+    "daily_report": 120,  #  2 min (read-only)
+    "weekly_report": 120,  #  2 min (read-only)
+    "health_check": 120,  #  2 min (10 component checks)
+    "coverage_monitor": 300,  #  5 min (DB queries across leagues)
+    "gate_funnel": 120,  #  2 min (DB queries, read-only)
+    "alert_monitor": 120,  #  2 min (DB + file checks)
+    "season_prep": 900,  # 15 min (API calls for 5 leagues)
 }
 _DEFAULT_EXPECTED_DURATION = 300  # fallback for unknown commands
 
@@ -260,7 +267,9 @@ def acquire_lock(command_name: str) -> str | None:
             logger = _get_logger(command_name)
             logger.warning(
                 "Breaking stale lock for %s (pid=%s age=%s), re-acquiring.",
-                command_name, old_pid, old_time_str or "unknown",
+                command_name,
+                old_pid,
+                old_time_str or "unknown",
             )
             release_lock(str(lock_path))
             return acquire_lock(command_name)  # retry
@@ -270,21 +279,21 @@ def acquire_lock(command_name: str) -> str | None:
 
 def release_lock(lock_path: str) -> None:
     """Release a previously acquired file lock."""
-    try:
+    with suppress(OSError):
         os.remove(lock_path)
-    except OSError:
-        pass
 
 
 # ---------------------------------------------------------------------------
 # Command implementations
 # ---------------------------------------------------------------------------
 
+
 async def _run_daily_job(log: logging.Logger) -> None:
     """Execute the daily production run (full pipeline)."""
+    from datetime import date
+
     from app.core.container import container
     from app.workers.daily_job import run_daily_job
-    from datetime import date
 
     container.init_resources()
     try:
@@ -307,7 +316,11 @@ async def _run_daily_job(log: logging.Logger) -> None:
             report.settlement.bets_settled if report.settlement else 0,
             report.settlement.total_pl if report.settlement else 0,
             report.performance.total_bets if report.performance else 0,
-            f"{report.performance.win_rate:.2%}" if (report.performance and report.performance.win_rate) else "N/A",
+            (
+                f"{report.performance.win_rate:.2%}"
+                if (report.performance and report.performance.win_rate)
+                else "N/A"
+            ),
             report.performance.total_pl if report.performance else 0,
         )
     finally:
@@ -316,41 +329,48 @@ async def _run_daily_job(log: logging.Logger) -> None:
 
 async def _run_pre_kickoff(log: logging.Logger) -> None:
     """Pre-kickoff validation: re-evaluate fixtures inside T-90 and T-30 windows."""
-    from datetime import datetime, timedelta, timezone as tz
+    from datetime import timedelta
 
+    from app.config.whitelist import get_whitelist
     from app.core.container import container
+    from app.core.service_factory import (
+        build_committee_review_service,
+        build_fixture_analysis_service,
+    )
+    from app.repositories.sqlalchemy.decision_log_repository import (
+        SqlAlchemyDecisionLogRepository,
+    )
     from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
     from app.repositories.sqlalchemy.reference_repositories import (
         SqlAlchemyCompetitionRepository,
         SqlAlchemyTeamRepository,
     )
-    from app.config.whitelist import get_whitelist
-    from app.repositories.sqlalchemy.decision_log_repository import SqlAlchemyDecisionLogRepository
-    from app.services.fixture_analysis import FixtureAnalysisService
-    from app.services.service_factory import build_fixture_analysis_service
-    from app.services.committee_review import CommitteeReviewService
     from app.services.prediction_logger import log_fixture_predictions
 
     TRIGGER_LOG = PROJECT_ROOT / "app" / "state" / "pre_kickoff_triggers.json"
 
-    def load_triggers() -> dict:
+    def load_triggers() -> JsonObject:
         if TRIGGER_LOG.exists():
             try:
-                return json.loads(TRIGGER_LOG.read_text(encoding="utf-8"))
+                loaded = json.loads(TRIGGER_LOG.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
                 return {}
+            if isinstance(loaded, dict):
+                return cast("JsonObject", loaded)
         return {}
 
-    def save_triggers(data: dict) -> None:
+    def save_triggers(data: JsonObject) -> None:
         TRIGGER_LOG.parent.mkdir(parents=True, exist_ok=True)
         TRIGGER_LOG.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
     container.init_resources()
     try:
         async with container.database.session() as session:
-            now = datetime.now(tz.utc)
+            now = datetime.now(UTC)
             window_end = now + timedelta(minutes=100)
-            fixtures = await SqlAlchemyFixtureRepository(session).list_by_kickoff_window(now, window_end)
+            fixtures = await SqlAlchemyFixtureRepository(session).list_by_kickoff_window(
+                now, window_end
+            )
 
             triggers = load_triggers()
             whitelist = get_whitelist()
@@ -391,14 +411,13 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
                     league_id: int | None = None
                     country = comp.country if comp else None
                     if comp and comp.external_id:
-                        try:
+                        with suppress(ValueError, TypeError):
                             league_id = int(comp.external_id)
-                        except (ValueError, TypeError):
-                            pass
                     if not whitelist.is_allowed(comp_name, league_id=league_id, country=country):
                         log.info(
                             "SKIPPED_UNSUPPORTED_COMPETITION fixture=%s competition=%s",
-                            fixture.id, comp_name,
+                            fixture.id,
+                            comp_name,
                         )
                         skipped_unsupported += 1
                         continue
@@ -407,23 +426,34 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
                     detailed = await analysis.analyze_detailed(fixture)
 
                     await log_fixture_predictions(
-                        detailed, session=session,
-                        competition_name=comp_name, home_team_name=home_name,
-                        away_team_name=away_name, model_version="pre_kickoff",
+                        detailed,
+                        session=session,
+                        competition_name=comp_name,
+                        home_team_name=home_name,
+                        away_team_name=away_name,
+                        model_version="pre_kickoff",
                     )
 
                     qualifying = [
-                        s for s in detailed.result.selections
+                        s
+                        for s in detailed.result.selections
                         if s.expected_value > 0.03 and s.confidence > 0.5
                     ]
                     if qualifying:
                         dec_log_repo = SqlAlchemyDecisionLogRepository(session)
                         existing = await dec_log_repo.list_by_fixture(fixture.id)
                         if not existing:
-                            review = CommitteeReviewService(session=session)
+                            review = build_committee_review_service(
+                                container,
+                                session,
+                                analysis=analysis,
+                            )
                             result = await review.review_detailed(detailed)
-                            log.info("Pre-kickoff reviewed fixture %s: %d value bets",
-                                     fixture.id, len(result.value_bet_ids))
+                            log.info(
+                                "Pre-kickoff reviewed fixture %s: %d value bets",
+                                fixture.id,
+                                len(result.value_bet_ids),
+                            )
                 except Exception as exc:
                     save_triggers(triggers)
                     log.warning("Pre-kickoff error for fixture %s: %s", fixture.id, exc)
@@ -432,7 +462,8 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
             log.info(
                 "Pre-kickoff validation complete: %d fixture(s) processed, "
                 "%d skipped (unsupported competition)",
-                processed, skipped_unsupported,
+                processed,
+                skipped_unsupported,
             )
     finally:
         await container.shutdown_resources()
@@ -448,9 +479,14 @@ async def _run_settlement(log: logging.Logger) -> None:
         async with container.database.session() as session:
             svc = build_settlement_service(container, session)
             report = await svc.settle_all()
-            log.info("Settlement complete: checked=%d eligible=%d settled=%d skipped=%d total_pl=%s",
-                     report.fixtures_checked, report.bets_eligible,
-                     report.bets_settled, report.bets_skipped, report.total_pl)
+            log.info(
+                "Settlement complete: checked=%d eligible=%d settled=%d skipped=%d total_pl=%s",
+                report.fixtures_checked,
+                report.bets_eligible,
+                report.bets_settled,
+                report.bets_skipped,
+                report.total_pl,
+            )
     finally:
         await container.shutdown_resources()
 
@@ -468,6 +504,7 @@ async def _run_provider_health(log: logging.Logger) -> None:
         try:
             async with container.database.session() as session:
                 from sqlalchemy import text
+
                 await session.execute(text("SELECT 1"))
                 pg_ok = True
         finally:
@@ -509,8 +546,7 @@ async def _run_provider_health(log: logging.Logger) -> None:
     else:
         log.warning("provider_health.json not found at %s", health_path)
 
-    summary = (f"PG={'OK' if pg_ok else 'FAILED'} "
-               f"providers={providers_ok}/{providers_total}")
+    summary = f"PG={'OK' if pg_ok else 'FAILED'} " f"providers={providers_ok}/{providers_total}"
     if providers_ok >= 5:
         _append_run_timeline("provider_health", "success", summary)
     else:
@@ -530,7 +566,8 @@ async def _run_production_recovery(log: logging.Logger) -> None:
 
     # ── Gate 1: daily_job already succeeded today ──
     heartbeat = _load_heartbeat()
-    daily = heartbeat.get("daily_job", {})
+    daily_value = heartbeat.get("daily_job", {})
+    daily = cast("JsonObject", daily_value) if isinstance(daily_value, dict) else {}
     last_start = daily.get("last_start", "")
     if today_str in str(last_start) and daily.get("status") == "success":
         log.info("Recovery SKIP: daily_job already succeeded at %s", last_start)
@@ -538,7 +575,8 @@ async def _run_production_recovery(log: logging.Logger) -> None:
         return
 
     # ── Gate 2: recovery already attempted today ──
-    recovery_own = heartbeat.get("production_recovery", {})
+    recovery_value = heartbeat.get("production_recovery", {})
+    recovery_own = cast("JsonObject", recovery_value) if isinstance(recovery_value, dict) else {}
     recovery_last = recovery_own.get("last_start", "")
     if today_str in str(recovery_last):
         log.info("Recovery SKIP: already attempted today at %s", recovery_last)
@@ -574,8 +612,7 @@ async def _run_production_recovery(log: logging.Logger) -> None:
     log.info("Recovery decision=%s failure_reason=%s", decision, failure_reason)
 
     if decision == "SKIP":
-        _append_run_timeline("production_recovery", "success",
-                             f"SKIP: reason={failure_reason}")
+        _append_run_timeline("production_recovery", "success", f"SKIP: reason={failure_reason}")
         return
 
     # ── RETRY: execute daily_job inline ──
@@ -585,8 +622,11 @@ async def _run_production_recovery(log: logging.Logger) -> None:
         try:
             report = await run_daily_job(container, date.today())
             log.info("Recovery run complete: picks=%d", report.picks.value_bets_created)
-            _append_run_timeline("production_recovery", "success",
-                                 f"RETRY success: picks={report.picks.value_bets_created}")
+            _append_run_timeline(
+                "production_recovery",
+                "success",
+                f"RETRY success: picks={report.picks.value_bets_created}",
+            )
 
             # ── Update run_status.json so it doesn't stay permanently in failed state ──
             if run_status_path.exists():
@@ -614,7 +654,6 @@ async def _run_production_recovery(log: logging.Logger) -> None:
 async def _run_daily_report(log: logging.Logger) -> None:
     """Generate daily performance report from PostgreSQL (read-only, zero API calls)."""
     from datetime import date, datetime
-    from pathlib import Path
 
     from app.core.container import container
 
@@ -626,25 +665,26 @@ async def _run_daily_report(log: logging.Logger) -> None:
     try:
         async with container.database.session() as session:
             from sqlalchemy import func, select
+
             from app.repositories.sqlalchemy.models import PredictionORM, SettlementORM, ValueBetORM
 
             # Predictions count (all-time, for reference)
-            pred_total = (await session.scalar(
-                select(func.count(PredictionORM.id))
-            )) or 0
+            pred_total = (await session.scalar(select(func.count(PredictionORM.id)))) or 0
 
             # Today's settlements
-            settled_row = (await session.execute(
-                select(func.count(SettlementORM.id), func.coalesce(func.sum(SettlementORM.profit_loss), 0.0))
-                .where(func.date(SettlementORM.settlement_timestamp) == today)
-            )).one_or_none()
+            settled_row = (
+                await session.execute(
+                    select(
+                        func.count(SettlementORM.id),
+                        func.coalesce(func.sum(SettlementORM.profit_loss), 0.0),
+                    ).where(func.date(SettlementORM.settlement_timestamp) == today)
+                )
+            ).one_or_none()
             settled_count, settled_pl = settled_row if settled_row else (0, 0.0)
             settled_pl = float(settled_pl)
 
             # Value bets (all-time)
-            vb_total = (await session.scalar(
-                select(func.count(ValueBetORM.id))
-            )) or 0
+            vb_total = (await session.scalar(select(func.count(ValueBetORM.id)))) or 0
 
         # Build Markdown report
         lines = [
@@ -670,11 +710,16 @@ async def _run_daily_report(log: logging.Logger) -> None:
         report_path.write_text("\n".join(lines), encoding="utf-8")
 
         elapsed = (datetime.now(PARIS) - now).total_seconds()
-        _append_run_timeline("daily_report", "success",
-                             f"daily_report_{iso}.md ({report_path.stat().st_size} bytes)")
+        _append_run_timeline(
+            "daily_report", "success", f"daily_report_{iso}.md ({report_path.stat().st_size} bytes)"
+        )
 
-        log.info("Daily report written: %s (%d bytes, %.1fs)",
-                 report_path, report_path.stat().st_size, elapsed)
+        log.info(
+            "Daily report written: %s (%d bytes, %.1fs)",
+            report_path,
+            report_path.stat().st_size,
+            elapsed,
+        )
     finally:
         await container.shutdown_resources()
 
@@ -682,7 +727,6 @@ async def _run_daily_report(log: logging.Logger) -> None:
 async def _run_weekly_report(log: logging.Logger) -> None:
     """Generate weekly performance report from PostgreSQL (read-only, zero API calls)."""
     from datetime import date, datetime, timedelta
-    from pathlib import Path
 
     from app.core.container import container
 
@@ -695,41 +739,46 @@ async def _run_weekly_report(log: logging.Logger) -> None:
     try:
         async with container.database.session() as session:
             from sqlalchemy import func, select
+
             from app.repositories.sqlalchemy.models import PredictionORM, SettlementORM, ValueBetORM
 
             # 7-day settlements
-            settled_row = (await session.execute(
-                select(
-                    func.count(SettlementORM.id),
-                    func.coalesce(func.sum(SettlementORM.profit_loss), 0.0),
-                ).where(func.date(SettlementORM.settlement_timestamp) >= week_start)
-            )).one_or_none()
+            settled_row = (
+                await session.execute(
+                    select(
+                        func.count(SettlementORM.id),
+                        func.coalesce(func.sum(SettlementORM.profit_loss), 0.0),
+                    ).where(func.date(SettlementORM.settlement_timestamp) >= week_start)
+                )
+            ).one_or_none()
             week_settled, week_pl = settled_row if settled_row else (0, 0.0)
             week_pl = float(week_pl)
 
             # 7-day predictions
-            pred_7d = (await session.scalar(
-                select(func.count(PredictionORM.id))
-                .where(func.date(PredictionORM.created_at) >= week_start)
-            )) or 0
+            pred_7d = (
+                await session.scalar(
+                    select(func.count(PredictionORM.id)).where(
+                        func.date(PredictionORM.created_at) >= week_start
+                    )
+                )
+            ) or 0
 
             # All-time totals
-            vb_total = (await session.scalar(
-                select(func.count(ValueBetORM.id))
-            )) or 0
-            settled_total = (await session.scalar(
-                select(func.count(SettlementORM.id))
-            )) or 0
+            vb_total = (await session.scalar(select(func.count(ValueBetORM.id)))) or 0
+            settled_total = (await session.scalar(select(func.count(SettlementORM.id)))) or 0
 
         # Read weekly run_timeline for scheduler reliability
         timeline_info = ""
         if RUN_TIMELINE_FILE.exists():
             try:
                 timeline = json.loads(RUN_TIMELINE_FILE.read_text(encoding="utf-8"))
-                week_entries = [e for e in timeline
-                                if e.get("time", "").split("T")[0] >= week_start.isoformat()]
+                week_entries = [
+                    e for e in timeline if e.get("time", "").split("T")[0] >= week_start.isoformat()
+                ]
                 ok_count = sum(1 for e in week_entries if e.get("status") == "success")
-                timeline_info = f"- Scheduler runs this week: {len(week_entries)} ({ok_count} success)"
+                timeline_info = (
+                    f"- Scheduler runs this week: {len(week_entries)} ({ok_count} success)"
+                )
             except (json.JSONDecodeError, OSError):
                 pass
 
@@ -771,11 +820,18 @@ async def _run_weekly_report(log: logging.Logger) -> None:
         report_path.write_text("\n".join(lines), encoding="utf-8")
 
         elapsed = (datetime.now(PARIS) - now).total_seconds()
-        _append_run_timeline("weekly_report", "success",
-                             f"weekly_report_{iso}.md ({report_path.stat().st_size} bytes)")
+        _append_run_timeline(
+            "weekly_report",
+            "success",
+            f"weekly_report_{iso}.md ({report_path.stat().st_size} bytes)",
+        )
 
-        log.info("Weekly report written: %s (%d bytes, %.1fs)",
-                 report_path, report_path.stat().st_size, elapsed)
+        log.info(
+            "Weekly report written: %s (%d bytes, %.1fs)",
+            report_path,
+            report_path.stat().st_size,
+            elapsed,
+        )
     finally:
         await container.shutdown_resources()
 
@@ -801,12 +857,15 @@ def _append_run_timeline(
         "duration_s": round(duration_s, 3),
         "details": str(details)[:500] if details else "",
     }
-    existing: list[dict] = []
+    existing: list[JsonObject] = []
     if RUN_TIMELINE_FILE.exists():
         try:
-            existing = json.loads(RUN_TIMELINE_FILE.read_text(encoding="utf-8"))
+            loaded = json.loads(RUN_TIMELINE_FILE.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
-            existing = []
+            pass
+        else:
+            if isinstance(loaded, list):
+                existing = [cast("JsonObject", item) for item in loaded if isinstance(item, dict)]
     existing.append(entry)
     RUN_TIMELINE_FILE.parent.mkdir(parents=True, exist_ok=True)
     RUN_TIMELINE_FILE.write_text(
@@ -836,7 +895,8 @@ async def _run_dashboard_refresh(log: logging.Logger) -> None:
         log.info("Dashboard refresh: connecting to DB (read-only)...")
         async with container.database.session() as session:
             daily_data = await build_daily_dashboard(
-                session, today,
+                session,
+                today,
                 pipeline_version="production",
             )
 
@@ -860,13 +920,15 @@ async def _run_dashboard_refresh(log: logging.Logger) -> None:
 
         elapsed = (datetime.now(PARIS) - t0).total_seconds()
         _append_run_timeline(
-            "dashboard_refresh", "success",
+            "dashboard_refresh",
+            "success",
             f"dashboard_{iso}.html ({len(html):,} chars)",
             duration_s=elapsed,
         )
 
-        log.info("Dashboard refresh complete: %d chars → %s (%.1fs)",
-                 len(html), dashboard_path, elapsed)
+        log.info(
+            "Dashboard refresh complete: %d chars → %s (%.1fs)", len(html), dashboard_path, elapsed
+        )
     finally:
         await container.shutdown_resources()
 
@@ -875,6 +937,7 @@ async def _run_dashboard_refresh(log: logging.Logger) -> None:
 # P1–P6 Production Readiness commands
 # ---------------------------------------------------------------------------
 
+
 async def _run_script(log: logging.Logger, script_name: str) -> None:
     """Run a Python script from the scripts/ directory with logging."""
     script_path = PROJECT_ROOT / "scripts" / script_name
@@ -882,7 +945,8 @@ async def _run_script(log: logging.Logger, script_name: str) -> None:
         raise FileNotFoundError(f"Script not found: {script_path}")
     log.info("Running script: %s", script_path)
     proc = await asyncio.create_subprocess_exec(
-        sys.executable, str(script_path),
+        sys.executable,
+        str(script_path),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         cwd=str(PROJECT_ROOT),
@@ -893,9 +957,7 @@ async def _run_script(log: logging.Logger, script_name: str) -> None:
     if stderr:
         log.warning("stderr:\n%s", stderr.decode(errors="replace")[:5000])
     if proc.returncode != 0:
-        raise RuntimeError(
-            f"Script {script_name} exited with code {proc.returncode}"
-        )
+        raise RuntimeError(f"Script {script_name} exited with code {proc.returncode}")
     log.info("Script %s completed successfully.", script_name)
 
 
@@ -946,12 +1008,18 @@ COMMANDS = {
 # ---------------------------------------------------------------------------
 def main() -> None:
     parser = argparse.ArgumentParser(description="Windows Task Scheduler runner")
-    parser.add_argument("--command", required=True,
-                        choices=sorted(COMMANDS.keys()),
-                        help="Which pipeline command to execute")
-    parser.add_argument("--trigger-source", default="manual",
-                        choices=["scheduler", "manual"],
-                        help="How this run was triggered")
+    parser.add_argument(
+        "--command",
+        required=True,
+        choices=sorted(COMMANDS.keys()),
+        help="Which pipeline command to execute",
+    )
+    parser.add_argument(
+        "--trigger-source",
+        default="manual",
+        choices=["scheduler", "manual"],
+        help="How this run was triggered",
+    )
     args = parser.parse_args()
 
     command_name: str = args.command
@@ -976,8 +1044,13 @@ def main() -> None:
             log.warning("[SKIP] %s: lock already held, another instance running.", command_name)
             sys.exit(0)
 
-        log.info("[START] %s trigger=%s run_id=%s pid=%d",
-                 command_name, trigger_source, run_id, os.getpid())
+        log.info(
+            "[START] %s trigger=%s run_id=%s pid=%d",
+            command_name,
+            trigger_source,
+            run_id,
+            os.getpid(),
+        )
 
         coro = COMMANDS[command_name](log)
         asyncio.run(coro)
@@ -1011,8 +1084,13 @@ def main() -> None:
         if lock_path:
             release_lock(lock_path)
 
-        log.info("[HEARTBEAT] %s: status=%s duration=%.1fs run_id=%s",
-                 command_name, status, duration, run_id)
+        log.info(
+            "[HEARTBEAT] %s: status=%s duration=%.1fs run_id=%s",
+            command_name,
+            status,
+            duration,
+            run_id,
+        )
 
 
 if __name__ == "__main__":

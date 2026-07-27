@@ -7,23 +7,27 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from typing import TYPE_CHECKING
 
-from app.core.container import Container
 from app.core.logging import get_logger
 from app.core.service_factory import (
     build_daily_top_picks_service,
     build_ingestion_service,
     build_odds_ingestion_service,
-    build_settlement_service,
     build_performance_tracker,
+    build_settlement_service,
     derive_today_sport_keys,
 )
-from app.schemas.odds_sync import OddsSyncReport
-from app.schemas.sync import SyncReport
-from app.services.daily_top_picks import DailyRunReport
-from app.services.settlement import SettlementReport
-from app.services.performance_tracker import PerformanceReport
+
+if TYPE_CHECKING:
+    from datetime import date
+
+    from app.core.container import Container
+    from app.schemas.odds_sync import OddsSyncReport
+    from app.schemas.sync import SyncReport
+    from app.services.daily_top_picks import DailyRunReport
+    from app.services.performance_tracker import PerformanceReport
+    from app.services.settlement import SettlementReport
 
 logger = get_logger(__name__)
 
@@ -70,7 +74,8 @@ async def run_daily_job(container: Container, on_date: date) -> DailyJobReport:
     # Step 3：同步赔率快照（仅请求动态推导的 sport keys）
     async with container.database.session() as session:
         odds_svc = build_odds_ingestion_service(
-            container, session,
+            container,
+            session,
             sport_keys=dynamic_keys_info["needed"],
         )
         odds = await odds_svc.sync_odds_today(on_date)
@@ -137,7 +142,8 @@ async def run_daily_job(container: Container, on_date: date) -> DailyJobReport:
 
         async with container.database.session() as session:
             daily_data = await build_daily_dashboard(
-                session, on_date,
+                session,
+                on_date,
                 pipeline_version="production",
             )
 
@@ -148,8 +154,9 @@ async def run_daily_job(container: Container, on_date: date) -> DailyJobReport:
         out_dir.mkdir(parents=True, exist_ok=True)
         dashboard_path = str(out_dir / f"dashboard_{iso}.html")
         Path(dashboard_path).write_text(html, encoding="utf-8")
-        logger.info("Daily job step 7/7 dashboard: written %d chars to %s",
-                     len(html), dashboard_path)
+        logger.info(
+            "Daily job step 7/7 dashboard: written %d chars to %s", len(html), dashboard_path
+        )
     except Exception:
         logger.exception("Dashboard generation step failed (non-fatal)")
 
