@@ -7,7 +7,10 @@ system prompt 在所有比赛间稳定（可缓存），固化最核心的红线
 
 from __future__ import annotations
 
-from app.schemas.committee_review import CommitteeReviewContext
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.schemas.committee_review import CommitteeReviewContext
 
 PROMPT_VERSION = "committee-review/zh-v1"
 
