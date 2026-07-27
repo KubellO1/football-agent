@@ -6,8 +6,10 @@ Services depend on ``InjuryProvider``, never on a concrete vendor client.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
-from app.providers.schemas.injury import TeamInjuries
+if TYPE_CHECKING:
+    from app.providers.schemas.injury import TeamInjuries
 
 
 class InjuryProvider(ABC):
