@@ -98,14 +98,35 @@ class SqlAlchemyFixtureRepository(FixtureRepository):
         return [FixtureMapper.to_domain(r) for r in rows]
 
     async def list_finished_by_competition(
-        self, competition_id: UUID, *, before: datetime | None = None
+        self,
+        competition_id: UUID,
+        *,
+        season_id: UUID | None = None,
+        limit: int | None = None,
+        exclude_fixture_id: UUID | None = None,
+        before: datetime | None = None,
     ) -> list[Fixture]:
-        stmt = select(FixtureORM).where(
-            FixtureORM.competition_id == competition_id,
-            FixtureORM.status == _FINISHED,
+        if limit is not None and (
+            not isinstance(limit, int) or isinstance(limit, bool) or limit <= 0
+        ):
+            raise ValueError("limit must be a positive integer or None")
+
+        stmt = (
+            select(FixtureORM)
+            .where(
+                FixtureORM.competition_id == competition_id,
+                FixtureORM.status == _FINISHED,
+            )
+            .order_by(FixtureORM.kickoff.desc(), FixtureORM.id.desc())
         )
+        if season_id is not None:
+            stmt = stmt.where(FixtureORM.season_id == season_id)
+        if exclude_fixture_id is not None:
+            stmt = stmt.where(FixtureORM.id != exclude_fixture_id)
         if before is not None:
             stmt = stmt.where(FixtureORM.kickoff < before)
+        if limit is not None:
+            stmt = stmt.limit(limit)
         rows = (await self._session.execute(stmt)).scalars().all()
         return [FixtureMapper.to_domain(r) for r in rows]
 

@@ -57,9 +57,19 @@ class FixtureRepository(Repository[Fixture]):
 
     @abstractmethod
     async def list_finished_by_competition(
-        self, competition_id: UUID, *, before: datetime | None = None
+        self,
+        competition_id: UUID,
+        *,
+        season_id: UUID | None = None,
+        limit: int | None = None,
+        exclude_fixture_id: UUID | None = None,
+        before: datetime | None = None,
     ) -> list[Fixture]:
-        """返回某赛事下全部已完赛的比赛（用于联赛场均进球基准）。``before`` 见上。"""
+        """按开赛时间倒序返回某赛事的已完赛比赛。
+
+        ``season_id`` 隔离赛季口径；``limit`` 限制最近样本数量；
+        ``exclude_fixture_id`` 和 ``before`` 防止目标比赛及未来信息泄漏。
+        """
         ...
 
     @abstractmethod
