@@ -1,6 +1,7 @@
 """Domain value objects — immutable, self-validating, equality by value."""
 
 from app.models.value_objects.betting import Stake, ValueEdge
+from app.models.value_objects.data_quality import DataFreshness, DataQualityAssessment
 from app.models.value_objects.decision import (
     DataCompleteness,
     DecisionScore,
@@ -15,10 +16,17 @@ from app.models.value_objects.money import Money
 from app.models.value_objects.odds import Odds, OddsFormat
 from app.models.value_objects.probability import Probability
 from app.models.value_objects.score import MatchResult, Score
-from app.models.value_objects.statistics import PlayerStatistics, TeamStatistics
+from app.models.value_objects.statistics import (
+    PlayerStatistics,
+    StatisticField,
+    TeamMatchMetrics,
+    TeamStatistics,
+)
 
 __all__ = [
     "DataCompleteness",
+    "DataFreshness",
+    "DataQualityAssessment",
     "DecisionScore",
     "EloRating",
     "EvidenceLevel",
@@ -37,6 +45,8 @@ __all__ = [
     "Selection",
     "Stake",
     "StakeUnit",
+    "StatisticField",
+    "TeamMatchMetrics",
     "TeamStatistics",
     "ValueEdge",
 ]
