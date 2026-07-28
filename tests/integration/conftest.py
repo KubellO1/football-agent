@@ -4,8 +4,8 @@
 保证测试间隔离。需要可用的数据库（Docker/CI），本地无 DB 时这些测试会被跳过
 或失败——因此统一标注 @pytest.mark.integration。
 
-DSN 优先取环境变量 TEST_DATABASE_URL，回退到应用 settings；请指向**测试库**，
-不要指向生产库（本 fixture 会 drop_all）。
+DSN 必须由环境变量 TEST_DATABASE_URL 显式提供，且数据库名必须以 ``_test``
+结尾。缺失或不安全时立即失败，绝不回退到应用数据库。
 
 由于 0003 起 fixtures 有指向 competitions/teams 的外键，写入比赛前需先写入
 参考数据，故提供 reference_ids / persisted_fixture 两个 helper fixture。
@@ -14,23 +14,27 @@ DSN 优先取环境变量 TEST_DATABASE_URL，回退到应用 settings；请指�
 from __future__ import annotations
 
 import os
-from collections.abc import AsyncGenerator
-from datetime import datetime, timezone
-from uuid import UUID, uuid4
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
+from uuid import uuid4
 
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.config.settings import get_settings
 from app.database.base import Base
 from app.models.entities.fixture import Fixture
 from app.repositories.sqlalchemy import models  # noqa: F401  导入以注册 ORM 表到 metadata
 from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
 from app.repositories.sqlalchemy.models import CompetitionORM, TeamORM
+from tests.database_safety import require_test_database_url
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+    from uuid import UUID
 
 
 def _test_dsn() -> str:
-    return os.environ.get("TEST_DATABASE_URL") or get_settings().sqlalchemy_dsn
+    return require_test_database_url(os.environ)
 
 
 @pytest_asyncio.fixture
@@ -77,6 +81,6 @@ async def persisted_fixture(
             competition_id=comp_id,
             home_team_id=home_id,
             away_team_id=away_id,
-            kickoff=datetime(2026, 7, 3, 18, 0, tzinfo=timezone.utc),
+            kickoff=datetime(2026, 7, 3, 18, 0, tzinfo=UTC),
         )
     )
