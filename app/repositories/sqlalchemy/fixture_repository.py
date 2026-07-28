@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.entities.enums import MatchStatus
-from app.models.entities.fixture import Fixture
 from app.repositories.interfaces.fixture_repository import FixtureRepository
 from app.repositories.sqlalchemy.mappers import FixtureMapper
 from app.repositories.sqlalchemy.models import FixtureORM
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.models.entities.fixture import Fixture
 
 _FINISHED = MatchStatus.FINISHED.value
 
@@ -126,13 +131,26 @@ class SqlAlchemyFixtureRepository(FixtureRepository):
         row = await self._session.get(FixtureORM, entity.id)
         if row is None:
             raise KeyError(f"fixture {entity.id} not found for update")
-        # 仅刷新采集会变化的字段；id / external_* / 外键关系保持稳定。
+
+        identity_fields = (
+            ("competition_id", row.competition_id, entity.competition_id),
+            ("season_id", row.season_id, entity.season_id),
+            ("home_team_id", row.home_team_id, entity.home_team_id),
+            ("away_team_id", row.away_team_id, entity.away_team_id),
+            ("external_source", row.external_source, entity.external_source),
+            ("external_id", row.external_id, entity.external_id),
+        )
+        changed_fields = [
+            name for name, persisted, incoming in identity_fields if persisted != incoming
+        ]
+        if changed_fields:
+            names = ", ".join(changed_fields)
+            raise ValueError(f"fixture identity fields cannot be changed: {names}")
+
+        # 采集重跑只允许刷新比赛状态；聚合身份与关联关系必须保持稳定。
         row.kickoff = entity.kickoff
         row.status = entity.status.value
         row.score_home = entity.score.home if entity.score is not None else None
         row.score_away = entity.score.away if entity.score is not None else None
-        row.competition_id = entity.competition_id
-        row.home_team_id = entity.home_team_id
-        row.away_team_id = entity.away_team_id
         await self._session.flush()
         return FixtureMapper.to_domain(row)

@@ -117,6 +117,24 @@ class FixtureORM(TimestampMixin, Base):
     __tablename__ = "fixtures"
     __table_args__ = (
         UniqueConstraint("external_source", "external_id", name="uq_fixtures_external"),
+        Index(
+            "ix_fixtures_home_status_kickoff",
+            "home_team_id",
+            "status",
+            "kickoff",
+        ),
+        Index(
+            "ix_fixtures_away_status_kickoff",
+            "away_team_id",
+            "status",
+            "kickoff",
+        ),
+        Index(
+            "ix_fixtures_competition_status_kickoff",
+            "competition_id",
+            "status",
+            "kickoff",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
