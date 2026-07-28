@@ -16,15 +16,23 @@ from app.models.entities.enums import MatchStatus
 from app.models.entities.fixture import Fixture
 from app.models.value_objects.score import MatchResult, Score
 from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
+from app.repositories.sqlalchemy.models import SeasonORM
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
-def _fixture(kickoff: datetime, ids: tuple[UUID, UUID, UUID], *, finished: bool = False) -> Fixture:
+def _fixture(
+    kickoff: datetime,
+    ids: tuple[UUID, UUID, UUID],
+    *,
+    finished: bool = False,
+    season_id: UUID | None = None,
+) -> Fixture:
     competition_id, home_team_id, away_team_id = ids
     return Fixture(
         competition_id=competition_id,
+        season_id=season_id,
         home_team_id=home_team_id,
         away_team_id=away_team_id,
         kickoff=kickoff,
@@ -80,6 +88,111 @@ async def test_list_by_kickoff_window_filters_and_orders(
 
     assert len(result) == 2
     assert result[0].kickoff < result[1].kickoff
+
+
+@pytest.mark.integration
+async def test_list_finished_by_competition_applies_baseline_boundaries(
+    db_session: AsyncSession, reference_ids: tuple[UUID, UUID, UUID]
+) -> None:
+    repo = SqlAlchemyFixtureRepository(db_session)
+    competition_id = reference_ids[0]
+    current_season_id, previous_season_id = uuid4(), uuid4()
+    db_session.add_all(
+        [
+            SeasonORM(
+                id=current_season_id,
+                competition_id=competition_id,
+                label="2026/27",
+            ),
+            SeasonORM(
+                id=previous_season_id,
+                competition_id=competition_id,
+                label="2025/26",
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    cutoff = datetime(2026, 7, 10, 18, 0, tzinfo=UTC)
+    oldest = await repo.add(
+        _fixture(
+            cutoff - timedelta(days=4),
+            reference_ids,
+            finished=True,
+            season_id=current_season_id,
+        )
+    )
+    middle = await repo.add(
+        _fixture(
+            cutoff - timedelta(days=3),
+            reference_ids,
+            finished=True,
+            season_id=current_season_id,
+        )
+    )
+    newest = await repo.add(
+        _fixture(
+            cutoff - timedelta(days=2),
+            reference_ids,
+            finished=True,
+            season_id=current_season_id,
+        )
+    )
+    excluded = await repo.add(
+        _fixture(
+            cutoff - timedelta(days=1),
+            reference_ids,
+            finished=True,
+            season_id=current_season_id,
+        )
+    )
+    await repo.add(
+        _fixture(
+            cutoff - timedelta(days=1),
+            reference_ids,
+            finished=True,
+            season_id=previous_season_id,
+        )
+    )
+    await repo.add(
+        _fixture(
+            cutoff + timedelta(days=1),
+            reference_ids,
+            finished=True,
+            season_id=current_season_id,
+        )
+    )
+    await repo.add(
+        _fixture(
+            cutoff - timedelta(hours=1),
+            reference_ids,
+            season_id=current_season_id,
+        )
+    )
+
+    result = await repo.list_finished_by_competition(
+        competition_id,
+        season_id=current_season_id,
+        limit=2,
+        exclude_fixture_id=excluded.id,
+        before=cutoff,
+    )
+
+    assert [fixture.id for fixture in result] == [newest.id, middle.id]
+    assert oldest.id not in {fixture.id for fixture in result}
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("limit", [0, -1, True, 1.5])
+async def test_list_finished_by_competition_rejects_invalid_limit(
+    db_session: AsyncSession,
+    reference_ids: tuple[UUID, UUID, UUID],
+    limit: int,
+) -> None:
+    repo = SqlAlchemyFixtureRepository(db_session)
+
+    with pytest.raises(ValueError, match="positive integer"):
+        await repo.list_finished_by_competition(reference_ids[0], limit=limit)
 
 
 @pytest.mark.integration
