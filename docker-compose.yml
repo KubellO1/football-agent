@@ -7,6 +7,8 @@ services:
       # Point services at compose network hostnames, not localhost.
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
+      # Integration tests must never reuse the application database.
+      TEST_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-football}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/football_test
     ports:
       - "8000:8000"
     depends_on:
@@ -46,6 +48,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-test-database.sh:/docker-entrypoint-initdb.d/10-create-test-database.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-football}"]
       interval: 5s
