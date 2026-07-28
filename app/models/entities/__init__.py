@@ -12,6 +12,7 @@ from app.models.entities.odds_snapshot import OddsSnapshot
 from app.models.entities.player import Player
 from app.models.entities.prediction import MatchPrediction
 from app.models.entities.team import Team
+from app.models.entities.team_match_statistics import TeamMatchStatistics
 from app.models.entities.value_bet import ValueBet
 
 __all__ = [
@@ -30,6 +31,7 @@ __all__ = [
     "PlayerPosition",
     "Season",
     "Team",
+    "TeamMatchStatistics",
     "ValueBet",
     "utcnow",
 ]
