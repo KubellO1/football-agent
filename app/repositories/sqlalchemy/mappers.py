@@ -13,6 +13,7 @@ from app.models.entities.fixture import Fixture
 from app.models.entities.odds_snapshot import OddsSnapshot
 from app.models.entities.prediction import MatchPrediction
 from app.models.entities.team import Team
+from app.models.entities.team_match_statistics import TeamMatchStatistics
 from app.models.entities.value_bet import ValueBet
 from app.models.value_objects.betting import Stake, ValueEdge
 from app.models.value_objects.markets import MarketType, Selection
@@ -21,6 +22,7 @@ from app.models.value_objects.money import Money
 from app.models.value_objects.odds import Odds
 from app.models.value_objects.probability import Probability
 from app.models.value_objects.score import MatchResult, Score
+from app.models.value_objects.statistics import TeamMatchMetrics
 from app.repositories.sqlalchemy.models import (
     PREDICTION_RECORD_AGGREGATE,
     BankrollEntryORM,
@@ -33,6 +35,7 @@ from app.repositories.sqlalchemy.models import (
     PredictionORM,
     SeasonORM,
     SettlementORM,
+    TeamMatchStatisticsORM,
     TeamORM,
     ValueBetORM,
 )
@@ -179,6 +182,59 @@ class FixtureMapper:
             score_away=entity.score.away if entity.score is not None else None,
             external_id=entity.external_id,
             external_source=entity.external_source,
+        )
+
+
+class TeamMatchStatisticsMapper:
+    """TeamMatchStatistics 与宽表 ORM 之间的双向转换。"""
+
+    @staticmethod
+    def to_domain(row: TeamMatchStatisticsORM) -> TeamMatchStatistics:
+        return TeamMatchStatistics(
+            id=row.id,
+            fixture_id=row.fixture_id,
+            team_id=row.team_id,
+            source=row.source,
+            captured_at=row.captured_at,
+            source_updated_at=row.source_updated_at,
+            is_final=row.is_final,
+            metrics=TeamMatchMetrics(
+                xg=row.xg,
+                xg_against=row.xg_against,
+                shots=row.shots,
+                shots_on_target=row.shots_on_target,
+                possession_percentage=row.possession_percentage,
+                ppda=row.ppda,
+                big_chances=row.big_chances,
+                goalkeeper_saves=row.goalkeeper_saves,
+                set_piece_shots=row.set_piece_shots,
+                headed_shots=row.headed_shots,
+                conversion_rate=row.conversion_rate,
+            ),
+        )
+
+    @staticmethod
+    def to_orm(entity: TeamMatchStatistics) -> TeamMatchStatisticsORM:
+        metrics = entity.metrics
+        return TeamMatchStatisticsORM(
+            id=entity.id,
+            fixture_id=entity.fixture_id,
+            team_id=entity.team_id,
+            source=entity.source,
+            captured_at=entity.captured_at,
+            source_updated_at=entity.source_updated_at,
+            is_final=entity.is_final,
+            xg=metrics.xg,
+            xg_against=metrics.xg_against,
+            shots=metrics.shots,
+            shots_on_target=metrics.shots_on_target,
+            possession_percentage=metrics.possession_percentage,
+            ppda=metrics.ppda,
+            big_chances=metrics.big_chances,
+            goalkeeper_saves=metrics.goalkeeper_saves,
+            set_piece_shots=metrics.set_piece_shots,
+            headed_shots=metrics.headed_shots,
+            conversion_rate=metrics.conversion_rate,
         )
 
 

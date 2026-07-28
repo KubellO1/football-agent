@@ -18,6 +18,7 @@ from uuid import UUID  # noqa: TC003 - SQLAlchemy 会在运行时解析 Mapped �
 from sqlalchemy import (
     JSON,
     BigInteger,
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
@@ -274,6 +275,104 @@ class OddsSnapshotORM(TimestampMixin, Base):
     selection_line: Mapped[float | None] = mapped_column(Float, nullable=True)
     odds_decimal: Mapped[Decimal] = mapped_column(Numeric(9, 3))
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class TeamMatchStatisticsORM(TimestampMixin, Base):
+    """球队单场原始统计快照；指标未知时保持 NULL，不用零值填充。"""
+
+    __tablename__ = "team_match_statistics"
+    __table_args__ = (
+        UniqueConstraint(
+            "fixture_id",
+            "team_id",
+            "source",
+            "captured_at",
+            name="uq_team_match_statistics_natural",
+        ),
+        CheckConstraint("xg IS NULL OR xg >= 0", name="ck_team_match_statistics_xg"),
+        CheckConstraint(
+            "xg_against IS NULL OR xg_against >= 0",
+            name="ck_team_match_statistics_xg_against",
+        ),
+        CheckConstraint("shots IS NULL OR shots >= 0", name="ck_team_match_statistics_shots"),
+        CheckConstraint(
+            "shots_on_target IS NULL OR shots_on_target >= 0",
+            name="ck_team_match_statistics_shots_on_target",
+        ),
+        CheckConstraint(
+            "possession_percentage IS NULL OR "
+            "(possession_percentage >= 0 AND possession_percentage <= 100)",
+            name="ck_team_match_statistics_possession",
+        ),
+        CheckConstraint("ppda IS NULL OR ppda > 0", name="ck_team_match_statistics_ppda"),
+        CheckConstraint(
+            "big_chances IS NULL OR big_chances >= 0",
+            name="ck_team_match_statistics_big_chances",
+        ),
+        CheckConstraint(
+            "goalkeeper_saves IS NULL OR goalkeeper_saves >= 0",
+            name="ck_team_match_statistics_goalkeeper_saves",
+        ),
+        CheckConstraint(
+            "set_piece_shots IS NULL OR set_piece_shots >= 0",
+            name="ck_team_match_statistics_set_piece_shots",
+        ),
+        CheckConstraint(
+            "headed_shots IS NULL OR headed_shots >= 0",
+            name="ck_team_match_statistics_headed_shots",
+        ),
+        CheckConstraint(
+            "conversion_rate IS NULL OR (conversion_rate >= 0 AND conversion_rate <= 1)",
+            name="ck_team_match_statistics_conversion_rate",
+        ),
+        CheckConstraint(
+            "shots IS NULL OR shots_on_target IS NULL OR shots_on_target <= shots",
+            name="ck_team_match_statistics_shots_on_target_lte_shots",
+        ),
+        CheckConstraint(
+            "shots IS NULL OR set_piece_shots IS NULL OR set_piece_shots <= shots",
+            name="ck_team_match_statistics_set_piece_lte_shots",
+        ),
+        CheckConstraint(
+            "shots IS NULL OR headed_shots IS NULL OR headed_shots <= shots",
+            name="ck_team_match_statistics_headed_lte_shots",
+        ),
+        CheckConstraint(
+            "source_updated_at IS NULL OR source_updated_at <= captured_at",
+            name="ck_team_match_statistics_source_updated_at",
+        ),
+        Index(
+            "ix_team_match_statistics_fixture_captured",
+            "fixture_id",
+            "captured_at",
+        ),
+        Index(
+            "ix_team_match_statistics_team_captured",
+            "team_id",
+            "captured_at",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    fixture_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("fixtures.id"))
+    team_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("teams.id"))
+    source: Mapped[str] = mapped_column(String(40))
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    source_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    is_final: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    xg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    xg_against: Mapped[float | None] = mapped_column(Float, nullable=True)
+    shots: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    shots_on_target: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    possession_percentage: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ppda: Mapped[float | None] = mapped_column(Float, nullable=True)
+    big_chances: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    goalkeeper_saves: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    set_piece_shots: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    headed_shots: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    conversion_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class DecisionLogORM(TimestampMixin, Base):

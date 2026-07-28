@@ -12,6 +12,7 @@ from app.repositories.sqlalchemy.mappers import (
     PredictionMapper,
     SeasonMapper,
     TeamMapper,
+    TeamMatchStatisticsMapper,
     ValueBetMapper,
 )
 from app.repositories.sqlalchemy.models import (
@@ -21,6 +22,7 @@ from app.repositories.sqlalchemy.models import (
     FixtureORM,
     PredictionORM,
     SeasonORM,
+    TeamMatchStatisticsORM,
     TeamORM,
     ValueBetORM,
 )
@@ -30,6 +32,9 @@ from app.repositories.sqlalchemy.reference_repositories import (
     SqlAlchemyCompetitionRepository,
     SqlAlchemySeasonRepository,
     SqlAlchemyTeamRepository,
+)
+from app.repositories.sqlalchemy.team_match_statistics_repository import (
+    SqlAlchemyTeamMatchStatisticsRepository,
 )
 from app.repositories.sqlalchemy.value_bet_repository import SqlAlchemyValueBetRepository
 
@@ -53,6 +58,9 @@ __all__ = [
     "SqlAlchemyPredictionRepository",
     "SqlAlchemySeasonRepository",
     "SqlAlchemyTeamRepository",
+    "SqlAlchemyTeamMatchStatisticsRepository",
+    "TeamMatchStatisticsMapper",
+    "TeamMatchStatisticsORM",
     "SqlAlchemyValueBetRepository",
     "TeamMapper",
     "TeamORM",

@@ -21,6 +21,9 @@ from app.repositories.interfaces.settlement_repository import (
     PerformanceSnapshotRepository,
     SettlementRepository,
 )
+from app.repositories.interfaces.team_match_statistics_repository import (
+    TeamMatchStatisticsRepository,
+)
 from app.repositories.interfaces.value_bet_repository import ValueBetRepository
 
 
@@ -46,6 +49,7 @@ def test_repository_type_parameter_is_bounded_to_entity() -> None:
         SettlementRepository,
         BankrollRepository,
         PerformanceSnapshotRepository,
+        TeamMatchStatisticsRepository,
         ValueBetRepository,
     ],
 )
