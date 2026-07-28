@@ -11,6 +11,9 @@ from app.repositories.interfaces.reference import (
     SeasonRepository,
     TeamRepository,
 )
+from app.repositories.interfaces.team_match_statistics_repository import (
+    TeamMatchStatisticsRepository,
+)
 from app.repositories.interfaces.value_bet_repository import ValueBetRepository
 
 __all__ = [
@@ -23,5 +26,6 @@ __all__ = [
     "Repository",
     "SeasonRepository",
     "TeamRepository",
+    "TeamMatchStatisticsRepository",
     "ValueBetRepository",
 ]
