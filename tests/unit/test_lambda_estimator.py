@@ -11,11 +11,13 @@ import pytest
 from app.models.value_objects.statistics import TeamStatistics
 from app.services.models.lambda_estimator import (
     LAMBDA_FLOOR,
+    BaselineMetric,
     LambdaEstimate,
     LambdaEstimator,
     LambdaWarning,
     LambdaWarningType,
     LeagueAverages,
+    LeagueBaseline,
 )
 
 
@@ -38,7 +40,7 @@ def test_average_teams_yield_baseline_lambda() -> None:
     home = _stats(gf=14, ga=14)
     away = _stats(gf=14, ga=14)
 
-    estimator = LambdaEstimator(home_advantage=1.15, use_xg=False)
+    estimator = LambdaEstimator(home_advantage=1.15)
     result = estimator.estimate(home, away, league)
 
     assert result.lam_home == pytest.approx(1.4 * 1.15)
@@ -52,13 +54,20 @@ def test_strong_home_attack_raises_home_lambda() -> None:
     home = _stats(gf=20, ga=14)
     away = _stats(gf=14, ga=14)
 
-    result = LambdaEstimator(home_advantage=1.0, use_xg=False).estimate(home, away, league)
+    result = LambdaEstimator(home_advantage=1.0).estimate(home, away, league)
     assert result.lam_home == pytest.approx(2.0)
 
 
 @pytest.mark.unit
-def test_use_xg_switches_source() -> None:
-    league = LeagueAverages(goals_per_game=1.4)
+def test_baseline_metric_selects_team_statistics_source() -> None:
+    goals_baseline = LeagueBaseline(
+        rate_per_team_match=1.4,
+        metric=BaselineMetric.GOALS,
+    )
+    xg_baseline = LeagueBaseline(
+        rate_per_team_match=1.4,
+        metric=BaselineMetric.XG,
+    )
     home = TeamStatistics(
         matches_played=10,
         wins=10,
@@ -71,10 +80,23 @@ def test_use_xg_switches_source() -> None:
     )
     away = _stats(gf=14, ga=14)
 
-    result_xg = LambdaEstimator(home_advantage=1.0, use_xg=True).estimate(home, away, league)
-    result_goals = LambdaEstimator(home_advantage=1.0, use_xg=False).estimate(home, away, league)
+    estimator = LambdaEstimator(home_advantage=1.0)
+    result_xg = estimator.estimate(home, away, xg_baseline)
+    result_goals = estimator.estimate(home, away, goals_baseline)
     assert result_xg.lam_home == pytest.approx(2.1)
     assert result_goals.lam_home == pytest.approx(1.4)
+
+
+@pytest.mark.unit
+def test_legacy_league_averages_is_explicitly_goals_only() -> None:
+    legacy = LeagueAverages(goals_per_game=1.4)
+
+    assert legacy.metric is BaselineMetric.GOALS
+    assert legacy.rate_per_team_match == 1.4
+    assert legacy.to_baseline() == LeagueBaseline(
+        rate_per_team_match=1.4,
+        metric=BaselineMetric.GOALS,
+    )
 
 
 @pytest.mark.unit
@@ -82,7 +104,12 @@ def test_zero_matches_returns_floor_with_insufficient_data() -> None:
     """matches_played=0: estimate() returns floor values + INSUFFICIENT_DATA (no crash)."""
     league = LeagueAverages(goals_per_game=1.4)
     empty = TeamStatistics(
-        matches_played=0, wins=0, draws=0, losses=0, goals_for=0, goals_against=0,
+        matches_played=0,
+        wins=0,
+        draws=0,
+        losses=0,
+        goals_for=0,
+        goals_against=0,
     )
     result = LambdaEstimator().estimate(empty, _stats(gf=14, ga=14), league)
     assert result.lam_home == pytest.approx(LAMBDA_FLOOR)
@@ -93,10 +120,29 @@ def test_zero_matches_returns_floor_with_insufficient_data() -> None:
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("bad", [0.0, -1.4])
+@pytest.mark.parametrize("bad", [0.0, -1.4, float("nan"), float("inf"), True])
 def test_invalid_league_average_rejected(bad: float) -> None:
     with pytest.raises(ValueError):
         LeagueAverages(goals_per_game=bad)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("bad", [0.0, -1.4, float("nan"), float("inf"), True])
+def test_invalid_metric_explicit_baseline_rejected(bad: float) -> None:
+    with pytest.raises(ValueError):
+        LeagueBaseline(
+            rate_per_team_match=bad,
+            metric=BaselineMetric.XG,
+        )
+
+
+@pytest.mark.unit
+def test_untyped_baseline_metric_is_rejected() -> None:
+    with pytest.raises(ValueError, match="BaselineMetric"):
+        LeagueBaseline(
+            rate_per_team_match=1.4,
+            metric="xg",  # type: ignore[arg-type]
+        )
 
 
 @pytest.mark.unit
@@ -117,7 +163,7 @@ def test_lambda_zero_triggers_insufficient_data() -> None:
     home = _stats(gf=0, ga=14, matches=10)
     away = _stats(gf=14, ga=14, matches=10)
 
-    result = LambdaEstimator(home_advantage=1.0, use_xg=False).estimate(home, away, league)
+    result = LambdaEstimator(home_advantage=1.0).estimate(home, away, league)
 
     assert result.lam_home == pytest.approx(LAMBDA_FLOOR)
     assert result.has_insufficient_data
@@ -136,7 +182,7 @@ def test_lambda_negative_triggers_insufficient_data() -> None:
     home = _stats(gf=0, ga=14, matches=10)
     away = _stats(gf=14, ga=14, matches=10)
 
-    result = LambdaEstimator(use_xg=False).estimate(home, away, league)
+    result = LambdaEstimator().estimate(home, away, league)
 
     home_warnings = [w for w in result.warnings if w.team == "home"]
     assert len(home_warnings) == 1
@@ -150,7 +196,7 @@ def test_newly_promoted_team_no_recent_matches() -> None:
     home = _stats(gf=0, ga=14, matches=10)
     away = _stats(gf=14, ga=14, matches=10)
 
-    result = LambdaEstimator(use_xg=False).estimate(home, away, league)
+    result = LambdaEstimator().estimate(home, away, league)
 
     assert result.has_insufficient_data
     home_w = [w for w in result.warnings if w.team == "home"]
@@ -166,7 +212,7 @@ def test_five_consecutive_scoreless_matches() -> None:
     home = _stats(gf=0, ga=14, matches=5)
     away = _stats(gf=14, ga=14, matches=5)
 
-    result = LambdaEstimator(use_xg=False).estimate(home, away, league)
+    result = LambdaEstimator().estimate(home, away, league)
 
     assert result.has_insufficient_data
     assert result.lam_home == pytest.approx(LAMBDA_FLOOR)
@@ -179,7 +225,7 @@ def test_missing_recent_goals_entirely() -> None:
     home = _stats(gf=0, ga=0, matches=10)
     away = _stats(gf=0, ga=0, matches=10)
 
-    result = LambdaEstimator(use_xg=False).estimate(home, away, league)
+    result = LambdaEstimator().estimate(home, away, league)
 
     assert result.has_insufficient_data
     assert len(result.warnings) == 2
@@ -195,7 +241,7 @@ def test_genuine_low_lambda_below_floor() -> None:
     home = _stats(gf=1, ga=40, matches=10)
     away = _stats(gf=40, ga=40, matches=10)
 
-    result = LambdaEstimator(use_xg=False).estimate(home, away, league)
+    result = LambdaEstimator().estimate(home, away, league)
 
     home_warnings = [w for w in result.warnings if w.team == "home"]
     if home_warnings:
@@ -245,5 +291,5 @@ def test_floor_parameter_respected() -> None:
     home = _stats(gf=0, ga=14, matches=10)
     away = _stats(gf=14, ga=14, matches=10)
 
-    result = LambdaEstimator(lambda_floor=0.10, use_xg=False).estimate(home, away, league)
+    result = LambdaEstimator(lambda_floor=0.10).estimate(home, away, league)
     assert result.lam_home == pytest.approx(0.10)
