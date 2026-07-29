@@ -229,7 +229,8 @@ async def test_gpt_committee_reviewer_uses_committee_schema() -> None:
         competition="测试联赛",
         kickoff_iso="2026-07-26T18:00:00Z",
         probabilities={"home": 0.5, "draw": 0.3, "away": 0.2},
-        league_goals_per_game=2.6,
+        league_baseline_rate=1.3,
+        league_baseline_metric="xg",
         home_form=form,
         away_form=form.model_copy(update={"side": "away"}),
     )
@@ -239,4 +240,5 @@ async def test_gpt_committee_reviewer_uses_committee_schema() -> None:
     assert result is expected
     assert fake.schema is CommitteeReview
     assert "主队 vs 客队" in fake.user
+    assert "每队每场xG基准：1.300" in fake.user
     assert fake.system

@@ -11,11 +11,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.interfaces import CommitteeReviewer
 from app.models.entities.bookmaker import Bookmaker
@@ -51,6 +50,11 @@ from app.services.committee_review import CommitteeReviewService
 from app.services.fixture_analysis import FixtureAnalysisService, MatchAnalysisInputBuilder
 from app.services.models.ensemble import EnsembleMatchModel
 from app.services.recommendation_gate import RecommendationGate
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 PAST = datetime(2026, 6, 1, 18, 0, tzinfo=UTC)
 KICKOFF = datetime(2026, 7, 10, 18, 0, tzinfo=UTC)
@@ -201,7 +205,7 @@ async def test_review_persists_decision_log_and_value_bets(db_session: AsyncSess
     # DecisionLog：可复现性元数据 + 完整 review 存档
     log = (await db_session.execute(select(DecisionLogORM))).scalar_one()
     assert log.model_version == "gpt-test"
-    assert log.prompt_version == "committee-review/zh-v1"
+    assert log.prompt_version == "committee-review/zh-v2"
     assert log.summary == "执行摘要"
     assert log.review is not None and log.review["executive_summary"] == "执行摘要"
     assert log.fixture_id == fixture.id

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Literal  # noqa: TC003 - Pydantic 会在运行时解析字段注解
 from uuid import UUID  # noqa: TC003 - Pydantic 会在运行时解析字段注解
 
 from pydantic import BaseModel, Field
@@ -61,7 +62,8 @@ class CommitteeReviewContext(BaseModel):
     expected_goals_away: float | None = None
     elo_home: float | None = None
     elo_away: float | None = None
-    league_goals_per_game: float
+    league_baseline_rate: float = Field(gt=0)
+    league_baseline_metric: Literal["goals", "xg"]
     home_form: TeamFormContext
     away_form: TeamFormContext
     selections: list[SelectionContext] = Field(default_factory=list)

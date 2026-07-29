@@ -6,7 +6,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from dataclasses import replace
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -20,7 +21,7 @@ from app.models.value_objects.odds import Odds
 from app.models.value_objects.statistics import TeamStatistics
 from app.services.modeling import MarketQuote, ModelInput
 from app.services.models.ensemble import EnsembleMatchModel
-from app.services.models.lambda_estimator import LeagueAverages
+from app.services.models.lambda_estimator import BaselineMetric, LeagueAverages, LeagueBaseline
 
 
 def _stats(*, gf: int, ga: int) -> TeamStatistics:
@@ -46,7 +47,7 @@ def _model_input(
         competition_id=uuid4(),
         home_team_id=uuid4(),
         away_team_id=uuid4(),
-        kickoff=datetime(2026, 7, 3, 18, 0, tzinfo=timezone.utc),
+        kickoff=datetime(2026, 7, 3, 18, 0, tzinfo=UTC),
     )
     return ModelInput(
         fixture=fixture,
@@ -77,9 +78,7 @@ async def test_produces_1x2_probabilities_and_candidate() -> None:
     assert 0.0 <= candidate.model_probability.value <= 1.0
     assert isinstance(candidate.decision_score, DecisionScore)
     assert 0.0 <= candidate.decision_score.value <= 100.0
-    assert candidate.edge.edge == pytest.approx(
-        candidate.model_probability.value * 2.0 - 1.0
-    )
+    assert candidate.edge.edge == pytest.approx(candidate.model_probability.value * 2.0 - 1.0)
 
 
 @pytest.mark.unit
@@ -99,6 +98,40 @@ async def test_no_quotes_yields_no_candidates() -> None:
     assert output.candidates == []
     assert output.outcome_probabilities
     assert output.expected_goals is not None
+
+
+@pytest.mark.unit
+async def test_explicit_xg_baseline_uses_xg_statistics() -> None:
+    legacy_input = _model_input([])
+    home_stats = replace(
+        legacy_input.home_stats,
+        goals_for=10,
+        goals_against=10,
+        xg_for=20.0,
+        xg_against=10.0,
+    )
+    away_stats = replace(
+        legacy_input.away_stats,
+        goals_for=10,
+        goals_against=10,
+        xg_for=10.0,
+        xg_against=20.0,
+    )
+    model_input = replace(
+        legacy_input,
+        home_stats=home_stats,
+        away_stats=away_stats,
+        league=LeagueBaseline(
+            rate_per_team_match=1.4,
+            metric=BaselineMetric.XG,
+        ),
+    )
+
+    output = await EnsembleMatchModel().analyze(model_input)
+
+    assert output.expected_goals is not None
+    assert output.expected_goals.home == pytest.approx(3.285714)
+    assert output.expected_goals.away == pytest.approx(0.714286)
 
 
 @pytest.mark.unit
