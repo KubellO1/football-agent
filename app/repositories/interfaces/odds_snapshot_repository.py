@@ -9,6 +9,7 @@ from app.models.entities.odds_snapshot import OddsSnapshot
 from app.repositories.interfaces.base import Repository
 
 if TYPE_CHECKING:
+    from datetime import datetime
     from uuid import UUID
 
 
@@ -21,6 +22,11 @@ class OddsSnapshotRepository(Repository[OddsSnapshot]):
         ...
 
     @abstractmethod
-    async def list_by_fixture(self, fixture_id: UUID) -> list[OddsSnapshot]:
-        """获取某场比赛的全部赔率快照。"""
+    async def list_by_fixture(
+        self,
+        fixture_id: UUID,
+        *,
+        as_of: datetime | None = None,
+    ) -> list[OddsSnapshot]:
+        """按时间升序获取比赛快照；as_of 存在时只返回该时点及以前的数据。"""
         ...

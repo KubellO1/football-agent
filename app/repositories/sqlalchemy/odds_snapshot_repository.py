@@ -6,16 +6,22 @@
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.entities.odds_snapshot import OddsSnapshot
 from app.repositories.interfaces.odds_snapshot_repository import OddsSnapshotRepository
 from app.repositories.sqlalchemy.mappers import OddsSnapshotMapper
 from app.repositories.sqlalchemy.models import OddsSnapshotORM
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.models.entities.odds_snapshot import OddsSnapshot
 
 
 class SqlAlchemyOddsSnapshotRepository(OddsSnapshotRepository):
@@ -53,11 +59,25 @@ class SqlAlchemyOddsSnapshotRepository(OddsSnapshotRepository):
         result = await self._session.execute(stmt)
         return result.first() is not None
 
-    async def list_by_fixture(self, fixture_id: UUID) -> list[OddsSnapshot]:
-        stmt = (
-            select(OddsSnapshotORM)
-            .where(OddsSnapshotORM.fixture_id == fixture_id)
-            .order_by(OddsSnapshotORM.captured_at)
+    async def list_by_fixture(
+        self,
+        fixture_id: UUID,
+        *,
+        as_of: datetime | None = None,
+    ) -> list[OddsSnapshot]:
+        if as_of is not None and (as_of.tzinfo is None or as_of.utcoffset() is None):
+            raise ValueError("as_of must be timezone-aware")
+
+        stmt = select(OddsSnapshotORM).where(OddsSnapshotORM.fixture_id == fixture_id)
+        if as_of is not None:
+            stmt = stmt.where(OddsSnapshotORM.captured_at <= as_of)
+        stmt = stmt.order_by(
+            OddsSnapshotORM.captured_at,
+            OddsSnapshotORM.bookmaker_id,
+            OddsSnapshotORM.selection_market,
+            OddsSnapshotORM.selection_code,
+            OddsSnapshotORM.selection_line.asc().nulls_first(),
+            OddsSnapshotORM.id,
         )
         rows = (await self._session.execute(stmt)).scalars().all()
-        return [OddsSnapshotMapper.to_domain(r) for r in rows]
+        return [OddsSnapshotMapper.to_domain(row) for row in rows]
