@@ -16,9 +16,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
+from math import isfinite
+from typing import TYPE_CHECKING
 
-from app.models.value_objects.statistics import TeamStatistics
+if TYPE_CHECKING:
+    from app.models.value_objects.statistics import TeamStatistics
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +30,7 @@ logger = logging.getLogger(__name__)
 LAMBDA_FLOOR: float = 0.05
 
 
-class LambdaWarningType(str, Enum):
+class LambdaWarningType(StrEnum):
     GENUINE_LOW = "genuine_low"
     INSUFFICIENT_DATA = "insufficient_data"
 
@@ -53,6 +56,31 @@ class LambdaEstimate:
         return any(w.warning_type == LambdaWarningType.INSUFFICIENT_DATA for w in self.warnings)
 
 
+class BaselineMetric(StrEnum):
+    """联赛强度基准使用的统计口径。"""
+
+    GOALS = "goals"
+    XG = "xg"
+
+
+@dataclass(frozen=True, slots=True)
+class LeagueBaseline:
+    """指标显式的每队每场联赛强度基准。"""
+
+    rate_per_team_match: float
+    metric: BaselineMetric
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.rate_per_team_match, bool)
+            or not isfinite(self.rate_per_team_match)
+            or self.rate_per_team_match <= 0.0
+        ):
+            raise ValueError("league baseline rate must be finite and positive")
+        if not isinstance(self.metric, BaselineMetric):
+            raise ValueError("league baseline metric must be a BaselineMetric member")
+
+
 @dataclass(frozen=True, slots=True)
 class LeagueAverages:
     """联赛基准：每队场均进球（整体口径）。"""
@@ -60,8 +88,25 @@ class LeagueAverages:
     goals_per_game: float
 
     def __post_init__(self) -> None:
+        if isinstance(self.goals_per_game, bool) or not isfinite(self.goals_per_game):
+            raise ValueError("league goals per game must be finite and positive")
         if self.goals_per_game <= 0:
             raise ValueError("联赛场均进球必须为正数")
+
+    @property
+    def metric(self) -> BaselineMetric:
+        return BaselineMetric.GOALS
+
+    @property
+    def rate_per_team_match(self) -> float:
+        return self.goals_per_game
+
+    def to_baseline(self) -> LeagueBaseline:
+        """显式转换为实际进球口径的新契约。"""
+        return LeagueBaseline(
+            rate_per_team_match=self.goals_per_game,
+            metric=BaselineMetric.GOALS,
+        )
 
 
 class LambdaEstimator:
@@ -71,7 +116,6 @@ class LambdaEstimator:
         self,
         *,
         home_advantage: float = 1.15,
-        use_xg: bool = True,
         lambda_floor: float = LAMBDA_FLOOR,
     ) -> None:
         if home_advantage <= 0:
@@ -79,51 +123,69 @@ class LambdaEstimator:
         if lambda_floor <= 0:
             raise ValueError("λ 下限必须为正数")
         self._home_advantage = home_advantage
-        self._use_xg = use_xg
         self._floor = lambda_floor
 
-    def _scored_per_game(self, stats: TeamStatistics) -> float:
-        total = stats.xg_for if self._use_xg else float(stats.goals_for)
-        return total / stats.matches_played
+    @staticmethod
+    def _scored_total(stats: TeamStatistics, metric: BaselineMetric) -> float:
+        return stats.xg_for if metric is BaselineMetric.XG else float(stats.goals_for)
 
-    def _conceded_per_game(self, stats: TeamStatistics) -> float:
-        total = stats.xg_against if self._use_xg else float(stats.goals_against)
-        return total / stats.matches_played
+    @staticmethod
+    def _conceded_total(stats: TeamStatistics, metric: BaselineMetric) -> float:
+        return stats.xg_against if metric is BaselineMetric.XG else float(stats.goals_against)
+
+    @classmethod
+    def _scored_per_game(cls, stats: TeamStatistics, metric: BaselineMetric) -> float:
+        return cls._scored_total(stats, metric) / stats.matches_played
+
+    @classmethod
+    def _conceded_per_game(cls, stats: TeamStatistics, metric: BaselineMetric) -> float:
+        return cls._conceded_total(stats, metric) / stats.matches_played
 
     def _apply_floor(
-        self, raw: float, team_name: str, goals_for: int, matches: int
+        self,
+        raw: float,
+        team_name: str,
+        source_total: float,
+        matches: int,
+        metric: BaselineMetric,
     ) -> tuple[float, LambdaWarning | None]:
         """对单个 λ 值应用下限保护，返回 (安全值, 警告或 None)。"""
         if raw > self._floor:
             return raw, None
 
         if raw <= 0:
+            source_name = "xg_for" if metric is BaselineMetric.XG else "goals_for"
             warning = LambdaWarning(
                 team=team_name,
                 raw_lambda=raw,
                 warning_type=LambdaWarningType.INSUFFICIENT_DATA,
                 reason=(
-                    f"insufficient scoring history: goals_for={goals_for}, "
+                    f"insufficient scoring history: {source_name}={source_total:g}, "
                     f"matches={matches}, raw λ={raw:.4f} ≤ 0"
                 ),
             )
             logger.warning(
                 "Lambda floor applied [INSUFFICIENT_DATA] team=%s raw_λ=%.4f floor=%.4f "
-                "goals_for=%d matches=%d",
-                team_name, raw, self._floor, goals_for, matches,
+                "metric=%s source_total=%.4f matches=%d",
+                team_name,
+                raw,
+                self._floor,
+                metric.value,
+                source_total,
+                matches,
             )
         else:
             warning = LambdaWarning(
                 team=team_name,
                 raw_lambda=raw,
                 warning_type=LambdaWarningType.GENUINE_LOW,
-                reason=(
-                    f"genuine low-scoring estimate: raw λ={raw:.4f} below floor={self._floor}"
-                ),
+                reason=(f"genuine low-scoring estimate: raw λ={raw:.4f} below floor={self._floor}"),
             )
             logger.info(
                 "Lambda floor applied [GENUINE_LOW] team=%s raw_λ=%.4f floor=%.4f",
-                team_name, raw, self._floor,
+                team_name,
+                raw,
+                self._floor,
             )
 
         return self._floor, warning
@@ -132,7 +194,7 @@ class LambdaEstimator:
         self,
         home_stats: TeamStatistics,
         away_stats: TeamStatistics,
-        league: LeagueAverages,
+        league: LeagueBaseline | LeagueAverages,
     ) -> LambdaEstimate:
         """返回 LambdaEstimate（含 λ 值与保护警告）；任一 λ 低于 floor 时自动应用保护。
 
@@ -156,26 +218,40 @@ class LambdaEstimator:
             logger.warning(
                 "Lambda floor applied [INSUFFICIENT_DATA] matches_played <= 0 "
                 "(home=%d, away=%d), forcing both λ to floor=%.4f",
-                home_stats.matches_played, away_stats.matches_played, self._floor,
+                home_stats.matches_played,
+                away_stats.matches_played,
+                self._floor,
             )
             return LambdaEstimate(
-                lam_home=self._floor, lam_away=self._floor, warnings=warnings,
+                lam_home=self._floor,
+                lam_away=self._floor,
+                warnings=warnings,
             )
 
-        avg = league.goals_per_game
-        home_attack = self._scored_per_game(home_stats) / avg
-        home_defense = self._conceded_per_game(home_stats) / avg
-        away_attack = self._scored_per_game(away_stats) / avg
-        away_defense = self._conceded_per_game(away_stats) / avg
+        baseline = league.to_baseline() if isinstance(league, LeagueAverages) else league
+        avg = baseline.rate_per_team_match
+        metric = baseline.metric
+        home_attack = self._scored_per_game(home_stats, metric) / avg
+        home_defense = self._conceded_per_game(home_stats, metric) / avg
+        away_attack = self._scored_per_game(away_stats, metric) / avg
+        away_defense = self._conceded_per_game(away_stats, metric) / avg
 
         raw_home = home_attack * away_defense * avg * self._home_advantage
         raw_away = away_attack * home_defense * avg
 
         safe_home, warn_home = self._apply_floor(
-            raw_home, "home", home_stats.goals_for, home_stats.matches_played
+            raw_home,
+            "home",
+            self._scored_total(home_stats, metric),
+            home_stats.matches_played,
+            metric,
         )
         safe_away, warn_away = self._apply_floor(
-            raw_away, "away", away_stats.goals_for, away_stats.matches_played
+            raw_away,
+            "away",
+            self._scored_total(away_stats, metric),
+            away_stats.matches_played,
+            metric,
         )
 
         if warn_home is not None:

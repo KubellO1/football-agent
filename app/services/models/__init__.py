@@ -4,14 +4,18 @@ Elo / Poisson / 蒙特卡洛 / Kelly / 价值检测等子模型，各自独立�
 由 EnsembleMatchModel 组合实现 MatchModel 契约。
 """
 
+# ruff: noqa: I001 - EnsembleMatchModel 必须最后导入以避免循环依赖。
+
 from app.services.models.elo import EloModel
 from app.services.models.kelly import KellyCalculator
 from app.services.models.lambda_estimator import (
+    BaselineMetric,
     LambdaEstimate,
     LambdaEstimator,
     LambdaWarning,
     LambdaWarningType,
     LeagueAverages,
+    LeagueBaseline,
 )
 from app.services.models.monte_carlo import MonteCarloModel, SimulationResult
 from app.services.models.poisson import PoissonModel
@@ -21,6 +25,7 @@ from app.services.models.value_detector import ValueAssessment, ValueDetector
 from app.services.models.ensemble import EnsembleMatchModel
 
 __all__ = [
+    "BaselineMetric",
     "EloModel",
     "EnsembleMatchModel",
     "KellyCalculator",
@@ -29,6 +34,7 @@ __all__ = [
     "LambdaWarning",
     "LambdaWarningType",
     "LeagueAverages",
+    "LeagueBaseline",
     "MonteCarloModel",
     "PoissonModel",
     "SimulationResult",
