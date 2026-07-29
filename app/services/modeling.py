@@ -10,27 +10,27 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
-from uuid import UUID
-
-from app.models.entities.fixture import Fixture
-from app.models.value_objects.betting import Stake, ValueEdge
-from app.models.value_objects.decision import (
-    DataCompleteness,
-    DecisionScore,
-    EvidenceLevel,
-    RiskLevel,
-)
-from app.models.value_objects.markets import Selection
-from app.models.value_objects.metrics import ExpectedGoals
-from app.models.value_objects.money import Money
-from app.models.value_objects.odds import Odds
-from app.models.value_objects.probability import Probability
-from app.models.value_objects.score import MatchResult
-from app.models.value_objects.statistics import TeamStatistics
 
 if TYPE_CHECKING:
     # 仅用于类型注解，避免与 models 子包产生循环导入
-    from app.services.models.lambda_estimator import LeagueAverages
+    from uuid import UUID
+
+    from app.models.entities.fixture import Fixture
+    from app.models.value_objects.betting import Stake, ValueEdge
+    from app.models.value_objects.decision import (
+        DataCompleteness,
+        DecisionScore,
+        EvidenceLevel,
+        RiskLevel,
+    )
+    from app.models.value_objects.markets import Selection
+    from app.models.value_objects.metrics import ExpectedGoals
+    from app.models.value_objects.money import Money
+    from app.models.value_objects.odds import Odds
+    from app.models.value_objects.probability import Probability
+    from app.models.value_objects.score import MatchResult
+    from app.models.value_objects.statistics import TeamStatistics
+    from app.services.models.lambda_estimator import LeagueAverages, LeagueBaseline
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,14 +54,16 @@ class ModelInput:
     fixture: Fixture
     home_stats: TeamStatistics
     away_stats: TeamStatistics
-    league: LeagueAverages
+    league: LeagueBaseline | LeagueAverages
     quotes: list[MarketQuote]
     bankroll: Money
     data_completeness: DataCompleteness
     evidence_level: EvidenceLevel
     home_elo: float | None = None
     away_elo: float | None = None
-    sportmonks_predictions: list[dict] = field(default_factory=list)  # DEPRECATED: 2026-07-17 - Sportmonks removed from production
+    sportmonks_predictions: list[dict[str, object]] = field(
+        default_factory=list
+    )  # DEPRECATED: 2026-07-17 - Sportmonks removed from production
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +111,4 @@ class NotImplementedMatchModel(MatchModel):
     """占位桩：真实数学模型尚未开发。用于先打通端到端编排骨架。"""
 
     async def analyze(self, model_input: ModelInput) -> ModelOutput:
-        raise NotImplementedError(
-            "数学模型尚未实现（Elo / Poisson / 蒙特卡洛 / Kelly / xG）"
-        )
+        raise NotImplementedError("数学模型尚未实现（Elo / Poisson / 蒙特卡洛 / Kelly / xG）")

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.schemas.committee_review import CommitteeReviewContext
 
-PROMPT_VERSION = "committee-review/zh-v1"
+PROMPT_VERSION = "committee-review/zh-v2"
 
 SYSTEM_PROMPT = """\
 你是一套专业足球投资决策系统中的「专家评审委员会」，不是聊天机器人，也不是预测器。
@@ -45,7 +45,8 @@ def build_user_prompt(context: CommitteeReviewContext) -> str:
     lines.append(f"# 比赛\n{context.fixture_summary}")
     lines.append(f"赛事：{context.competition}")
     lines.append(f"开赛时间(UTC)：{context.kickoff_iso}")
-    lines.append(f"联赛场均进球（每队）：{context.league_goals_per_game:.3f}")
+    baseline_label = "xG" if context.league_baseline_metric == "xg" else "进球"
+    lines.append(f"联赛每队每场{baseline_label}基准：{context.league_baseline_rate:.3f}")
 
     probs = context.probabilities
     lines.append(

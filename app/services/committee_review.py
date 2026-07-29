@@ -14,28 +14,32 @@ gate 决定；LLM 的不同意见（disagreements）只作留痕，写进 Decisi
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from uuid import UUID
+from typing import TYPE_CHECKING
 
-from app.agents.interfaces import CommitteeReviewer
 from app.core.logging import get_logger
 from app.models.entities.decision_log import DecisionLog
-from app.models.entities.fixture import Fixture
 from app.models.entities.value_bet import ValueBet
 from app.prompts.committee_review import PROMPT_VERSION
-from app.repositories.interfaces.decision_log_repository import DecisionLogRepository
-from app.repositories.interfaces.value_bet_repository import ValueBetRepository
 from app.schemas.committee_review import (
-    CommitteeReview,
     CommitteeReviewContext,
     SelectionContext,
     TeamFormContext,
 )
-from app.services.fixture_analysis import (
-    DetailedAnalysis,
-    FixtureAnalysisResult,
-    FixtureAnalysisService,
-    ReviewedSelection,
-)
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from app.agents.interfaces import CommitteeReviewer
+    from app.models.entities.fixture import Fixture
+    from app.repositories.interfaces.decision_log_repository import DecisionLogRepository
+    from app.repositories.interfaces.value_bet_repository import ValueBetRepository
+    from app.schemas.committee_review import CommitteeReview
+    from app.services.fixture_analysis import (
+        DetailedAnalysis,
+        FixtureAnalysisResult,
+        FixtureAnalysisService,
+        ReviewedSelection,
+    )
 
 logger = get_logger(__name__)
 
@@ -154,7 +158,8 @@ class CommitteeReviewService:
             expected_goals_away=result.expected_goals_away,
             elo_home=model_input.home_elo,
             elo_away=model_input.away_elo,
-            league_goals_per_game=model_input.league.goals_per_game,
+            league_baseline_rate=model_input.league.rate_per_team_match,
+            league_baseline_metric=model_input.league.metric.value,
             home_form=_form("home", model_input.home_stats),
             away_form=_form("away", model_input.away_stats),
             selections=selections,
