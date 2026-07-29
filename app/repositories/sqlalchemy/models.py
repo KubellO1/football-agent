@@ -255,6 +255,11 @@ class OddsSnapshotORM(TimestampMixin, Base):
 
     __tablename__ = "odds_snapshots"
     __table_args__ = (
+        Index(
+            "ix_odds_snapshots_fixture_captured_at",
+            "fixture_id",
+            "captured_at",
+        ),
         UniqueConstraint(
             "fixture_id",
             "bookmaker_id",
