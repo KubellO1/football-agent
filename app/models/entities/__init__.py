@@ -10,6 +10,7 @@ from app.models.entities.injury import Injury
 from app.models.entities.lineup import Lineup
 from app.models.entities.odds_snapshot import OddsSnapshot
 from app.models.entities.player import Player
+from app.models.entities.player_availability import PlayerAvailabilityObservation
 from app.models.entities.prediction import MatchPrediction
 from app.models.entities.team import Team
 from app.models.entities.team_match_statistics import TeamMatchStatistics
@@ -28,6 +29,7 @@ __all__ = [
     "MatchStatus",
     "OddsSnapshot",
     "Player",
+    "PlayerAvailabilityObservation",
     "PlayerPosition",
     "Season",
     "Team",

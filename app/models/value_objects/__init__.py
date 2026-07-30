@@ -1,5 +1,6 @@
 """Domain value objects — immutable, self-validating, equality by value."""
 
+from app.models.value_objects.availability import AvailabilitySource, AvailabilityStatus
 from app.models.value_objects.betting import Stake, ValueEdge
 from app.models.value_objects.data_quality import DataFreshness, DataQualityAssessment
 from app.models.value_objects.decision import (
@@ -24,6 +25,8 @@ from app.models.value_objects.statistics import (
 )
 
 __all__ = [
+    "AvailabilitySource",
+    "AvailabilityStatus",
     "DataCompleteness",
     "DataFreshness",
     "DataQualityAssessment",
