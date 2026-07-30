@@ -12,19 +12,23 @@ from __future__ import annotations
 
 import csv
 import math
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from statistics import mean, median, pstdev
-from uuid import UUID
+from typing import TYPE_CHECKING
 
-from app.models.entities.fixture import Fixture
 from app.models.value_objects.decision import EvidenceLevel
-from app.repositories.interfaces.fixture_repository import FixtureRepository
-from app.repositories.interfaces.odds_snapshot_repository import OddsSnapshotRepository
 from app.services.fixture_analysis import FixtureAnalysisService, MatchAnalysisInputBuilder
 from app.services.modeling import ModelInput
 from app.services.models.poisson import PoissonModel
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from uuid import UUID
+
+    from app.models.entities.fixture import Fixture
+    from app.repositories.interfaces.fixture_repository import FixtureRepository
+    from app.repositories.interfaces.odds_snapshot_repository import OddsSnapshotRepository
 
 _OU_LINE = 2.5
 _CLASSES = ("home", "draw", "away")
@@ -37,14 +41,14 @@ _ODDS_EDGES = [1.0, 1.5, 2.0, 3.0, 5.0, float("inf")]
 class BacktestInputBuilder(MatchAnalysisInputBuilder):
     """点时（point-in-time）输入构造器：只用 kickoff 之前的比赛。"""
 
-    async def build(self, fixture: Fixture) -> ModelInput | None:
-        as_of = fixture.kickoff
+    async def build(self, fixture: Fixture, *, as_of: datetime) -> ModelInput | None:
+        self._validate_as_of(as_of)
         home_stats = await self._team_stats(fixture.home_team_id, exclude=fixture.id, before=as_of)
         away_stats = await self._team_stats(fixture.away_team_id, exclude=fixture.id, before=as_of)
         league = await self._league_averages(fixture.competition_id, before=as_of)
         if home_stats.matches_played == 0 or away_stats.matches_played == 0 or league is None:
             return None
-        quotes = await self._quotes(fixture.id)
+        quotes = await self._quotes(fixture.id, as_of=as_of)
         home_elo, away_elo = await self._elos(fixture.home_team_id, fixture.away_team_id)
         completeness = self._completeness(home_stats, away_stats, quotes, home_elo, away_elo)
         return ModelInput(
@@ -341,10 +345,11 @@ class BacktestService:
         """某选项的收盘赔率：赛前赔率快照按时间取最晚一批的中位数；不足两个时点则 None。"""
         if self._snapshots is None:
             return None
+        as_of = fixture.kickoff - timedelta(microseconds=1)
         snaps = [
-            s
-            for s in await self._snapshots.list_by_fixture(fixture.id)
-            if s.selection.code == code and s.captured_at < fixture.kickoff
+            snapshot
+            for snapshot in await self._snapshots.list_by_fixture(fixture.id, as_of=as_of)
+            if snapshot.selection.code == code
         ]
         times = {s.captured_at for s in snaps}
         if len(times) < 2:  # 只有单一时点 → 无「开盘→收盘」时序，无法算 CLV
@@ -370,7 +375,10 @@ class BacktestService:
                 skipped += 1
                 continue
             try:
-                detailed = await self._analysis.analyze_detailed(fixture)
+                detailed = await self._analysis.analyze_detailed(
+                    fixture,
+                    as_of=fixture.kickoff - timedelta(microseconds=1),
+                )
             except ValueError:
                 skipped += 1  # 退化的赛前数据（如 λ≤0），无法建模
                 continue

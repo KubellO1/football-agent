@@ -14,20 +14,22 @@ worldcup-excel 历史球队，从而用历史数据为「今天的比赛」建�
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from uuid import UUID
 
-from app.models.entities.team import Team
 from app.models.value_objects.decision import EvidenceLevel
-from app.models.value_objects.money import Money
-from app.repositories.interfaces.fixture_repository import FixtureRepository
-from app.repositories.interfaces.odds_snapshot_repository import OddsSnapshotRepository
-from app.repositories.interfaces.reference import TeamRepository
 from app.services.fixture_analysis import MatchAnalysisInputBuilder
 from app.services.modeling import ModelInput
 from app.services.odds_matching import normalize_team_name
 
 if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
+
     from app.models.entities.fixture import Fixture
+    from app.models.entities.team import Team
+    from app.models.value_objects.money import Money
+    from app.repositories.interfaces.fixture_repository import FixtureRepository
+    from app.repositories.interfaces.odds_snapshot_repository import OddsSnapshotRepository
+    from app.repositories.interfaces.reference import TeamRepository
 
 _EVIDENCE_LEVEL = EvidenceLevel.B
 
@@ -81,7 +83,8 @@ class BridgedAnalysisInputBuilder(MatchAnalysisInputBuilder):
         self._resolver = resolver
         self._wc_competition_id = wc_competition_id
 
-    async def build(self, fixture: Fixture) -> ModelInput | None:
+    async def build(self, fixture: Fixture, *, as_of: datetime) -> ModelInput | None:
+        self._validate_as_of(as_of)
         home = await self._teams.get(fixture.home_team_id)
         away = await self._teams.get(fixture.away_team_id)
         if home is None or away is None:
@@ -93,13 +96,13 @@ class BridgedAnalysisInputBuilder(MatchAnalysisInputBuilder):
             return None  # 名字无法唯一解析 → 跳过
 
         # 近况/联赛/Elo 取自 worldcup-excel 历史实体；赔率取自目标 fixture 本身。
-        home_stats = await self._team_stats(wc_home, exclude=fixture.id)
-        away_stats = await self._team_stats(wc_away, exclude=fixture.id)
-        league = await self._league_averages(self._wc_competition_id)
+        home_stats = await self._team_stats(wc_home, exclude=fixture.id, before=as_of)
+        away_stats = await self._team_stats(wc_away, exclude=fixture.id, before=as_of)
+        league = await self._league_averages(self._wc_competition_id, before=as_of)
         if home_stats.matches_played == 0 or away_stats.matches_played == 0 or league is None:
             return None
 
-        quotes = await self._quotes(fixture.id)
+        quotes = await self._quotes(fixture.id, as_of=as_of)
         home_elo, away_elo = await self._elos(wc_home, wc_away)
         completeness = self._completeness(home_stats, away_stats, quotes, home_elo, away_elo)
 

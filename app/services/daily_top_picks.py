@@ -12,21 +12,25 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from app.config.whitelist import get_whitelist
 from app.core.logging import get_logger
-from app.models.entities.value_bet import ValueBet
-from app.repositories.interfaces.decision_log_repository import DecisionLogRepository
-from app.repositories.interfaces.fixture_repository import FixtureRepository
-from app.repositories.interfaces.reference import CompetitionRepository, TeamRepository
-from app.repositories.interfaces.value_bet_repository import ValueBetRepository
-from app.services.committee_review import CommitteeReviewService
-from app.services.fixture_analysis import FixtureAnalysisService, SelectionAnalysis
 from app.services.prediction_logger import log_fixture_predictions
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from app.models.entities.value_bet import ValueBet
+    from app.repositories.interfaces.decision_log_repository import DecisionLogRepository
+    from app.repositories.interfaces.fixture_repository import FixtureRepository
+    from app.repositories.interfaces.reference import CompetitionRepository, TeamRepository
+    from app.repositories.interfaces.value_bet_repository import ValueBetRepository
+    from app.services.committee_review import CommitteeReviewService
+    from app.services.fixture_analysis import FixtureAnalysisService, SelectionAnalysis
 
 logger = get_logger(__name__)
 
@@ -115,6 +119,7 @@ class DailyTopPicksService:
 
     async def run(self, on_date: date) -> DailyRunReport:
         start, end = _day_window(on_date)
+        analysis_as_of = datetime.now(UTC)
         fixtures = await self._fixtures.list_by_kickoff_window(start, end)
 
         # --- Production whitelist: load once per run ---
@@ -122,7 +127,7 @@ class DailyTopPicksService:
 
         # 对所有比赛跑确定性数学分析；记录有合格候选的比赛及其最佳 EV。
         scored: list[tuple[UUID, float]] = []
-        detailed_by_id: dict[UUID, Any] = {}  # type: ignore[explicit-any]
+        detailed_by_id: dict[UUID, Any] = {}
         predictions_logged = 0
         skipped_unsupported = 0
 
@@ -135,22 +140,24 @@ class DailyTopPicksService:
                 league_id: int | None = None
                 country = comp.country if comp else None
                 if comp and comp.external_id:
-                    try:
+                    with suppress(ValueError, TypeError):
                         league_id = int(comp.external_id)
-                    except (ValueError, TypeError):
-                        pass
             except Exception:
                 league_id = None
                 country = None
             if not whitelist.is_allowed(competition_name, league_id=league_id, country=country):
                 logger.info(
                     "SKIPPED_UNSUPPORTED_COMPETITION fixture=%s competition=%s",
-                    fixture.id, competition_name,
+                    fixture.id,
+                    competition_name,
                 )
                 skipped_unsupported += 1
                 continue
 
-            detailed = await self._analysis.analyze_detailed(fixture)
+            detailed = await self._analysis.analyze_detailed(
+                fixture,
+                as_of=analysis_as_of,
+            )
 
             # --- PredictionLogger: 每场比赛分析后立即写入 predictions 表 ---
             try:
@@ -167,9 +174,7 @@ class DailyTopPicksService:
                 )
                 predictions_logged += pred_report.inserted
             except Exception:
-                logger.exception(
-                    "PredictionLogger failed for fixture %s (non-fatal)", fixture.id
-                )
+                logger.exception("PredictionLogger failed for fixture %s (non-fatal)", fixture.id)
             # --- /PredictionLogger ---
 
             qualifying = [s for s in detailed.result.selections if self._qualifies(s)]
