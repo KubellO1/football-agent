@@ -51,6 +51,21 @@ class TeamFormContext(BaseModel):
     goals_against: int
 
 
+class MarketMovementContext(BaseModel):
+    """两个决策时点之间、由确定性服务验证的共识赔率变化。"""
+
+    selection_label: str
+    opening_consensus_odds: float
+    current_consensus_odds: float
+    decimal_delta: float
+    implied_probability_shift: float
+    direction: Literal["shortening", "drifting", "stable"]
+    opening_snapshot_count: int = Field(ge=1)
+    opening_bookmaker_count: int = Field(ge=2)
+    current_snapshot_count: int = Field(ge=1)
+    current_bookmaker_count: int = Field(ge=2)
+
+
 class CommitteeReviewContext(BaseModel):
     """交给评审委员会的完整证据包（单场比赛）。"""
 
@@ -67,6 +82,10 @@ class CommitteeReviewContext(BaseModel):
     home_form: TeamFormContext
     away_form: TeamFormContext
     selections: list[SelectionContext] = Field(default_factory=list)
+    market_movement_opening_as_of: str | None = None
+    market_movement_current_as_of: str | None = None
+    market_movements: list[MarketMovementContext] = Field(default_factory=list)
+    market_movement_issues: list[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

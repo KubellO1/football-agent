@@ -18,6 +18,7 @@ from app.core.exceptions import ExternalServiceError
 from app.schemas.committee_review import (
     CommitteeReview,
     CommitteeReviewContext,
+    MarketMovementContext,
     TeamFormContext,
 )
 from app.schemas.reasoning import ReasoningContext, ReasoningOutput
@@ -233,6 +234,22 @@ async def test_gpt_committee_reviewer_uses_committee_schema() -> None:
         league_baseline_metric="xg",
         home_form=form,
         away_form=form.model_copy(update={"side": "away"}),
+        market_movement_opening_as_of="2026-07-25T18:00:00+00:00",
+        market_movement_current_as_of="2026-07-26T18:00:00+00:00",
+        market_movements=[
+            MarketMovementContext(
+                selection_label="1x2:home",
+                opening_consensus_odds=2.1,
+                current_consensus_odds=1.9,
+                decimal_delta=-0.2,
+                implied_probability_shift=0.05,
+                direction="shortening",
+                opening_snapshot_count=2,
+                opening_bookmaker_count=2,
+                current_snapshot_count=2,
+                current_bookmaker_count=2,
+            )
+        ],
     )
 
     result = await reviewer.review(context)
@@ -241,4 +258,7 @@ async def test_gpt_committee_reviewer_uses_committee_schema() -> None:
     assert fake.schema is CommitteeReview
     assert "主队 vs 客队" in fake.user
     assert "每队每场xG基准：1.300" in fake.user
+    assert "已验证盘口变化" in fake.user
+    assert "1x2:home" in fake.user
+    assert "不得据此重算模型概率或 EV" in fake.user
     assert fake.system

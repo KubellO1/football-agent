@@ -43,13 +43,18 @@ from app.services.odds_ingestion import OddsIngestionService
 from app.services.performance_tracker import PerformanceTracker
 from app.services.recommendation_gate import RecommendationGate
 from app.services.settlement import SettlementService
-from app.services.verified_market_quote import VerifiedMarketQuotePolicy
+from app.services.verified_market_movement import VerifiedMarketMovementService
+from app.services.verified_market_quote import (
+    VerifiedMarketQuotePolicy,
+    VerifiedMarketQuoteService,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.config.settings import Settings
     from app.core.container import Container
+    from app.repositories.interfaces.odds_snapshot_repository import OddsSnapshotRepository
 
 
 class SportKeyDiagnostics(TypedDict):
@@ -194,6 +199,19 @@ def build_market_quote_policy(settings: Settings) -> VerifiedMarketQuotePolicy:
     )
 
 
+def build_market_movement_service(
+    settings: Settings,
+    odds_snapshots: OddsSnapshotRepository,
+) -> VerifiedMarketMovementService:
+    """用共享赔率准入策略组装可验证的市场变化服务。"""
+    return VerifiedMarketMovementService(
+        market_quotes=VerifiedMarketQuoteService(
+            repository=odds_snapshots,
+            policy=build_market_quote_policy(settings),
+        )
+    )
+
+
 def build_fixture_analysis_service(
     container: Container, session: AsyncSession
 ) -> FixtureAnalysisService:
@@ -222,12 +240,18 @@ def build_committee_review_service(
     *,
     analysis: FixtureAnalysisService | None = None,
 ) -> CommitteeReviewService:
+    settings = container.settings
     return CommitteeReviewService(
         analysis=analysis or build_fixture_analysis_service(container, session),
         reviewer=container.resolve(CommitteeReviewer),
         decision_logs=SqlAlchemyDecisionLogRepository(session),
         value_bets=SqlAlchemyValueBetRepository(session),
-        model_version=container.settings.openai_model,
+        model_version=settings.openai_model,
+        market_movements=build_market_movement_service(
+            settings,
+            SqlAlchemyOddsSnapshotRepository(session),
+        ),
+        movement_lookback=timedelta(hours=settings.analysis_market_movement_lookback_hours),
     )
 
 

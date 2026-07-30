@@ -305,6 +305,7 @@ class DetailedAnalysis:
     """
 
     fixture: Fixture
+    analysis_as_of: datetime
     model_input: ModelInput | None
     model_output: ModelOutput | None
     reviewed: list[ReviewedSelection]
@@ -347,6 +348,7 @@ class FixtureAnalysisService:
         if model_input is None:
             return DetailedAnalysis(
                 fixture=fixture,
+                analysis_as_of=decision_time,
                 model_input=None,
                 model_output=None,
                 reviewed=[],
@@ -392,6 +394,7 @@ class FixtureAnalysisService:
         )
         return DetailedAnalysis(
             fixture=fixture,
+            analysis_as_of=decision_time,
             model_input=model_input,
             model_output=output,
             reviewed=reviewed,

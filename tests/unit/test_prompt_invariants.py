@@ -51,7 +51,7 @@ def test_system_prompt_prioritizes_risk_control(system_prompt: str) -> None:
     ("version", "expected"),
     [
         (REASONING_PROMPT_VERSION, "match-reasoning/zh-v1"),
-        (COMMITTEE_PROMPT_VERSION, "committee-review/zh-v2"),
+        (COMMITTEE_PROMPT_VERSION, "committee-review/zh-v3"),
     ],
 )
 def test_prompt_version_is_stable(version: str, expected: str) -> None:
