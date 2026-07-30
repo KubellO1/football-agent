@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.interfaces import CommitteeReviewer, ReasoningEngine
 from app.core.container import container
+from app.core.service_factory import build_market_quote_policy
 from app.models.value_objects.money import Money
 from app.providers.interfaces.fixtures_provider import FixturesProvider
 from app.providers.interfaces.odds_provider import OddsProvider
@@ -195,6 +196,7 @@ def get_fixture_analysis_service(
         odds_snapshots=odds_snapshots,
         bankroll=bankroll,
         form_window=settings.analysis_form_window,
+        market_quote_policy=build_market_quote_policy(settings),
     )
     return FixtureAnalysisService(
         builder=builder,

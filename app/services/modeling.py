@@ -59,6 +59,7 @@ class ModelInput:
     bankroll: Money
     data_completeness: DataCompleteness
     evidence_level: EvidenceLevel
+    quote_issues: tuple[str, ...] = ()
     home_elo: float | None = None
     away_elo: float | None = None
     sportmonks_predictions: list[dict[str, object]] = field(

@@ -10,11 +10,11 @@ import os
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from itertools import combinations
+from typing import TYPE_CHECKING
 
 import pytest
 import pytest_asyncio
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.interfaces import CommitteeReviewer
 from app.config.settings import Settings, get_settings
@@ -47,6 +47,9 @@ from app.repositories.sqlalchemy.reference_repositories import (
 )
 from app.schemas.committee_review import CommitteeReview, CommitteeReviewContext, SelectionReview
 from app.workers.daily_job import run_daily_job
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 TARGET = date(2026, 7, 2)
 KICKOFF = datetime(2026, 7, 2, 18, 0, tzinfo=UTC)
@@ -117,7 +120,11 @@ class FakeReviewer(CommitteeReviewer):
 
 @pytest_asyncio.fixture
 async def container():
-    settings = Settings(database_url=_test_dsn(), openai_api_key="test")
+    settings = Settings(
+        database_url=_test_dsn(),
+        openai_api_key="test",
+        analysis_odds_max_age_minutes=52_560_000,
+    )
     ctx = Container(settings)
     ctx.init_resources()
     async with ctx.database.engine.begin() as conn:
@@ -239,18 +246,22 @@ async def _seed_qualifying(session: AsyncSession) -> None:
             status=MatchStatus.SCHEDULED,
         )
     )
-    bookmaker = await SqlAlchemyBookmakerRepository(session).add(Bookmaker(name="BK"))
+    bookmakers = [
+        await SqlAlchemyBookmakerRepository(session).add(Bookmaker(name=name))
+        for name in ("BK-A", "BK-B")
+    ]
     snaps = SqlAlchemyOddsSnapshotRepository(session)
-    for code, price in [("home", "2.50"), ("draw", "3.80"), ("away", "6.00")]:
-        await snaps.add(
-            OddsSnapshot(
-                fixture_id=target.id,
-                bookmaker_id=bookmaker.id,
-                selection=Selection(market=MarketType.MATCH_RESULT, code=code),
-                odds=Odds(Decimal(price)),
-                captured_at=KICKOFF - timedelta(hours=6),
+    for bookmaker in bookmakers:
+        for code, price in [("home", "2.50"), ("draw", "3.80"), ("away", "6.00")]:
+            await snaps.add(
+                OddsSnapshot(
+                    fixture_id=target.id,
+                    bookmaker_id=bookmaker.id,
+                    selection=Selection(market=MarketType.MATCH_RESULT, code=code),
+                    odds=Odds(Decimal(price)),
+                    captured_at=KICKOFF - timedelta(hours=6),
+                )
             )
-        )
 
 
 @pytest.mark.integration

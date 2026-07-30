@@ -19,11 +19,12 @@ import asyncio
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from app.config.settings import get_settings
 from app.core.container import Container
 from app.core.logging import configure_logging, get_logger
+from app.core.service_factory import build_market_quote_policy
 from app.models.value_objects.money import Money
 from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
 from app.repositories.sqlalchemy.odds_snapshot_repository import SqlAlchemyOddsSnapshotRepository
@@ -43,6 +44,9 @@ from app.services.backtest import (
 from app.services.fixture_analysis import FixtureAnalysisService
 from app.services.modeling import MatchModel
 from app.services.recommendation_gate import RecommendationGate
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 logger = get_logger(__name__)
 
@@ -122,6 +126,7 @@ async def _run(args: argparse.Namespace) -> None:
                         Decimal(str(settings.analysis_default_bankroll)), settings.analysis_currency
                     ),
                     form_window=settings.analysis_form_window,
+                    market_quote_policy=build_market_quote_policy(settings),
                 )
                 service = BacktestService(
                     fixtures=SqlAlchemyFixtureRepository(session),
