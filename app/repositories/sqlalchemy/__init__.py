@@ -9,6 +9,7 @@ from app.repositories.sqlalchemy.mappers import (
     CompetitionMapper,
     DecisionLogMapper,
     FixtureMapper,
+    PlayerAvailabilityObservationMapper,
     PredictionMapper,
     SeasonMapper,
     TeamMapper,
@@ -20,11 +21,15 @@ from app.repositories.sqlalchemy.models import (
     CompetitionORM,
     DecisionLogORM,
     FixtureORM,
+    PlayerAvailabilityObservationORM,
     PredictionORM,
     SeasonORM,
     TeamMatchStatisticsORM,
     TeamORM,
     ValueBetORM,
+)
+from app.repositories.sqlalchemy.player_availability_repository import (
+    SqlAlchemyPlayerAvailabilityObservationRepository,
 )
 from app.repositories.sqlalchemy.prediction_repository import SqlAlchemyPredictionRepository
 from app.repositories.sqlalchemy.reference_repositories import (
@@ -47,6 +52,8 @@ __all__ = [
     "DecisionLogORM",
     "FixtureMapper",
     "FixtureORM",
+    "PlayerAvailabilityObservationMapper",
+    "PlayerAvailabilityObservationORM",
     "PredictionMapper",
     "PredictionORM",
     "SeasonMapper",
@@ -56,6 +63,7 @@ __all__ = [
     "SqlAlchemyDecisionLogRepository",
     "SqlAlchemyFixtureRepository",
     "SqlAlchemyPredictionRepository",
+    "SqlAlchemyPlayerAvailabilityObservationRepository",
     "SqlAlchemySeasonRepository",
     "SqlAlchemyTeamRepository",
     "SqlAlchemyTeamMatchStatisticsRepository",

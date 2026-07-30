@@ -380,6 +380,59 @@ class TeamMatchStatisticsORM(TimestampMixin, Base):
     conversion_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
+class PlayerAvailabilityObservationORM(TimestampMixin, Base):
+    """球员可用性原始观察；未知状态保持显式值，不伪装为可出场。"""
+
+    __tablename__ = "player_availability_observations"
+    __table_args__ = (
+        UniqueConstraint(
+            "fixture_id",
+            "player_id",
+            "source_name",
+            "captured_at",
+            name="uq_player_availability_observations_natural",
+        ),
+        CheckConstraint(
+            "status IN ('unknown', 'available', 'doubtful', 'out', 'suspended', 'returned')",
+            name="ck_player_availability_status",
+        ),
+        CheckConstraint(
+            "evidence_level IN ('A', 'B', 'C', 'D', 'E')",
+            name="ck_player_availability_evidence_level",
+        ),
+        CheckConstraint(
+            "source_updated_at IS NULL OR source_updated_at <= captured_at",
+            name="ck_player_availability_source_updated_at",
+        ),
+        Index(
+            "ix_player_availability_fixture_captured",
+            "fixture_id",
+            "captured_at",
+        ),
+        Index(
+            "ix_player_availability_player_captured",
+            "player_id",
+            "captured_at",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    fixture_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("fixtures.id"))
+    team_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("teams.id"))
+    player_id: Mapped[UUID] = mapped_column(Uuid)
+    status: Mapped[str] = mapped_column(String(20))
+    source_name: Mapped[str] = mapped_column(String(80))
+    evidence_level: Mapped[str] = mapped_column(String(1))
+    source_reference: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    source_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    expected_return: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+
 class DecisionLogORM(TimestampMixin, Base):
     """决策日志表（宪法第 16 节）。列表字段用 JSON 存储，避免多张关联表。"""
 

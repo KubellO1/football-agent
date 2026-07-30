@@ -11,11 +11,14 @@ from app.models.entities.decision_log import DecisionLog
 from app.models.entities.enums import MatchStatus
 from app.models.entities.fixture import Fixture
 from app.models.entities.odds_snapshot import OddsSnapshot
+from app.models.entities.player_availability import PlayerAvailabilityObservation
 from app.models.entities.prediction import MatchPrediction
 from app.models.entities.team import Team
 from app.models.entities.team_match_statistics import TeamMatchStatistics
 from app.models.entities.value_bet import ValueBet
+from app.models.value_objects.availability import AvailabilitySource, AvailabilityStatus
 from app.models.value_objects.betting import Stake, ValueEdge
+from app.models.value_objects.decision import EvidenceLevel
 from app.models.value_objects.markets import MarketType, Selection
 from app.models.value_objects.metrics import EloRating, ExpectedGoals
 from app.models.value_objects.money import Money
@@ -32,6 +35,7 @@ from app.repositories.sqlalchemy.models import (
     FixtureORM,
     OddsSnapshotORM,
     PerformanceSnapshotORM,
+    PlayerAvailabilityObservationORM,
     PredictionORM,
     SeasonORM,
     SettlementORM,
@@ -235,6 +239,50 @@ class TeamMatchStatisticsMapper:
             set_piece_shots=metrics.set_piece_shots,
             headed_shots=metrics.headed_shots,
             conversion_rate=metrics.conversion_rate,
+        )
+
+
+class PlayerAvailabilityObservationMapper:
+    """PlayerAvailabilityObservation 与 ORM 行之间的双向转换。"""
+
+    @staticmethod
+    def to_domain(
+        row: PlayerAvailabilityObservationORM,
+    ) -> PlayerAvailabilityObservation:
+        return PlayerAvailabilityObservation(
+            id=row.id,
+            fixture_id=row.fixture_id,
+            team_id=row.team_id,
+            player_id=row.player_id,
+            status=AvailabilityStatus(row.status),
+            source=AvailabilitySource(
+                name=row.source_name,
+                evidence_level=EvidenceLevel(row.evidence_level),
+                reference=row.source_reference,
+            ),
+            captured_at=row.captured_at,
+            source_updated_at=row.source_updated_at,
+            reason=row.reason,
+            expected_return=row.expected_return,
+        )
+
+    @staticmethod
+    def to_orm(
+        entity: PlayerAvailabilityObservation,
+    ) -> PlayerAvailabilityObservationORM:
+        return PlayerAvailabilityObservationORM(
+            id=entity.id,
+            fixture_id=entity.fixture_id,
+            team_id=entity.team_id,
+            player_id=entity.player_id,
+            status=entity.status.value,
+            source_name=entity.source.name,
+            evidence_level=entity.source.evidence_level.value,
+            source_reference=entity.source.reference,
+            captured_at=entity.captured_at,
+            source_updated_at=entity.source_updated_at,
+            reason=entity.reason,
+            expected_return=entity.expected_return,
         )
 
 
