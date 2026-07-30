@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import computed_field
+from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -90,6 +90,9 @@ class Settings(BaseSettings):
     analysis_default_bankroll: float = 1000.0
     analysis_currency: str = "EUR"
     analysis_form_window: int = 10
+    analysis_odds_max_age_minutes: int = Field(default=30, gt=0)
+    analysis_odds_min_bookmakers: int = Field(default=2, ge=2)
+    analysis_odds_max_relative_deviation: float = Field(default=0.2, gt=0.0, lt=1.0)
     # 概率校准温度（温度缩放）。1.0=不校准；>1 降低过度自信。由 fit_calibration 拟合得到。
     analysis_calibration_temperature: float = 1.0
 

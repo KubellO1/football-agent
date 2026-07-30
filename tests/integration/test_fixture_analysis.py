@@ -90,20 +90,24 @@ async def _scheduled(session: AsyncSession, comp: UUID, home: UUID, away: UUID) 
     )
 
 
-async def _add_odds(session: AsyncSession, fixture_id: UUID) -> UUID:
-    bookmaker = await SqlAlchemyBookmakerRepository(session).add(Bookmaker(name="BM"))
+async def _add_odds(session: AsyncSession, fixture_id: UUID) -> tuple[UUID, UUID]:
+    bookmakers = [
+        await SqlAlchemyBookmakerRepository(session).add(Bookmaker(name=name))
+        for name in ("BM-A", "BM-B")
+    ]
     repo = SqlAlchemyOddsSnapshotRepository(session)
-    for code, price in [("home", "2.00"), ("draw", "3.40"), ("away", "4.00")]:
-        await repo.add(
-            OddsSnapshot(
-                fixture_id=fixture_id,
-                bookmaker_id=bookmaker.id,
-                selection=Selection(market=MarketType.MATCH_RESULT, code=code),
-                odds=Odds(Decimal(price)),
-                captured_at=KICKOFF - timedelta(hours=6),
+    for bookmaker in bookmakers:
+        for code, price in [("home", "2.00"), ("draw", "3.40"), ("away", "4.00")]:
+            await repo.add(
+                OddsSnapshot(
+                    fixture_id=fixture_id,
+                    bookmaker_id=bookmaker.id,
+                    selection=Selection(market=MarketType.MATCH_RESULT, code=code),
+                    odds=Odds(Decimal(price)),
+                    captured_at=KICKOFF - timedelta(minutes=70),
+                )
             )
-        )
-    return bookmaker.id
+    return bookmakers[0].id, bookmakers[1].id
 
 
 async def _seed_with_history(session: AsyncSession) -> Fixture:
@@ -132,19 +136,20 @@ async def _seed_with_history(session: AsyncSession) -> Fixture:
 @pytest.mark.integration
 async def test_analysis_produces_full_output(db_session: AsyncSession) -> None:
     fixture = await _seed_with_history(db_session)
-    bookmaker_id = await _add_odds(db_session, fixture.id)
+    bookmaker_ids = await _add_odds(db_session, fixture.id)
     decision_time = KICKOFF - timedelta(hours=1)
     odds_repo = SqlAlchemyOddsSnapshotRepository(db_session)
-    for code, price in [("home", "50.00"), ("draw", "60.00"), ("away", "70.00")]:
-        await odds_repo.add(
-            OddsSnapshot(
-                fixture_id=fixture.id,
-                bookmaker_id=bookmaker_id,
-                selection=Selection(market=MarketType.MATCH_RESULT, code=code),
-                odds=Odds(Decimal(price)),
-                captured_at=decision_time + timedelta(minutes=1),
+    for bookmaker_id in bookmaker_ids:
+        for code, price in [("home", "50.00"), ("draw", "60.00"), ("away", "70.00")]:
+            await odds_repo.add(
+                OddsSnapshot(
+                    fixture_id=fixture.id,
+                    bookmaker_id=bookmaker_id,
+                    selection=Selection(market=MarketType.MATCH_RESULT, code=code),
+                    odds=Odds(Decimal(price)),
+                    captured_at=decision_time + timedelta(minutes=1),
+                )
             )
-        )
 
     result = await _service(db_session).analyze(fixture, as_of=decision_time)
 
@@ -168,6 +173,33 @@ async def test_analysis_produces_full_output(db_session: AsyncSession) -> None:
         "draw": 3.4,
         "away": 4.0,
     }
+
+
+@pytest.mark.integration
+async def test_analysis_rejects_single_bookmaker_market(db_session: AsyncSession) -> None:
+    fixture = await _seed_with_history(db_session)
+    decision_time = KICKOFF - timedelta(hours=1)
+    bookmaker = await SqlAlchemyBookmakerRepository(db_session).add(Bookmaker(name="Only-BM"))
+    odds_repo = SqlAlchemyOddsSnapshotRepository(db_session)
+    for code, price in [("home", "2.00"), ("draw", "3.40"), ("away", "4.00")]:
+        await odds_repo.add(
+            OddsSnapshot(
+                fixture_id=fixture.id,
+                bookmaker_id=bookmaker.id,
+                selection=Selection(market=MarketType.MATCH_RESULT, code=code),
+                odds=Odds(Decimal(price)),
+                captured_at=decision_time - timedelta(minutes=10),
+            )
+        )
+
+    result = await _service(db_session).analyze(fixture, as_of=decision_time)
+
+    assert result.selections == []
+    assert result.message == NO_ODDS_MESSAGE
+    assert result.confidence_killer == (
+        "odds_verification:insufficient_bookmakers:home,"
+        "insufficient_bookmakers:draw,insufficient_bookmakers:away"
+    )
 
 
 @pytest.mark.integration

@@ -17,14 +17,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
-from statistics import median
 from typing import TYPE_CHECKING
 
 from app.core.logging import get_logger
 from app.models.value_objects.decision import DataCompleteness, EvidenceLevel
-from app.models.value_objects.markets import MarketType
-from app.models.value_objects.odds import Odds
 from app.models.value_objects.statistics import TeamStatistics
 from app.services.modeling import (
     MarketQuote,
@@ -35,12 +31,16 @@ from app.services.modeling import (
 )
 from app.services.models.lambda_estimator import LeagueAverages
 from app.services.recommendation_gate import GateDecision, GateInput, RecommendationGate
+from app.services.verified_market_quote import (
+    VerifiedMarketQuotePolicy,
+    VerifiedMarketQuoteResult,
+    VerifiedMarketQuoteService,
+)
 
 if TYPE_CHECKING:
     from uuid import UUID
 
     from app.models.entities.fixture import Fixture
-    from app.models.entities.odds_snapshot import OddsSnapshot
     from app.models.value_objects.money import Money
     from app.providers.interfaces.injury_provider import InjuryProvider
     from app.repositories.interfaces.fixture_repository import FixtureRepository
@@ -58,8 +58,11 @@ _EVIDENCE_LEVEL = EvidenceLevel.B
 
 # 赔率去噪参数：某盘口最新快照晚于「最新 - 该窗口」才视为新鲜（否则丢弃为过期）；
 # 相对中位数偏离超过该倍数的赔率视为极端离群点丢弃。
-_ODDS_STALE_WINDOW = timedelta(days=2)
-_ODDS_OUTLIER_RATIO = 3.0
+_DEFAULT_MARKET_QUOTE_POLICY = VerifiedMarketQuotePolicy(
+    maximum_age=timedelta(minutes=30),
+    minimum_bookmakers=2,
+    maximum_relative_deviation=0.2,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,10 +112,14 @@ class MatchAnalysisInputBuilder:
         bankroll: Money,
         form_window: int = 10,
         injury_provider: InjuryProvider | None = None,
+        market_quote_policy: VerifiedMarketQuotePolicy = _DEFAULT_MARKET_QUOTE_POLICY,
     ) -> None:
         self._fixtures = fixtures
         self._teams = teams
-        self._odds = odds_snapshots
+        self._market_quotes = VerifiedMarketQuoteService(
+            repository=odds_snapshots,
+            policy=market_quote_policy,
+        )
         self._bankroll = bankroll
         self._form_window = form_window
         self._injury = injury_provider
@@ -134,7 +141,7 @@ class MatchAnalysisInputBuilder:
         if home_stats.matches_played == 0 or away_stats.matches_played == 0 or league is None:
             return None
 
-        quotes = await self._quotes(fixture.id, as_of=as_of)
+        quotes, quote_issues = await self._quotes(fixture.id, as_of=as_of)
         home_elo, away_elo = await self._elos(fixture.home_team_id, fixture.away_team_id)
 
         # Query injury data for this fixture (if provider available).
@@ -153,6 +160,7 @@ class MatchAnalysisInputBuilder:
             bankroll=self._bankroll,
             data_completeness=completeness,
             evidence_level=_EVIDENCE_LEVEL,
+            quote_issues=quote_issues,
             home_elo=home_elo,
             away_elo=away_elo,
         )
@@ -210,56 +218,26 @@ class MatchAnalysisInputBuilder:
             return None
         return LeagueAverages(goals_per_game=per_team)
 
-    async def _quotes(self, fixture_id: UUID, *, as_of: datetime) -> list[MarketQuote]:
-        """按选项汇总去噪后的赔率报价。
-
-        去噪三步（不取全体最大值）：① 每个博彩公司只保留最新一条快照；② 丢弃明显
-        过期（远早于该选项最新时间）与相对中位数极端离群的赔率；③ 取剩余各家中位数。
-        """
+    async def _quotes(
+        self,
+        fixture_id: UUID,
+        *,
+        as_of: datetime,
+    ) -> tuple[list[MarketQuote], tuple[str, ...]]:
+        """返回完整验证后的 1X2 报价及可审计的拒绝原因。"""
         self._validate_as_of(as_of)
-        snapshots = await self._odds.list_by_fixture(fixture_id, as_of=as_of)
-        if any(snapshot.captured_at > as_of for snapshot in snapshots):
-            raise ValueError("repository returned an odds snapshot later than as_of")
-        # code -> bookmaker_id -> 该家最新快照
-        by_code: dict[str, dict[UUID, OddsSnapshot]] = {}
-        for snap in snapshots:
-            if snap.selection.market is not MarketType.MATCH_RESULT:
-                continue
-            per_book = by_code.setdefault(snap.selection.code, {})
-            current = per_book.get(snap.bookmaker_id)
-            if current is None or snap.captured_at > current.captured_at:
-                per_book[snap.bookmaker_id] = snap
-
-        quotes: list[MarketQuote] = []
-        for latest_per_book in by_code.values():
-            quote = self._denoise_selection(list(latest_per_book.values()))
-            if quote is not None:
-                quotes.append(quote)
-        return quotes
+        verification = await self._market_quotes.verify(fixture_id, as_of=as_of)
+        return list(verification.market_quotes), self._quote_issue_codes(verification)
 
     @staticmethod
-    def _denoise_selection(snaps: list[OddsSnapshot]) -> MarketQuote | None:
-        """从「各家最新快照」中去掉过期/离群，取中位数赔率，返回一条报价。"""
-        if not snaps:
-            return None
-        # ① 过期过滤：只保留接近最新时间的家
-        newest = max(s.captured_at for s in snaps)
-        fresh = [s for s in snaps if s.captured_at >= newest - _ODDS_STALE_WINDOW]
-        # ② 离群过滤：相对中位数偏离过大者剔除（样本 >=3 时才做，避免误伤）
-        values = [float(s.odds.decimal) for s in fresh]
-        med = median(values)
-        if len(fresh) >= 3:
-            lo, hi = med / _ODDS_OUTLIER_RATIO, med * _ODDS_OUTLIER_RATIO
-            kept = [s for s in fresh if lo <= float(s.odds.decimal) <= hi]
-            if kept:
-                fresh = kept
-        # ③ 取中位数赔率；代表性 bookmaker 取最接近中位数的一家
-        med_odds = median(float(s.odds.decimal) for s in fresh)
-        representative = min(fresh, key=lambda s: abs(float(s.odds.decimal) - med_odds))
-        return MarketQuote(
-            selection=representative.selection,
-            odds=Odds(Decimal(str(round(med_odds, 3)))),
-            bookmaker_id=representative.bookmaker_id,
+    def _quote_issue_codes(result: VerifiedMarketQuoteResult) -> tuple[str, ...]:
+        return tuple(
+            (
+                issue.reason.value
+                if issue.selection_code is None
+                else f"{issue.reason.value}:{issue.selection_code}"
+            )
+            for issue in result.issues
         )
 
     @staticmethod
@@ -395,6 +373,13 @@ class FixtureAnalysisService:
         elif not any(s.recommended for s in selections):
             message = NO_VALUE_MESSAGE
 
+        quote_confidence_killer = (
+            f"odds_verification:{','.join(model_input.quote_issues)}"
+            if model_input.quote_issues
+            else None
+        )
+        confidence_killer = output.confidence_killer or quote_confidence_killer
+
         result = FixtureAnalysisResult(
             fixture_id=fixture.id,
             probabilities=probabilities,
@@ -403,7 +388,7 @@ class FixtureAnalysisService:
             selections=selections,
             data_completeness=model_input.data_completeness.value,
             message=message,
-            confidence_killer=output.confidence_killer,
+            confidence_killer=confidence_killer,
         )
         return DetailedAnalysis(
             fixture=fixture,

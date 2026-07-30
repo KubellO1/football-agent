@@ -18,6 +18,7 @@ from decimal import Decimal
 from app.config.settings import get_settings
 from app.core.container import Container
 from app.core.logging import configure_logging, get_logger
+from app.core.service_factory import build_market_quote_policy
 from app.models.value_objects.money import Money
 from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
 from app.repositories.sqlalchemy.odds_snapshot_repository import SqlAlchemyOddsSnapshotRepository
@@ -73,6 +74,7 @@ async def _run() -> None:
                         Decimal(str(settings.analysis_default_bankroll)), settings.analysis_currency
                     ),
                     form_window=settings.analysis_form_window,
+                    market_quote_policy=build_market_quote_policy(settings),
                 )
                 # 用未校准模型（默认 T=1）采样，得到原始概率用于拟合。
                 service = BacktestService(

@@ -9,7 +9,7 @@ Provider / 数学模型 / gate / 评审器等单例从容器解析；仓储按�
 from __future__ import annotations
 
 from contextlib import suppress
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, TypedDict
 
@@ -43,10 +43,12 @@ from app.services.odds_ingestion import OddsIngestionService
 from app.services.performance_tracker import PerformanceTracker
 from app.services.recommendation_gate import RecommendationGate
 from app.services.settlement import SettlementService
+from app.services.verified_market_quote import VerifiedMarketQuotePolicy
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from app.config.settings import Settings
     from app.core.container import Container
 
 
@@ -183,6 +185,15 @@ def build_odds_ingestion_service(
     )
 
 
+def build_market_quote_policy(settings: Settings) -> VerifiedMarketQuotePolicy:
+    """从类型安全配置构造所有分析入口共享的赔率验证策略。"""
+    return VerifiedMarketQuotePolicy(
+        maximum_age=timedelta(minutes=settings.analysis_odds_max_age_minutes),
+        minimum_bookmakers=settings.analysis_odds_min_bookmakers,
+        maximum_relative_deviation=settings.analysis_odds_max_relative_deviation,
+    )
+
+
 def build_fixture_analysis_service(
     container: Container, session: AsyncSession
 ) -> FixtureAnalysisService:
@@ -196,6 +207,7 @@ def build_fixture_analysis_service(
         bankroll=bankroll,
         form_window=s.analysis_form_window,
         injury_provider=injury,
+        market_quote_policy=build_market_quote_policy(s),
     )
     return FixtureAnalysisService(
         builder=builder,

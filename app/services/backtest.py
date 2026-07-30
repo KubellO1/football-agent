@@ -48,7 +48,7 @@ class BacktestInputBuilder(MatchAnalysisInputBuilder):
         league = await self._league_averages(fixture.competition_id, before=as_of)
         if home_stats.matches_played == 0 or away_stats.matches_played == 0 or league is None:
             return None
-        quotes = await self._quotes(fixture.id, as_of=as_of)
+        quotes, quote_issues = await self._quotes(fixture.id, as_of=as_of)
         home_elo, away_elo = await self._elos(fixture.home_team_id, fixture.away_team_id)
         completeness = self._completeness(home_stats, away_stats, quotes, home_elo, away_elo)
         return ModelInput(
@@ -60,6 +60,7 @@ class BacktestInputBuilder(MatchAnalysisInputBuilder):
             bankroll=self._bankroll,
             data_completeness=completeness,
             evidence_level=EvidenceLevel.B,
+            quote_issues=quote_issues,
             home_elo=home_elo,
             away_elo=away_elo,
         )

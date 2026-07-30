@@ -50,6 +50,7 @@ from app.services.committee_review import CommitteeReviewService
 from app.services.fixture_analysis import FixtureAnalysisService, MatchAnalysisInputBuilder
 from app.services.models.ensemble import EnsembleMatchModel
 from app.services.recommendation_gate import RecommendationGate
+from app.services.verified_market_quote import VerifiedMarketQuotePolicy
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -109,6 +110,9 @@ def _service(
         odds_snapshots=SqlAlchemyOddsSnapshotRepository(session),
         bankroll=Money(Decimal("1000"), "EUR"),
         form_window=10,
+        market_quote_policy=VerifiedMarketQuotePolicy(
+            maximum_age=timedelta(days=36500),
+        ),
     )
     analysis = FixtureAnalysisService(builder=builder, model=EnsembleMatchModel(), gate=gate)
     return CommitteeReviewService(
@@ -166,19 +170,23 @@ async def _seed(session: AsyncSession, *, with_odds: bool) -> Fixture:
         )
     )
     if with_odds:
-        bookmaker = await SqlAlchemyBookmakerRepository(session).add(Bookmaker(name="BM"))
+        bookmakers = [
+            await SqlAlchemyBookmakerRepository(session).add(Bookmaker(name=name))
+            for name in ("BM-A", "BM-B")
+        ]
         snaps = SqlAlchemyOddsSnapshotRepository(session)
         # 隐含概率之和 < 1（0.4+0.278+0.2），保证至少一个选项正 edge。
-        for code, price in [("home", "2.50"), ("draw", "3.60"), ("away", "5.00")]:
-            await snaps.add(
-                OddsSnapshot(
-                    fixture_id=fixture.id,
-                    bookmaker_id=bookmaker.id,
-                    selection=Selection(market=MarketType.MATCH_RESULT, code=code),
-                    odds=Odds(Decimal(price)),
-                    captured_at=KICKOFF - timedelta(hours=6),
+        for bookmaker in bookmakers:
+            for code, price in [("home", "2.50"), ("draw", "3.60"), ("away", "5.00")]:
+                await snaps.add(
+                    OddsSnapshot(
+                        fixture_id=fixture.id,
+                        bookmaker_id=bookmaker.id,
+                        selection=Selection(market=MarketType.MATCH_RESULT, code=code),
+                        odds=Odds(Decimal(price)),
+                        captured_at=KICKOFF - timedelta(hours=6),
+                    )
                 )
-            )
     return fixture
 
 

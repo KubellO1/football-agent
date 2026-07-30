@@ -12,10 +12,10 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from itertools import combinations
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.interfaces import CommitteeReviewer
 from app.models.entities.bookmaker import Bookmaker
@@ -47,6 +47,10 @@ from app.services.daily_top_picks import DailyRecommendationsReader, DailyTopPic
 from app.services.fixture_analysis import FixtureAnalysisService, MatchAnalysisInputBuilder
 from app.services.models.ensemble import EnsembleMatchModel
 from app.services.recommendation_gate import RecommendationGate
+from app.services.verified_market_quote import VerifiedMarketQuotePolicy
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 TARGET = date(2026, 7, 10)
 KICKOFF = datetime(2026, 7, 10, 18, 0, tzinfo=UTC)
@@ -98,6 +102,9 @@ def _picks_service(
         odds_snapshots=SqlAlchemyOddsSnapshotRepository(session),
         bankroll=Money(Decimal("1000"), "EUR"),
         form_window=10,
+        market_quote_policy=VerifiedMarketQuotePolicy(
+            maximum_age=timedelta(days=36500),
+        ),
     )
     analysis = FixtureAnalysisService(builder=builder, model=EnsembleMatchModel(), gate=gate)
     review = CommitteeReviewService(
@@ -152,23 +159,27 @@ async def _seed_six_fixtures(session: AsyncSession) -> list[Fixture]:
         )
 
     # 6 场当日已排期比赛 + 宽松赔率（隐含概率之和 < 1，保证至少一个正 EV）
-    bookmaker = await SqlAlchemyBookmakerRepository(session).add(Bookmaker(name="BM"))
+    bookmakers = [
+        await SqlAlchemyBookmakerRepository(session).add(Bookmaker(name=name))
+        for name in ("BM-A", "BM-B")
+    ]
     snaps = SqlAlchemyOddsSnapshotRepository(session)
     scheduled: list[Fixture] = []
     for home, away in pairs:
         fixture = await fixtures_repo.add(
             Fixture(competition_id=comp, home_team_id=home, away_team_id=away, kickoff=KICKOFF)
         )
-        for code, price in [("home", "2.50"), ("draw", "3.60"), ("away", "5.00")]:
-            await snaps.add(
-                OddsSnapshot(
-                    fixture_id=fixture.id,
-                    bookmaker_id=bookmaker.id,
-                    selection=Selection(market=MarketType.MATCH_RESULT, code=code),
-                    odds=Odds(Decimal(price)),
-                    captured_at=KICKOFF - timedelta(hours=6),
+        for bookmaker in bookmakers:
+            for code, price in [("home", "2.50"), ("draw", "3.60"), ("away", "5.00")]:
+                await snaps.add(
+                    OddsSnapshot(
+                        fixture_id=fixture.id,
+                        bookmaker_id=bookmaker.id,
+                        selection=Selection(market=MarketType.MATCH_RESULT, code=code),
+                        odds=Odds(Decimal(price)),
+                        captured_at=KICKOFF - timedelta(hours=6),
+                    )
                 )
-            )
         scheduled.append(fixture)
     return scheduled
 
