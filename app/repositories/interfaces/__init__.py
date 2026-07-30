@@ -3,6 +3,9 @@
 from app.repositories.interfaces.base import Repository
 from app.repositories.interfaces.decision_log_repository import DecisionLogRepository
 from app.repositories.interfaces.fixture_repository import FixtureRepository
+from app.repositories.interfaces.player_availability_repository import (
+    PlayerAvailabilityObservationRepository,
+)
 from app.repositories.interfaces.prediction_repository import PredictionRepository
 from app.repositories.interfaces.reference import (
     BookmakerRepository,
@@ -21,6 +24,7 @@ __all__ = [
     "CompetitionRepository",
     "DecisionLogRepository",
     "FixtureRepository",
+    "PlayerAvailabilityObservationRepository",
     "PredictionRepository",
     "ReferenceRepository",
     "Repository",
