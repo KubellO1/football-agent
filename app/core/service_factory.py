@@ -18,7 +18,6 @@ from app.config.whitelist import get_whitelist
 from app.core.logging import get_logger
 from app.models.value_objects.money import Money
 from app.providers.interfaces.fixtures_provider import FixturesProvider
-from app.providers.interfaces.injury_provider import InjuryProvider
 from app.providers.interfaces.odds_provider import OddsProvider
 from app.repositories.sqlalchemy.decision_log_repository import SqlAlchemyDecisionLogRepository
 from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
@@ -217,14 +216,12 @@ def build_fixture_analysis_service(
 ) -> FixtureAnalysisService:
     s = container.settings
     bankroll = Money(Decimal(str(s.analysis_default_bankroll)), s.analysis_currency)
-    injury = container.resolve(InjuryProvider)
     builder = MatchAnalysisInputBuilder(
         fixtures=SqlAlchemyFixtureRepository(session),
         teams=SqlAlchemyTeamRepository(session),
         odds_snapshots=SqlAlchemyOddsSnapshotRepository(session),
         bankroll=bankroll,
         form_window=s.analysis_form_window,
-        injury_provider=injury,
         market_quote_policy=build_market_quote_policy(s),
     )
     return FixtureAnalysisService(

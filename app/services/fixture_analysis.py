@@ -19,7 +19,6 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from app.core.logging import get_logger
 from app.models.value_objects.decision import DataCompleteness, EvidenceLevel
 from app.models.value_objects.statistics import TeamStatistics
 from app.services.modeling import (
@@ -42,12 +41,9 @@ if TYPE_CHECKING:
 
     from app.models.entities.fixture import Fixture
     from app.models.value_objects.money import Money
-    from app.providers.interfaces.injury_provider import InjuryProvider
     from app.repositories.interfaces.fixture_repository import FixtureRepository
     from app.repositories.interfaces.odds_snapshot_repository import OddsSnapshotRepository
     from app.repositories.interfaces.reference import TeamRepository
-
-logger = get_logger(__name__)
 
 INSUFFICIENT_DATA_MESSAGE = "历史数据不足，无法建模分析（缺少双方近期完赛记录或联赛基准）。"
 NO_ODDS_MESSAGE = "缺少可用赔率，只能给出概率，无法评估价值。"
@@ -111,7 +107,6 @@ class MatchAnalysisInputBuilder:
         odds_snapshots: OddsSnapshotRepository,
         bankroll: Money,
         form_window: int = 10,
-        injury_provider: InjuryProvider | None = None,
         market_quote_policy: VerifiedMarketQuotePolicy = _DEFAULT_MARKET_QUOTE_POLICY,
     ) -> None:
         self._fixtures = fixtures
@@ -122,7 +117,6 @@ class MatchAnalysisInputBuilder:
         )
         self._bankroll = bankroll
         self._form_window = form_window
-        self._injury = injury_provider
 
     async def build(self, fixture: Fixture, *, as_of: datetime) -> ModelInput | None:
         """按同一决策时点组装 ModelInput；数据不足时返回 None。"""
@@ -143,13 +137,7 @@ class MatchAnalysisInputBuilder:
 
         quotes, quote_issues = await self._quotes(fixture.id, as_of=as_of)
         home_elo, away_elo = await self._elos(fixture.home_team_id, fixture.away_team_id)
-
-        # Query injury data for this fixture (if provider available).
-        injury_count = await self._query_injury_count(fixture)
-
-        completeness = self._completeness(
-            home_stats, away_stats, quotes, home_elo, away_elo, injury_count
-        )
+        completeness = self._completeness(home_stats, away_stats, quotes, home_elo, away_elo)
 
         return ModelInput(
             fixture=fixture,
@@ -261,31 +249,15 @@ class MatchAnalysisInputBuilder:
         quotes: list[MarketQuote],
         home_elo: float | None,
         away_elo: float | None,
-        injury_count: int = 0,
     ) -> DataCompleteness:
-        # 可解释启发式（0-100）：近况覆盖 40 + 联赛基准 20 + 赔率 30 + Elo 10 - 伤病惩罚。
+        # 可解释启发式（0-100）：近况覆盖 40 + 联赛基准 20 + 已验证赔率 30 + Elo 10。
+        # 未经 as-of、来源和证据等级验证的伤停数据不得进入量化评分。
         form_ratio = min(home_stats.matches_played, away_stats.matches_played) / self._form_window
         score = 40.0 * min(form_ratio, 1.0)
         score += 20.0  # 能走到这里说明联赛基准已具备
         score += 30.0 if quotes else 0.0
         score += 10.0 if home_elo is not None and away_elo is not None else 0.0
-        # Injury penalty: -5 per injured player, max -20.
-        score -= min(injury_count * 5.0, 20.0)
         return DataCompleteness(max(0.0, min(100.0, score)))
-
-    async def _query_injury_count(self, fixture: Fixture) -> int:
-        """Query injury data for fixture; return total player count or 0 if unavailable."""
-        if self._injury is None:
-            return 0
-        try:
-            ext_id = fixture.external_id
-            if ext_id is None:
-                return 0
-            teams = await self._injury.get_injuries(fixture_id=int(ext_id))
-            return sum(t.total_injured for t in teams)
-        except Exception:
-            logger.debug("Injury query failed for fixture %s", fixture.id, exc_info=True)
-            return 0
 
 
 @dataclass(frozen=True, slots=True)
