@@ -16,23 +16,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from statistics import median
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from app.core.logging import get_logger
-from app.models.entities.fixture import Fixture
-from app.models.entities.odds_snapshot import OddsSnapshot
 from app.models.value_objects.decision import DataCompleteness, EvidenceLevel
 from app.models.value_objects.markets import MarketType
-from app.models.value_objects.money import Money
 from app.models.value_objects.odds import Odds
 from app.models.value_objects.statistics import TeamStatistics
-from app.providers.interfaces.injury_provider import InjuryProvider
-from app.repositories.interfaces.fixture_repository import FixtureRepository
-from app.repositories.interfaces.odds_snapshot_repository import OddsSnapshotRepository
-from app.repositories.interfaces.reference import TeamRepository
 from app.services.modeling import (
     MarketQuote,
     MatchModel,
@@ -42,6 +35,17 @@ from app.services.modeling import (
 )
 from app.services.models.lambda_estimator import LeagueAverages
 from app.services.recommendation_gate import GateDecision, GateInput, RecommendationGate
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from app.models.entities.fixture import Fixture
+    from app.models.entities.odds_snapshot import OddsSnapshot
+    from app.models.value_objects.money import Money
+    from app.providers.interfaces.injury_provider import InjuryProvider
+    from app.repositories.interfaces.fixture_repository import FixtureRepository
+    from app.repositories.interfaces.odds_snapshot_repository import OddsSnapshotRepository
+    from app.repositories.interfaces.reference import TeamRepository
 
 logger = get_logger(__name__)
 
@@ -113,15 +117,24 @@ class MatchAnalysisInputBuilder:
         self._form_window = form_window
         self._injury = injury_provider
 
-    async def build(self, fixture: Fixture) -> ModelInput | None:
-        """组装 ModelInput；数据不足以建模（缺战绩/联赛基准）时返回 None。"""
-        home_stats = await self._team_stats(fixture.home_team_id, exclude=fixture.id)
-        away_stats = await self._team_stats(fixture.away_team_id, exclude=fixture.id)
-        league = await self._league_averages(fixture.competition_id)
+    async def build(self, fixture: Fixture, *, as_of: datetime) -> ModelInput | None:
+        """按同一决策时点组装 ModelInput；数据不足时返回 None。"""
+        self._validate_as_of(as_of)
+        home_stats = await self._team_stats(
+            fixture.home_team_id,
+            exclude=fixture.id,
+            before=as_of,
+        )
+        away_stats = await self._team_stats(
+            fixture.away_team_id,
+            exclude=fixture.id,
+            before=as_of,
+        )
+        league = await self._league_averages(fixture.competition_id, before=as_of)
         if home_stats.matches_played == 0 or away_stats.matches_played == 0 or league is None:
             return None
 
-        quotes = await self._quotes(fixture.id)
+        quotes = await self._quotes(fixture.id, as_of=as_of)
         home_elo, away_elo = await self._elos(fixture.home_team_id, fixture.away_team_id)
 
         # Query injury data for this fixture (if provider available).
@@ -197,13 +210,16 @@ class MatchAnalysisInputBuilder:
             return None
         return LeagueAverages(goals_per_game=per_team)
 
-    async def _quotes(self, fixture_id: UUID) -> list[MarketQuote]:
+    async def _quotes(self, fixture_id: UUID, *, as_of: datetime) -> list[MarketQuote]:
         """按选项汇总去噪后的赔率报价。
 
         去噪三步（不取全体最大值）：① 每个博彩公司只保留最新一条快照；② 丢弃明显
         过期（远早于该选项最新时间）与相对中位数极端离群的赔率；③ 取剩余各家中位数。
         """
-        snapshots = await self._odds.list_by_fixture(fixture_id)
+        self._validate_as_of(as_of)
+        snapshots = await self._odds.list_by_fixture(fixture_id, as_of=as_of)
+        if any(snapshot.captured_at > as_of for snapshot in snapshots):
+            raise ValueError("repository returned an odds snapshot later than as_of")
         # code -> bookmaker_id -> 该家最新快照
         by_code: dict[str, dict[UUID, OddsSnapshot]] = {}
         for snap in snapshots:
@@ -245,6 +261,11 @@ class MatchAnalysisInputBuilder:
             odds=Odds(Decimal(str(round(med_odds, 3)))),
             bookmaker_id=representative.bookmaker_id,
         )
+
+    @staticmethod
+    def _validate_as_of(as_of: datetime) -> None:
+        if as_of.tzinfo is None or as_of.utcoffset() is None:
+            raise ValueError("as_of must be timezone-aware")
 
     async def _elos(
         self, home_team_id: UUID, away_team_id: UUID
@@ -326,13 +347,25 @@ class FixtureAnalysisService:
         self._model = model
         self._gate = gate
 
-    async def analyze(self, fixture: Fixture) -> FixtureAnalysisResult:
+    async def analyze(
+        self,
+        fixture: Fixture,
+        *,
+        as_of: datetime | None = None,
+    ) -> FixtureAnalysisResult:
         """对外的确定性分析结果（行为与产出保持稳定）。"""
-        return (await self.analyze_detailed(fixture)).result
+        return (await self.analyze_detailed(fixture, as_of=as_of)).result
 
-    async def analyze_detailed(self, fixture: Fixture) -> DetailedAnalysis:
+    async def analyze_detailed(
+        self,
+        fixture: Fixture,
+        *,
+        as_of: datetime | None = None,
+    ) -> DetailedAnalysis:
         """在对外结果之外，额外返回模型输入/输出与逐候选 gate 判定（供评审层落库）。"""
-        model_input = await self._builder.build(fixture)
+        decision_time = as_of or datetime.now(UTC)
+        MatchAnalysisInputBuilder._validate_as_of(decision_time)
+        model_input = await self._builder.build(fixture, as_of=decision_time)
         if model_input is None:
             return DetailedAnalysis(
                 fixture=fixture,
@@ -348,7 +381,10 @@ class FixtureAnalysisService:
         reviewed = [
             ReviewedSelection(candidate=c, decision=self._evaluate(c)) for c in output.candidates
         ]
-        selections = [self._to_selection_analysis(rs, confidence_killer=output.confidence_killer) for rs in reviewed]
+        selections = [
+            self._to_selection_analysis(rs, confidence_killer=output.confidence_killer)
+            for rs in reviewed
+        ]
 
         probabilities = {
             result.value: prob.value for result, prob in output.outcome_probabilities.items()
@@ -388,7 +424,9 @@ class FixtureAnalysisService:
             )
         )
 
-    def _to_selection_analysis(self, reviewed: ReviewedSelection, *, confidence_killer: str | None = None) -> SelectionAnalysis:
+    def _to_selection_analysis(
+        self, reviewed: ReviewedSelection, *, confidence_killer: str | None = None
+    ) -> SelectionAnalysis:
         candidate = reviewed.candidate
         decision = reviewed.decision
         stake = candidate.stake

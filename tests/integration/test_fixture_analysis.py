@@ -9,10 +9,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.entities.bookmaker import Bookmaker
 from app.models.entities.competition import Competition
@@ -41,6 +40,11 @@ from app.services.fixture_analysis import (
 )
 from app.services.models.ensemble import EnsembleMatchModel
 from app.services.recommendation_gate import RecommendationGate
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 PAST = datetime(2026, 6, 1, 18, 0, tzinfo=UTC)
 KICKOFF = datetime(2026, 7, 10, 18, 0, tzinfo=UTC)
@@ -86,7 +90,7 @@ async def _scheduled(session: AsyncSession, comp: UUID, home: UUID, away: UUID) 
     )
 
 
-async def _add_odds(session: AsyncSession, fixture_id: UUID) -> None:
+async def _add_odds(session: AsyncSession, fixture_id: UUID) -> UUID:
     bookmaker = await SqlAlchemyBookmakerRepository(session).add(Bookmaker(name="BM"))
     repo = SqlAlchemyOddsSnapshotRepository(session)
     for code, price in [("home", "2.00"), ("draw", "3.40"), ("away", "4.00")]:
@@ -99,6 +103,7 @@ async def _add_odds(session: AsyncSession, fixture_id: UUID) -> None:
                 captured_at=KICKOFF - timedelta(hours=6),
             )
         )
+    return bookmaker.id
 
 
 async def _seed_with_history(session: AsyncSession) -> Fixture:
@@ -127,9 +132,21 @@ async def _seed_with_history(session: AsyncSession) -> Fixture:
 @pytest.mark.integration
 async def test_analysis_produces_full_output(db_session: AsyncSession) -> None:
     fixture = await _seed_with_history(db_session)
-    await _add_odds(db_session, fixture.id)
+    bookmaker_id = await _add_odds(db_session, fixture.id)
+    decision_time = KICKOFF - timedelta(hours=1)
+    odds_repo = SqlAlchemyOddsSnapshotRepository(db_session)
+    for code, price in [("home", "50.00"), ("draw", "60.00"), ("away", "70.00")]:
+        await odds_repo.add(
+            OddsSnapshot(
+                fixture_id=fixture.id,
+                bookmaker_id=bookmaker_id,
+                selection=Selection(market=MarketType.MATCH_RESULT, code=code),
+                odds=Odds(Decimal(price)),
+                captured_at=decision_time + timedelta(minutes=1),
+            )
+        )
 
-    result = await _service(db_session).analyze(fixture)
+    result = await _service(db_session).analyze(fixture, as_of=decision_time)
 
     # 概率齐全且归一
     assert set(result.probabilities) == {"home", "draw", "away"}
@@ -146,6 +163,22 @@ async def test_analysis_produces_full_output(db_session: AsyncSession) -> None:
         assert abs(s.expected_value - s.edge) < 1e-9  # EV/单位 == edge
         assert s.explanation
         assert isinstance(s.recommended, bool)
+    assert {selection.code: selection.decimal_odds for selection in result.selections} == {
+        "home": 2.0,
+        "draw": 3.4,
+        "away": 4.0,
+    }
+
+
+@pytest.mark.integration
+async def test_analysis_rejects_naive_as_of(db_session: AsyncSession) -> None:
+    fixture = await _seed_with_history(db_session)
+
+    with pytest.raises(ValueError, match="as_of must be timezone-aware"):
+        await _service(db_session).analyze(
+            fixture,
+            as_of=datetime(2026, 7, 10, 12, 0),
+        )
 
 
 @pytest.mark.integration
