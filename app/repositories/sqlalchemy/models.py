@@ -400,6 +400,7 @@ class DecisionLogORM(TimestampMixin, Base):
     model_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     prompt_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     review: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    evidence_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
 
 # ---------------------------------------------------------------------------

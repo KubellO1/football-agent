@@ -46,7 +46,10 @@ from app.schemas.committee_review import (
     SelectionReview,
     SelectionStance,
 )
-from app.services.committee_review import CommitteeReviewService
+from app.services.committee_review import (
+    EVIDENCE_SNAPSHOT_SCHEMA_VERSION,
+    CommitteeReviewService,
+)
 from app.services.fixture_analysis import FixtureAnalysisService, MatchAnalysisInputBuilder
 from app.services.models.ensemble import EnsembleMatchModel
 from app.services.recommendation_gate import RecommendationGate
@@ -255,6 +258,11 @@ async def test_review_persists_decision_log_and_value_bets(db_session: AsyncSess
     assert log.prompt_version == "committee-review/zh-v3"
     assert log.summary == "执行摘要"
     assert log.review is not None and log.review["executive_summary"] == "执行摘要"
+    assert "context" not in log.review
+    assert log.evidence_snapshot is not None
+    assert log.evidence_snapshot["schema_version"] == EVIDENCE_SNAPSHOT_SCHEMA_VERSION
+    assert isinstance(log.evidence_snapshot["analysis_as_of"], str)
+    assert log.evidence_snapshot["context"] == reviewer.contexts[0].model_dump(mode="json")
     assert log.fixture_id == fixture.id
 
 
@@ -291,6 +299,18 @@ async def test_review_context_uses_analysis_as_of_for_verified_market_movement(
     assert home.direction == "shortening"
     assert home.opening_bookmaker_count == 2
     assert home.current_bookmaker_count == 2
+    assert len(home.opening_snapshot_ids) == 2
+    assert len(home.current_snapshot_ids) == 2
+    assert len(home.opening_bookmaker_ids) == 2
+    assert len(home.current_bookmaker_ids) == 2
+    assert home.opening_captured_at == (KICKOFF - timedelta(hours=30)).isoformat()
+    assert home.current_captured_at == (KICKOFF - timedelta(hours=6)).isoformat()
+
+    log = (await db_session.execute(select(DecisionLogORM))).scalar_one()
+    assert log.evidence_snapshot is not None
+    assert log.evidence_snapshot["schema_version"] == EVIDENCE_SNAPSHOT_SCHEMA_VERSION
+    assert log.evidence_snapshot["analysis_as_of"] == analysis_as_of.isoformat()
+    assert log.evidence_snapshot["context"] == context.model_dump(mode="json")
 
 
 @pytest.mark.integration

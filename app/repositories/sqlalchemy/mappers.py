@@ -397,6 +397,9 @@ class DecisionLogMapper:
             model_version=row.model_version,
             prompt_version=row.prompt_version,
             review=dict(row.review) if row.review is not None else None,
+            evidence_snapshot=(
+                dict(row.evidence_snapshot) if row.evidence_snapshot is not None else None
+            ),
             created_at=row.created_at,
         )
 
@@ -414,6 +417,7 @@ class DecisionLogMapper:
             model_version=entity.model_version,
             prompt_version=entity.prompt_version,
             review=entity.review,
+            evidence_snapshot=entity.evidence_snapshot,
             created_at=entity.created_at,
         )
 
