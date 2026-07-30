@@ -14,6 +14,7 @@ gate 决定；LLM 的不同意见（disagreements）只作留痕，写进 Decisi
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from app.core.logging import get_logger
@@ -22,6 +23,7 @@ from app.models.entities.value_bet import ValueBet
 from app.prompts.committee_review import PROMPT_VERSION
 from app.schemas.committee_review import (
     CommitteeReviewContext,
+    MarketMovementContext,
     SelectionContext,
     TeamFormContext,
 )
@@ -40,6 +42,7 @@ if TYPE_CHECKING:
         FixtureAnalysisService,
         ReviewedSelection,
     )
+    from app.services.verified_market_movement import VerifiedMarketMovementService
 
 logger = get_logger(__name__)
 
@@ -67,16 +70,27 @@ class CommitteeReviewService:
         decision_logs: DecisionLogRepository,
         value_bets: ValueBetRepository,
         model_version: str,
+        market_movements: VerifiedMarketMovementService | None = None,
+        movement_lookback: timedelta = timedelta(hours=24),
     ) -> None:
+        if movement_lookback <= timedelta(0):
+            raise ValueError("movement_lookback must be positive")
         self._analysis = analysis
         self._reviewer = reviewer
         self._decision_logs = decision_logs
         self._value_bets = value_bets
         self._model_version = model_version
+        self._market_movements = market_movements
+        self._movement_lookback = movement_lookback
 
-    async def review(self, fixture: Fixture) -> CommitteeReviewResult:
+    async def review(
+        self,
+        fixture: Fixture,
+        *,
+        as_of: datetime | None = None,
+    ) -> CommitteeReviewResult:
         """跑确定性分析后交给 LLM 评审并落库。"""
-        detailed = await self._analysis.analyze_detailed(fixture)
+        detailed = await self._analysis.analyze_detailed(fixture, as_of=as_of)
         return await self.review_detailed(detailed)
 
     async def review_detailed(self, detailed: DetailedAnalysis) -> CommitteeReviewResult:
@@ -91,7 +105,7 @@ class CommitteeReviewService:
                 message=detailed.result.message,
             )
 
-        context = self._build_context(detailed)
+        context = await self._build_context(detailed)
         review = await self._reviewer.review(context)
 
         value_bet_ids = await self._persist_value_bets(fixture, detailed, review)
@@ -113,12 +127,12 @@ class CommitteeReviewService:
 
     # --- 证据包 ------------------------------------------------------------
 
-    @staticmethod
-    def _build_context(detailed: DetailedAnalysis) -> CommitteeReviewContext:
+    async def _build_context(self, detailed: DetailedAnalysis) -> CommitteeReviewContext:
         fixture = detailed.fixture
         model_input = detailed.model_input
         assert model_input is not None  # 调用点已保证
         result = detailed.result
+        movement_contexts, movement_issues = await self._build_movement_context(detailed)
 
         def _form(side: str, stats) -> TeamFormContext:  # type: ignore[no-untyped-def]
             return TeamFormContext(
@@ -163,7 +177,57 @@ class CommitteeReviewService:
             home_form=_form("home", model_input.home_stats),
             away_form=_form("away", model_input.away_stats),
             selections=selections,
+            market_movement_opening_as_of=(
+                (detailed.analysis_as_of - self._movement_lookback).isoformat()
+                if self._market_movements is not None
+                else None
+            ),
+            market_movement_current_as_of=(
+                detailed.analysis_as_of.isoformat() if self._market_movements is not None else None
+            ),
+            market_movements=movement_contexts,
+            market_movement_issues=movement_issues,
         )
+
+    async def _build_movement_context(
+        self,
+        detailed: DetailedAnalysis,
+    ) -> tuple[list[MarketMovementContext], list[str]]:
+        if self._market_movements is None:
+            return [], []
+
+        result = await self._market_movements.compare(
+            detailed.fixture.id,
+            opening_as_of=detailed.analysis_as_of - self._movement_lookback,
+            current_as_of=detailed.analysis_as_of,
+        )
+        if not result.accepted:
+            issues = [
+                (
+                    f"{issue.stage.value}:{issue.reason.value}"
+                    if issue.selection_code is None
+                    else f"{issue.stage.value}:{issue.reason.value}:{issue.selection_code}"
+                )
+                for issue in result.issues
+            ]
+            return [], issues
+
+        contexts = [
+            MarketMovementContext(
+                selection_label=item.selection.label,
+                opening_consensus_odds=float(item.movement.opening.decimal),
+                current_consensus_odds=float(item.movement.current.decimal),
+                decimal_delta=item.movement.decimal_delta,
+                implied_probability_shift=item.movement.implied_probability_shift,
+                direction=item.movement.direction.value,
+                opening_snapshot_count=len(item.opening_quote.contributing_snapshot_ids),
+                opening_bookmaker_count=len(item.opening_quote.contributing_bookmaker_ids),
+                current_snapshot_count=len(item.current_quote.contributing_snapshot_ids),
+                current_bookmaker_count=len(item.current_quote.contributing_bookmaker_ids),
+            )
+            for item in result.movements
+        ]
+        return contexts, []
 
     # --- 落库 --------------------------------------------------------------
 

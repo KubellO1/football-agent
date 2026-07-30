@@ -93,6 +93,7 @@ class Settings(BaseSettings):
     analysis_odds_max_age_minutes: int = Field(default=30, gt=0)
     analysis_odds_min_bookmakers: int = Field(default=2, ge=2)
     analysis_odds_max_relative_deviation: float = Field(default=0.2, gt=0.0, lt=1.0)
+    analysis_market_movement_lookback_hours: int = Field(default=24, gt=0)
     # 概率校准温度（温度缩放）。1.0=不校准；>1 降低过度自信。由 fit_calibration 拟合得到。
     analysis_calibration_temperature: float = 1.0
 

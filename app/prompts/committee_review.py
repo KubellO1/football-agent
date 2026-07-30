@@ -12,16 +12,16 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.schemas.committee_review import CommitteeReviewContext
 
-PROMPT_VERSION = "committee-review/zh-v2"
+PROMPT_VERSION = "committee-review/zh-v3"
 
 SYSTEM_PROMPT = """\
 你是一套专业足球投资决策系统中的「专家评审委员会」，不是聊天机器人，也不是预测器。
 
 【铁律，不可违反】
 1. 上下文中的所有数值——胜平负概率、预期进球(xG)、Elo、赔率、市场隐含概率、
-   edge、期望值(EV)、Kelly 下注比例、模型信心、以及 gate 的推荐结论——均由经过
-   验证的数学模型与确定性准入 gate 产出，是唯一真相来源。你【绝对不得】重新计算、
-   修改或新增任何数值，也【绝对不得】输出你自己的概率 / EV / 下注比例。
+   盘口变化、edge、期望值(EV)、Kelly 下注比例、模型信心、以及 gate 的推荐结论——
+   均由经过验证的数学模型与确定性服务产出，是唯一真相来源。你【绝对不得】重新
+   计算、修改或新增任何数值，也【绝对不得】输出你自己的概率 / EV / 下注比例。
 2. 你的职责只有「解释」与「批判」：说明这次机会的优势与风险、市场为何可能定价
    错误、模型为何推荐或拒绝、如何理解其信心水平与下注建议。
 3. 如果你不认同模型或 gate 的结论，请在 disagreements 中如实记录你的分歧与理由；
@@ -69,6 +69,30 @@ def build_user_prompt(context: CommitteeReviewContext) -> str:
             f"进 {form.goals_for} / 失 {form.goals_against}"
         )
 
+    if context.market_movements:
+        lines.append(
+            "\n# 已验证盘口变化（仅作为证据，不得据此重算模型概率或 EV）\n"
+            f"基准时点：{context.market_movement_opening_as_of}\n"
+            f"当前时点：{context.market_movement_current_as_of}"
+        )
+        for movement in context.market_movements:
+            lines.append(
+                f"- {movement.selection_label}：共识赔率 "
+                f"{movement.opening_consensus_odds:.2f} -> "
+                f"{movement.current_consensus_odds:.2f}，"
+                f"方向={movement.direction}，赔率变化={movement.decimal_delta:+.3f}，"
+                f"隐含概率变化={movement.implied_probability_shift:+.3f}；"
+                f"来源：基准 {movement.opening_bookmaker_count} 家庄家/"
+                f"{movement.opening_snapshot_count} 个快照，当前 "
+                f"{movement.current_bookmaker_count} 家庄家/"
+                f"{movement.current_snapshot_count} 个快照"
+            )
+    if context.market_movement_issues:
+        lines.append(
+            "\n# 盘口变化未知因素\n"
+            "盘口变化未通过完整验证，不得推测或补全：" + "；".join(context.market_movement_issues)
+        )
+
     lines.append("\n# 候选投注（数值权威、不可改动；recommended 为 gate 的确定性结论）")
     for s in context.selections:
         lines.append(
@@ -83,7 +107,8 @@ def build_user_prompt(context: CommitteeReviewContext) -> str:
     lines.append(
         "\n# 任务\n针对每个候选给出立场（support/neutral/against）、是否认同 gate 结论、"
         "以及仅基于上述证据的解释；随后给出执行摘要、核心优势、核心风险、市场为何可能"
-        "错误、模型为何推荐或拒绝、信心解释、下注建议解释。若不认同模型，请在 "
-        "disagreements 记录分歧。全程不得输出任何新数值。"
+        "错误、模型为何推荐或拒绝、信心解释、下注建议解释。盘口变化只能用于解释或"
+        "指出风险，不得据此重算概率、EV 或 Kelly；若盘口变化未知，必须明确承认未知。"
+        "若不认同模型，请在 disagreements 记录分歧。全程不得输出任何新数值。"
     )
     return "\n".join(lines)

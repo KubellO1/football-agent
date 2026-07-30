@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator  # noqa: TC003 - FastAPI 会在运行时解析依赖注解
+from datetime import timedelta
 from decimal import Decimal
 from typing import Annotated, cast
 
@@ -17,7 +18,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.interfaces import CommitteeReviewer, ReasoningEngine
 from app.core.container import container
-from app.core.service_factory import build_market_quote_policy
+from app.core.service_factory import (
+    build_market_movement_service,
+    build_market_quote_policy,
+)
 from app.models.value_objects.money import Money
 from app.providers.interfaces.fixtures_provider import FixturesProvider
 from app.providers.interfaces.odds_provider import OddsProvider
@@ -212,14 +216,18 @@ def get_committee_review_service(
     analysis: FixtureAnalysisServiceDep,
     decision_logs: DecisionLogRepositoryDep,
     value_bets: ValueBetRepositoryDep,
+    odds_snapshots: OddsSnapshotRepositoryDep,
 ) -> CommitteeReviewService:
     """组装 AI 评审服务：确定性分析 + 容器中的 GPT 评审器 + 请求作用域仓储。"""
+    settings = container.settings
     return CommitteeReviewService(
         analysis=analysis,
         reviewer=container.resolve(CommitteeReviewer),
         decision_logs=decision_logs,
         value_bets=value_bets,
-        model_version=container.settings.openai_model,
+        model_version=settings.openai_model,
+        market_movements=build_market_movement_service(settings, odds_snapshots),
+        movement_lookback=timedelta(hours=settings.analysis_market_movement_lookback_hours),
     )
 
 

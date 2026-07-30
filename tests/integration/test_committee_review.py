@@ -50,7 +50,11 @@ from app.services.committee_review import CommitteeReviewService
 from app.services.fixture_analysis import FixtureAnalysisService, MatchAnalysisInputBuilder
 from app.services.models.ensemble import EnsembleMatchModel
 from app.services.recommendation_gate import RecommendationGate
-from app.services.verified_market_quote import VerifiedMarketQuotePolicy
+from app.services.verified_market_movement import VerifiedMarketMovementService
+from app.services.verified_market_quote import (
+    VerifiedMarketQuotePolicy,
+    VerifiedMarketQuoteService,
+)
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -67,9 +71,11 @@ class FakeReviewer(CommitteeReviewer):
     def __init__(self, *, agree: bool = True) -> None:
         self.calls = 0
         self._agree = agree
+        self.contexts: list[CommitteeReviewContext] = []
 
     async def review(self, context: CommitteeReviewContext) -> CommitteeReview:
         self.calls += 1
+        self.contexts.append(context)
         stance = SelectionStance.SUPPORT if self._agree else SelectionStance.AGAINST
         return CommitteeReview(
             executive_summary="执行摘要",
@@ -93,7 +99,11 @@ class FakeReviewer(CommitteeReviewer):
 
 
 def _service(
-    session: AsyncSession, reviewer: CommitteeReviewer, *, permissive_gate: bool = False
+    session: AsyncSession,
+    reviewer: CommitteeReviewer,
+    *,
+    permissive_gate: bool = False,
+    with_market_movements: bool = False,
 ) -> CommitteeReviewService:
     gate = (
         RecommendationGate(
@@ -104,15 +114,17 @@ def _service(
         if permissive_gate
         else RecommendationGate()
     )
+    odds_snapshots = SqlAlchemyOddsSnapshotRepository(session)
+    market_quote_policy = VerifiedMarketQuotePolicy(
+        maximum_age=timedelta(days=36500),
+    )
     builder = MatchAnalysisInputBuilder(
         fixtures=SqlAlchemyFixtureRepository(session),
         teams=SqlAlchemyTeamRepository(session),
-        odds_snapshots=SqlAlchemyOddsSnapshotRepository(session),
+        odds_snapshots=odds_snapshots,
         bankroll=Money(Decimal("1000"), "EUR"),
         form_window=10,
-        market_quote_policy=VerifiedMarketQuotePolicy(
-            maximum_age=timedelta(days=36500),
-        ),
+        market_quote_policy=market_quote_policy,
     )
     analysis = FixtureAnalysisService(builder=builder, model=EnsembleMatchModel(), gate=gate)
     return CommitteeReviewService(
@@ -121,6 +133,17 @@ def _service(
         decision_logs=SqlAlchemyDecisionLogRepository(session),
         value_bets=SqlAlchemyValueBetRepository(session),
         model_version="gpt-test",
+        market_movements=(
+            VerifiedMarketMovementService(
+                market_quotes=VerifiedMarketQuoteService(
+                    repository=odds_snapshots,
+                    policy=market_quote_policy,
+                )
+            )
+            if with_market_movements
+            else None
+        ),
+        movement_lookback=timedelta(hours=24),
     )
 
 
@@ -143,7 +166,12 @@ async def _finished(
     )
 
 
-async def _seed(session: AsyncSession, *, with_odds: bool) -> Fixture:
+async def _seed(
+    session: AsyncSession,
+    *,
+    with_odds: bool,
+    with_opening_odds: bool = False,
+) -> Fixture:
     comp = (
         await SqlAlchemyCompetitionRepository(session).add(Competition(name="L", country="C"))
     ).id
@@ -177,6 +205,17 @@ async def _seed(session: AsyncSession, *, with_odds: bool) -> Fixture:
         snaps = SqlAlchemyOddsSnapshotRepository(session)
         # 隐含概率之和 < 1（0.4+0.278+0.2），保证至少一个选项正 edge。
         for bookmaker in bookmakers:
+            if with_opening_odds:
+                for code, price in [("home", "2.70"), ("draw", "3.40"), ("away", "4.50")]:
+                    await snaps.add(
+                        OddsSnapshot(
+                            fixture_id=fixture.id,
+                            bookmaker_id=bookmaker.id,
+                            selection=Selection(market=MarketType.MATCH_RESULT, code=code),
+                            odds=Odds(Decimal(price)),
+                            captured_at=KICKOFF - timedelta(hours=30),
+                        )
+                    )
             for code, price in [("home", "2.50"), ("draw", "3.60"), ("away", "5.00")]:
                 await snaps.add(
                     OddsSnapshot(
@@ -213,10 +252,67 @@ async def test_review_persists_decision_log_and_value_bets(db_session: AsyncSess
     # DecisionLog：可复现性元数据 + 完整 review 存档
     log = (await db_session.execute(select(DecisionLogORM))).scalar_one()
     assert log.model_version == "gpt-test"
-    assert log.prompt_version == "committee-review/zh-v2"
+    assert log.prompt_version == "committee-review/zh-v3"
     assert log.summary == "执行摘要"
     assert log.review is not None and log.review["executive_summary"] == "执行摘要"
     assert log.fixture_id == fixture.id
+
+
+@pytest.mark.integration
+async def test_review_context_uses_analysis_as_of_for_verified_market_movement(
+    db_session: AsyncSession,
+) -> None:
+    fixture = await _seed(db_session, with_odds=True, with_opening_odds=True)
+    reviewer = FakeReviewer()
+    analysis_as_of = KICKOFF - timedelta(hours=1)
+
+    result = await _service(
+        db_session,
+        reviewer,
+        permissive_gate=True,
+        with_market_movements=True,
+    ).review(fixture, as_of=analysis_as_of)
+
+    assert result.review is not None
+    context = reviewer.contexts[0]
+    assert (
+        context.market_movement_opening_as_of == (analysis_as_of - timedelta(hours=24)).isoformat()
+    )
+    assert context.market_movement_current_as_of == analysis_as_of.isoformat()
+    assert context.market_movement_issues == []
+    assert [movement.selection_label for movement in context.market_movements] == [
+        "1x2:home",
+        "1x2:draw",
+        "1x2:away",
+    ]
+    home = context.market_movements[0]
+    assert home.opening_consensus_odds == pytest.approx(2.70)
+    assert home.current_consensus_odds == pytest.approx(2.50)
+    assert home.direction == "shortening"
+    assert home.opening_bookmaker_count == 2
+    assert home.current_bookmaker_count == 2
+
+
+@pytest.mark.integration
+async def test_unverified_market_movement_is_unknown_and_does_not_change_gate(
+    db_session: AsyncSession,
+) -> None:
+    fixture = await _seed(db_session, with_odds=True)
+    reviewer = FakeReviewer()
+    analysis_as_of = KICKOFF - timedelta(hours=1)
+
+    result = await _service(
+        db_session,
+        reviewer,
+        permissive_gate=True,
+        with_market_movements=True,
+    ).review(fixture, as_of=analysis_as_of)
+
+    context = reviewer.contexts[0]
+    assert context.market_movements == []
+    assert context.market_movement_issues == ["opening:no_snapshots"]
+    approved = [selection for selection in result.analysis.selections if selection.recommended]
+    assert len(result.value_bet_ids) == len(approved) >= 1
 
 
 @pytest.mark.integration
