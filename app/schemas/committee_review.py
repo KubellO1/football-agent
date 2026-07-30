@@ -55,6 +55,12 @@ class MarketMovementContext(BaseModel):
     """两个决策时点之间、由确定性服务验证的共识赔率变化。"""
 
     selection_label: str
+    opening_captured_at: str
+    current_captured_at: str
+    opening_snapshot_ids: list[UUID]
+    opening_bookmaker_ids: list[UUID]
+    current_snapshot_ids: list[UUID]
+    current_bookmaker_ids: list[UUID]
     opening_consensus_odds: float
     current_consensus_odds: float
     decimal_delta: float

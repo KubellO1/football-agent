@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import Any, cast
+from uuid import UUID
 
 import httpx
 import openai
@@ -239,6 +240,24 @@ async def test_gpt_committee_reviewer_uses_committee_schema() -> None:
         market_movements=[
             MarketMovementContext(
                 selection_label="1x2:home",
+                opening_captured_at="2026-07-25T17:59:00+00:00",
+                current_captured_at="2026-07-26T17:59:00+00:00",
+                opening_snapshot_ids=[
+                    UUID("00000000-0000-0000-0000-000000000001"),
+                    UUID("00000000-0000-0000-0000-000000000002"),
+                ],
+                opening_bookmaker_ids=[
+                    UUID("00000000-0000-0000-0000-000000000011"),
+                    UUID("00000000-0000-0000-0000-000000000012"),
+                ],
+                current_snapshot_ids=[
+                    UUID("00000000-0000-0000-0000-000000000003"),
+                    UUID("00000000-0000-0000-0000-000000000004"),
+                ],
+                current_bookmaker_ids=[
+                    UUID("00000000-0000-0000-0000-000000000011"),
+                    UUID("00000000-0000-0000-0000-000000000012"),
+                ],
                 opening_consensus_odds=2.1,
                 current_consensus_odds=1.9,
                 decimal_delta=-0.2,

@@ -8,7 +8,7 @@
 
 红线：LLM 不得改动任何数值，也不能否决 gate。是否落 ValueBet 完全由确定性
 gate 决定；LLM 的不同意见（disagreements）只作留痕，写进 DecisionLog。
-可复现性：DecisionLog 存档模型版本、提示词版本与评审的完整结构化产出。
+可复现性：DecisionLog 存档模型版本、提示词版本、完整输入证据与结构化评审产出。
 """
 
 from __future__ import annotations
@@ -45,6 +45,8 @@ if TYPE_CHECKING:
     from app.services.verified_market_movement import VerifiedMarketMovementService
 
 logger = get_logger(__name__)
+
+EVIDENCE_SNAPSHOT_SCHEMA_VERSION = "committee-review-context/v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,7 +111,7 @@ class CommitteeReviewService:
         review = await self._reviewer.review(context)
 
         value_bet_ids = await self._persist_value_bets(fixture, detailed, review)
-        decision_log = await self._persist_decision_log(fixture, detailed, review)
+        decision_log = await self._persist_decision_log(fixture, detailed, context, review)
 
         logger.info(
             "Committee review for fixture %s: %d value bets, decision_log=%s",
@@ -215,6 +217,12 @@ class CommitteeReviewService:
         contexts = [
             MarketMovementContext(
                 selection_label=item.selection.label,
+                opening_captured_at=item.opening_quote.captured_at.isoformat(),
+                current_captured_at=item.current_quote.captured_at.isoformat(),
+                opening_snapshot_ids=list(item.opening_quote.contributing_snapshot_ids),
+                opening_bookmaker_ids=list(item.opening_quote.contributing_bookmaker_ids),
+                current_snapshot_ids=list(item.current_quote.contributing_snapshot_ids),
+                current_bookmaker_ids=list(item.current_quote.contributing_bookmaker_ids),
                 opening_consensus_odds=float(item.movement.opening.decimal),
                 current_consensus_odds=float(item.movement.current.decimal),
                 decimal_delta=item.movement.decimal_delta,
@@ -258,7 +266,11 @@ class CommitteeReviewService:
         return ids
 
     async def _persist_decision_log(
-        self, fixture: Fixture, detailed: DetailedAnalysis, review: CommitteeReview
+        self,
+        fixture: Fixture,
+        detailed: DetailedAnalysis,
+        context: CommitteeReviewContext,
+        review: CommitteeReview,
     ) -> DecisionLog:
         disagreements = self._collect_disagreements(detailed.reviewed, review)
         log = DecisionLog(
@@ -271,6 +283,11 @@ class CommitteeReviewService:
             model_version=self._model_version,
             prompt_version=PROMPT_VERSION,
             review=review.model_dump(mode="json"),
+            evidence_snapshot={
+                "schema_version": EVIDENCE_SNAPSHOT_SCHEMA_VERSION,
+                "analysis_as_of": detailed.analysis_as_of.isoformat(),
+                "context": context.model_dump(mode="json"),
+            },
         )
         return await self._decision_logs.add(log)
 

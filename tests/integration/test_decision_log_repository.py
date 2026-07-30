@@ -6,22 +6,24 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.entities.decision_log import DecisionLog
-from app.models.entities.fixture import Fixture
 from app.repositories.sqlalchemy.decision_log_repository import (
     SqlAlchemyDecisionLogRepository,
 )
 
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.models.entities.fixture import Fixture
+
 
 @pytest.mark.integration
-async def test_add_and_get_roundtrip(
-    db_session: AsyncSession, persisted_fixture: Fixture
-) -> None:
+async def test_add_and_get_roundtrip(db_session: AsyncSession, persisted_fixture: Fixture) -> None:
     repo = SqlAlchemyDecisionLogRepository(db_session)
     log = DecisionLog(
         fixture_id=persisted_fixture.id,
@@ -29,6 +31,11 @@ async def test_add_and_get_roundtrip(
         supporting_evidence=["主队近期 xG 领先", "客队关键中卫停赛"],
         risks=["主队门将存疑"],
         change_conditions=["若客队核心复出则重新评估"],
+        evidence_snapshot={
+            "schema_version": "committee-review-context/v1",
+            "analysis_as_of": "2026-07-30T12:00:00+00:00",
+            "context": {"fixture_summary": "主队 vs 客队"},
+        },
     )
 
     saved = await repo.add(log)
@@ -42,12 +49,15 @@ async def test_add_and_get_roundtrip(
     assert got.risks == ["主队门将存疑"]
     assert got.change_conditions == ["若客队核心复出则重新评估"]
     assert got.rejected_alternatives == []
+    assert got.evidence_snapshot == {
+        "schema_version": "committee-review-context/v1",
+        "analysis_as_of": "2026-07-30T12:00:00+00:00",
+        "context": {"fixture_summary": "主队 vs 客队"},
+    }
 
 
 @pytest.mark.integration
-async def test_list_by_fixture(
-    db_session: AsyncSession, persisted_fixture: Fixture
-) -> None:
+async def test_list_by_fixture(db_session: AsyncSession, persisted_fixture: Fixture) -> None:
     repo = SqlAlchemyDecisionLogRepository(db_session)
     await repo.add(DecisionLog(fixture_id=persisted_fixture.id, summary="第一次分析"))
     await repo.add(DecisionLog(fixture_id=persisted_fixture.id, summary="首发后更新"))
@@ -57,12 +67,10 @@ async def test_list_by_fixture(
 
 
 @pytest.mark.integration
-async def test_list_created_between(
-    db_session: AsyncSession, persisted_fixture: Fixture
-) -> None:
+async def test_list_created_between(db_session: AsyncSession, persisted_fixture: Fixture) -> None:
     repo = SqlAlchemyDecisionLogRepository(db_session)
     await repo.add(DecisionLog(fixture_id=persisted_fixture.id, summary="今日记录"))
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     logs = await repo.list_created_between(now - timedelta(hours=1), now + timedelta(hours=1))
     assert len(logs) >= 1

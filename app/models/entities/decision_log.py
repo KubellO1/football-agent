@@ -7,11 +7,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from app.models.entities.base import Entity, utcnow
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 
 @dataclass(eq=False, kw_only=True)
@@ -30,4 +32,5 @@ class DecisionLog(Entity):
     model_version: str | None = None
     prompt_version: str | None = None
     review: dict[str, Any] | None = None
+    evidence_snapshot: dict[str, Any] | None = None
     created_at: datetime = field(default_factory=utcnow)
