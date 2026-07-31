@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, computed_field
+from pydantic import Field, SecretStr, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     debug: bool = True
     api_v1_prefix: str = "/api/v1"
     log_level: str = "INFO"
+    internal_sync_token: SecretStr = SecretStr("")
 
     # --- PostgreSQL ---
     postgres_user: str = "football"

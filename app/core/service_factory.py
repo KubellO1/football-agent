@@ -16,12 +16,20 @@ from typing import TYPE_CHECKING, TypedDict
 from app.agents.interfaces import CommitteeReviewer
 from app.config.whitelist import get_whitelist
 from app.core.logging import get_logger
+from app.models.value_objects.decision import EvidenceLevel
 from app.models.value_objects.money import Money
 from app.providers.interfaces.fixtures_provider import FixturesProvider
 from app.providers.interfaces.odds_provider import OddsProvider
+from app.providers.interfaces.player_availability_provider import (
+    PlayerAvailabilityProvider,
+)
 from app.repositories.sqlalchemy.decision_log_repository import SqlAlchemyDecisionLogRepository
 from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
 from app.repositories.sqlalchemy.odds_snapshot_repository import SqlAlchemyOddsSnapshotRepository
+from app.repositories.sqlalchemy.player_availability_repository import (
+    SqlAlchemyPlayerAvailabilityObservationRepository,
+)
+from app.repositories.sqlalchemy.player_repository import SqlAlchemyPlayerRepository
 from app.repositories.sqlalchemy.reference_repositories import (
     SqlAlchemyBookmakerRepository,
     SqlAlchemyCompetitionRepository,
@@ -40,6 +48,9 @@ from app.services.ingestion import IngestionService
 from app.services.modeling import MatchModel
 from app.services.odds_ingestion import OddsIngestionService
 from app.services.performance_tracker import PerformanceTracker
+from app.services.player_availability_ingestion import (
+    PlayerAvailabilityIngestionService,
+)
 from app.services.recommendation_gate import RecommendationGate
 from app.services.settlement import SettlementService
 from app.services.verified_market_movement import VerifiedMarketMovementService
@@ -142,6 +153,22 @@ def build_ingestion_service(container: Container, session: AsyncSession) -> Inge
         competitions=SqlAlchemyCompetitionRepository(session),
         teams=SqlAlchemyTeamRepository(session),
         fixtures=SqlAlchemyFixtureRepository(session),
+    )
+
+
+def build_player_availability_ingestion_service(
+    container: Container,
+    session: AsyncSession,
+) -> PlayerAvailabilityIngestionService:
+    """组装 API-Football 球员可用性采集服务。"""
+    return PlayerAvailabilityIngestionService(
+        provider=container.resolve(PlayerAvailabilityProvider),
+        fixtures=SqlAlchemyFixtureRepository(session),
+        teams=SqlAlchemyTeamRepository(session),
+        players=SqlAlchemyPlayerRepository(session),
+        observations=SqlAlchemyPlayerAvailabilityObservationRepository(session),
+        source="api-football",
+        evidence_level=EvidenceLevel.B,
     )
 
 

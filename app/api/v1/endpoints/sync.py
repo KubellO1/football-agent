@@ -4,17 +4,43 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import (  # noqa: TC001 - FastAPI 会在运行时解析依赖注解
     IngestionServiceDep,
     OddsIngestionServiceDep,
+    PlayerAvailabilityIngestionServiceDep,
+    require_internal_sync_token,
 )
-from app.core.exceptions import ExternalServiceError
+from app.core.exceptions import ExternalServiceError, NotFoundError, ValidationError
 from app.schemas.odds_sync import OddsSyncReport
+from app.schemas.player_availability_sync import PlayerAvailabilitySyncReport
 from app.schemas.sync import SyncReport
 
 router = APIRouter(tags=["sync"])
+
+
+@router.post(
+    "/internal/sync/player-availability/{fixture_external_id}",
+    response_model=PlayerAvailabilitySyncReport,
+    dependencies=[Depends(require_internal_sync_token)],
+)
+async def sync_player_availability(
+    fixture_external_id: str,
+    ingestion: PlayerAvailabilityIngestionServiceDep,
+) -> PlayerAvailabilitySyncReport:
+    """采集并持久化指定比赛的已验证球员可用性观测。"""
+    try:
+        report = await ingestion.sync_fixture(
+            fixture_external_id=fixture_external_id,
+        )
+    except ExternalServiceError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return PlayerAvailabilitySyncReport.model_validate(report)
 
 
 @router.post("/sync/today", response_model=SyncReport)

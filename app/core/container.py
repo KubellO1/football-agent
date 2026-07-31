@@ -61,11 +61,13 @@ class Container:
             FixturesProvider,
             InjuryProvider,
             OddsProvider,
+            PlayerAvailabilityProvider,
             # SportmonksProvider,  # DEPRECATED: 2026-07-17 - Removed from production.
             WeatherProvider,
             build_fixtures_provider,
             build_injury_provider,
             build_odds_provider,
+            build_player_availability_provider,
             # build_sportmonks_provider,  # DEPRECATED: 2026-07-17 - Removed from production.
             build_weather_provider,
         )
@@ -75,6 +77,9 @@ class Container:
         weather_provider = build_weather_provider(self._settings)
         # sportmonks_provider = build_sportmonks_provider(self._settings)  # DEPRECATED: 2026-07-17
         injury_provider = build_injury_provider(self._settings)
+        player_availability_provider = build_player_availability_provider(
+            self._settings,
+        )
 
         self._providers = [
             fixtures_provider,
@@ -82,12 +87,14 @@ class Container:
             weather_provider,
             # sportmonks_provider,  # DEPRECATED: 2026-07-17
             injury_provider,
+            player_availability_provider,
         ]
         self.register(FixturesProvider, fixtures_provider)
         self.register(OddsProvider, odds_provider)
         self.register(WeatherProvider, weather_provider)
         # self.register(SportmonksProvider, sportmonks_provider)  # DEPRECATED: 2026-07-17
         self.register(InjuryProvider, injury_provider)
+        self.register(PlayerAvailabilityProvider, player_availability_provider)
 
         # 无状态的分析组件注册为单例（可在测试中替换）。惰性导入避免顶层耦合。
         from app.services.daily_selection import DailySelectionService
