@@ -8,9 +8,10 @@ from __future__ import annotations
 from app.models.entities.bookmaker import Bookmaker
 from app.models.entities.competition import Competition, Season
 from app.models.entities.decision_log import DecisionLog
-from app.models.entities.enums import MatchStatus
+from app.models.entities.enums import MatchStatus, PlayerPosition
 from app.models.entities.fixture import Fixture
 from app.models.entities.odds_snapshot import OddsSnapshot
+from app.models.entities.player import Player
 from app.models.entities.player_availability import PlayerAvailabilityObservation
 from app.models.entities.prediction import MatchPrediction
 from app.models.entities.team import Team
@@ -36,6 +37,7 @@ from app.repositories.sqlalchemy.models import (
     OddsSnapshotORM,
     PerformanceSnapshotORM,
     PlayerAvailabilityObservationORM,
+    PlayerORM,
     PredictionORM,
     SeasonORM,
     SettlementORM,
@@ -119,6 +121,34 @@ class TeamMapper:
             elo=entity.elo.value if entity.elo is not None else None,
             external_id=entity.external_id,
             external_source=entity.external_source,
+        )
+
+
+class PlayerMapper:
+    """Player 与 PlayerORM 之间的双向转换。"""
+
+    @staticmethod
+    def to_domain(row: PlayerORM) -> Player:
+        return Player(
+            id=row.id,
+            name=row.name,
+            position=PlayerPosition(row.position),
+            team_id=row.team_id,
+            date_of_birth=row.date_of_birth,
+            external_source=row.external_source,
+            external_id=row.external_id,
+        )
+
+    @staticmethod
+    def to_orm(entity: Player) -> PlayerORM:
+        return PlayerORM(
+            id=entity.id,
+            name=entity.name,
+            position=entity.position.value,
+            team_id=entity.team_id,
+            date_of_birth=entity.date_of_birth,
+            external_source=entity.external_source,
+            external_id=entity.external_id,
         )
 
 

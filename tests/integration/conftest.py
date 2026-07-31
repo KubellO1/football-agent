@@ -22,10 +22,13 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.database.base import Base
+from app.models.entities.enums import PlayerPosition
 from app.models.entities.fixture import Fixture
+from app.models.entities.player import Player
 from app.repositories.sqlalchemy import models  # noqa: F401  导入以注册 ORM 表到 metadata
 from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
 from app.repositories.sqlalchemy.models import CompetitionORM, TeamORM
+from app.repositories.sqlalchemy.player_repository import SqlAlchemyPlayerRepository
 from tests.database_safety import require_test_database_url
 
 if TYPE_CHECKING:
@@ -82,5 +85,22 @@ async def persisted_fixture(
             home_team_id=home_id,
             away_team_id=away_id,
             kickoff=datetime(2026, 7, 3, 18, 0, tzinfo=UTC),
+        )
+    )
+
+
+@pytest_asyncio.fixture
+async def persisted_player(
+    db_session: AsyncSession,
+    reference_ids: tuple[UUID, UUID, UUID],
+) -> Player:
+    """写入一名带稳定外部身份的主队球员。"""
+    return await SqlAlchemyPlayerRepository(db_session).add(
+        Player(
+            name="测试球员",
+            position=PlayerPosition.FORWARD,
+            team_id=reference_ids[1],
+            external_source="test-provider",
+            external_id="player-1",
         )
     )
