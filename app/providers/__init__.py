@@ -12,6 +12,9 @@ from typing import TYPE_CHECKING
 from app.providers.impl.api_football_player_availability_provider import (
     ApiFootballPlayerAvailabilityProvider,
 )
+from app.providers.impl.api_football_player_squad_provider import (
+    ApiFootballPlayerSquadProvider,
+)
 from app.providers.impl.api_football_provider import ApiFootballProvider
 from app.providers.impl.injury_provider import ApiFootballInjuryProvider
 from app.providers.impl.odds_api_io_provider import OddsApiIoProvider
@@ -26,6 +29,7 @@ from app.providers.interfaces.odds_provider import OddsProvider
 from app.providers.interfaces.player_availability_provider import (
     PlayerAvailabilityProvider,
 )
+from app.providers.interfaces.player_squad_provider import PlayerSquadProvider
 
 # from app.providers.interfaces.sportmonks_provider import SportmonksProvider  # DEPRECATED: 2026-07-17
 from app.providers.interfaces.weather_provider import WeatherProvider
@@ -125,15 +129,28 @@ def build_player_availability_provider(
     )
 
 
+def build_player_squad_provider(settings: Settings) -> PlayerSquadProvider:
+    """使用 API-Football 构造严格的球队阵容 Provider。"""
+    return ApiFootballPlayerSquadProvider(
+        api_key=settings.api_football_key,
+        base_url=settings.api_football_base_url,
+        timeout_seconds=settings.provider_timeout_seconds,
+        max_retries=settings.provider_max_retries,
+        backoff_base_seconds=settings.provider_backoff_base_seconds,
+    )
+
+
 __all__ = [
     "ApiFootballInjuryProvider",
     "ApiFootballPlayerAvailabilityProvider",
+    "ApiFootballPlayerSquadProvider",
     "ApiFootballProvider",
     "FixturesProvider",
     "InjuryProvider",
     "OddsApiIoProvider",
     "OddsProvider",
     "PlayerAvailabilityProvider",
+    "PlayerSquadProvider",
     "PrioritizedOddsProvider",
     # "SportmonksApiProvider",  # DEPRECATED: 2026-07-17
     # "SportmonksProvider",  # DEPRECATED: 2026-07-17
@@ -144,6 +161,7 @@ __all__ = [
     "build_injury_provider",
     "build_odds_provider",
     "build_player_availability_provider",
+    "build_player_squad_provider",
     # "build_sportmonks_provider",  # DEPRECATED: 2026-07-17
     "build_weather_provider",
 ]
