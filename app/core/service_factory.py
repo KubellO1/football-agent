@@ -45,6 +45,7 @@ from app.repositories.sqlalchemy.value_bet_repository import SqlAlchemyValueBetR
 from app.services.committee_review import CommitteeReviewService
 from app.services.daily_top_picks import DailyRecommendationsReader, DailyTopPicksService
 from app.services.fixture_analysis import FixtureAnalysisService, MatchAnalysisInputBuilder
+from app.services.fixture_squad_ingestion import FixtureSquadIngestionService
 from app.services.ingestion import IngestionService
 from app.services.modeling import MatchModel
 from app.services.odds_ingestion import OddsIngestionService
@@ -183,6 +184,19 @@ def build_player_squad_ingestion_service(
         provider=container.resolve(PlayerSquadProvider),
         teams=SqlAlchemyTeamRepository(session),
         players=SqlAlchemyPlayerRepository(session),
+        source="api-football",
+    )
+
+
+def build_fixture_squad_ingestion_service(
+    container: Container,
+    session: AsyncSession,
+) -> FixtureSquadIngestionService:
+    """组装按比赛同步主客两队阵容的应用服务。"""
+    return FixtureSquadIngestionService(
+        fixtures=SqlAlchemyFixtureRepository(session),
+        teams=SqlAlchemyTeamRepository(session),
+        squads=build_player_squad_ingestion_service(container, session),
         source="api-football",
     )
 

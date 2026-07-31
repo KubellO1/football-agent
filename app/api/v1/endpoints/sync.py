@@ -7,6 +7,7 @@ from datetime import UTC, date, datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import (  # noqa: TC001 - FastAPI 会在运行时解析依赖注解
+    FixtureSquadIngestionServiceDep,
     IngestionServiceDep,
     OddsIngestionServiceDep,
     PlayerAvailabilityIngestionServiceDep,
@@ -16,7 +17,7 @@ from app.api.deps import (  # noqa: TC001 - FastAPI 会在运行时解析依赖�
 from app.core.exceptions import ExternalServiceError, NotFoundError, ValidationError
 from app.schemas.odds_sync import OddsSyncReport
 from app.schemas.player_availability_sync import PlayerAvailabilitySyncReport
-from app.schemas.player_squad_sync import PlayerSquadSyncReport
+from app.schemas.player_squad_sync import FixtureSquadSyncReport, PlayerSquadSyncReport
 from app.schemas.sync import SyncReport
 
 router = APIRouter(tags=["sync"])
@@ -64,6 +65,29 @@ async def sync_player_squad(
     except ValidationError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return PlayerSquadSyncReport.model_validate(report)
+
+
+@router.post(
+    "/internal/sync/fixture-squads/{fixture_external_id}",
+    response_model=FixtureSquadSyncReport,
+    dependencies=[Depends(require_internal_sync_token)],
+)
+async def sync_fixture_squads(
+    fixture_external_id: str,
+    ingestion: FixtureSquadIngestionServiceDep,
+) -> FixtureSquadSyncReport:
+    """采集并幂等持久化指定比赛主客两队的已验证阵容。"""
+    try:
+        report = await ingestion.sync_fixture(
+            fixture_external_id=fixture_external_id,
+        )
+    except ExternalServiceError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return FixtureSquadSyncReport.model_validate(report)
 
 
 @router.post("/sync/today", response_model=SyncReport)

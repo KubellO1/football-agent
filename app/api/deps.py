@@ -21,6 +21,7 @@ from app.agents.interfaces import CommitteeReviewer, ReasoningEngine
 from app.config.settings import Settings, get_settings
 from app.core.container import container
 from app.core.service_factory import (
+    build_fixture_squad_ingestion_service,
     build_market_movement_service,
     build_market_quote_policy,
     build_player_availability_ingestion_service,
@@ -59,6 +60,7 @@ from app.services.fixture_analysis import (
     FixtureAnalysisService,
     MatchAnalysisInputBuilder,
 )
+from app.services.fixture_squad_ingestion import FixtureSquadIngestionService
 from app.services.ingestion import IngestionService
 from app.services.modeling import MatchModel
 from app.services.odds_ingestion import OddsIngestionService
@@ -240,6 +242,19 @@ PlayerSquadIngestionServiceDep = Annotated[
 ]
 
 
+def get_fixture_squad_ingestion_service(
+    session: SessionDep,
+) -> FixtureSquadIngestionService:
+    """使用同一请求事务组装比赛级阵容同步服务。"""
+    return build_fixture_squad_ingestion_service(container, session)
+
+
+FixtureSquadIngestionServiceDep = Annotated[
+    FixtureSquadIngestionService,
+    Depends(get_fixture_squad_ingestion_service),
+]
+
+
 def get_fixture_analysis_service(
     fixtures: FixtureRepositoryDep,
     teams: TeamRepositoryDep,
@@ -361,6 +376,7 @@ __all__ = [
     "DecisionLogRepositoryDep",
     "FixtureAnalysisServiceDep",
     "FixtureRepositoryDep",
+    "FixtureSquadIngestionServiceDep",
     "FixturesProviderDep",
     "IngestionServiceDep",
     "OddsIngestionServiceDep",
@@ -384,6 +400,7 @@ __all__ = [
     "get_decision_log_repository",
     "get_fixture_analysis_service",
     "get_fixture_repository",
+    "get_fixture_squad_ingestion_service",
     "get_fixtures_provider",
     "get_ingestion_service",
     "get_odds_ingestion_service",
