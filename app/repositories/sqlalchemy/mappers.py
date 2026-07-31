@@ -10,6 +10,7 @@ from app.models.entities.competition import Competition, Season
 from app.models.entities.decision_log import DecisionLog
 from app.models.entities.enums import MatchStatus, PlayerPosition
 from app.models.entities.fixture import Fixture
+from app.models.entities.lineup import Lineup
 from app.models.entities.odds_snapshot import OddsSnapshot
 from app.models.entities.player import Player
 from app.models.entities.player_availability import PlayerAvailabilityObservation
@@ -20,6 +21,7 @@ from app.models.entities.value_bet import ValueBet
 from app.models.value_objects.availability import AvailabilitySource, AvailabilityStatus
 from app.models.value_objects.betting import Stake, ValueEdge
 from app.models.value_objects.decision import EvidenceLevel
+from app.models.value_objects.lineup import Formation, LineupSource, LineupStatus
 from app.models.value_objects.markets import MarketType, Selection
 from app.models.value_objects.metrics import EloRating, ExpectedGoals
 from app.models.value_objects.money import Money
@@ -34,6 +36,8 @@ from app.repositories.sqlalchemy.models import (
     CompetitionORM,
     DecisionLogORM,
     FixtureORM,
+    LineupORM,
+    LineupPlayerORM,
     OddsSnapshotORM,
     PerformanceSnapshotORM,
     PlayerAvailabilityObservationORM,
@@ -314,6 +318,72 @@ class PlayerAvailabilityObservationMapper:
             reason=entity.reason,
             expected_return=entity.expected_return,
         )
+
+
+class LineupMapper:
+    """Lineup 聚合与阵容父子表之间的双向转换。"""
+
+    @staticmethod
+    def to_domain(row: LineupORM) -> Lineup:
+        starting = tuple(
+            item.player_id
+            for item in sorted(row.players, key=lambda item: item.ordinal)
+            if item.role == "starting"
+        )
+        substitutes = tuple(
+            item.player_id
+            for item in sorted(row.players, key=lambda item: item.ordinal)
+            if item.role == "substitute"
+        )
+        return Lineup(
+            id=row.id,
+            fixture_id=row.fixture_id,
+            team_id=row.team_id,
+            status=LineupStatus(row.status),
+            source=LineupSource(
+                name=row.source_name,
+                evidence_level=EvidenceLevel(row.evidence_level),
+                reference=row.source_reference,
+            ),
+            starting=starting,
+            substitutes=substitutes,
+            formation=Formation(row.formation) if row.formation is not None else None,
+            captured_at=row.captured_at,
+            source_updated_at=row.source_updated_at,
+        )
+
+    @staticmethod
+    def to_orm(entity: Lineup) -> LineupORM:
+        row = LineupORM(
+            id=entity.id,
+            fixture_id=entity.fixture_id,
+            team_id=entity.team_id,
+            status=entity.status.value,
+            source_name=entity.source.name,
+            evidence_level=entity.source.evidence_level.value,
+            source_reference=entity.source.reference,
+            formation=str(entity.formation) if entity.formation is not None else None,
+            captured_at=entity.captured_at,
+            source_updated_at=entity.source_updated_at,
+        )
+        row.players = [
+            LineupPlayerORM(
+                lineup_id=entity.id,
+                player_id=player_id,
+                role="starting",
+                ordinal=ordinal,
+            )
+            for ordinal, player_id in enumerate(entity.starting)
+        ] + [
+            LineupPlayerORM(
+                lineup_id=entity.id,
+                player_id=player_id,
+                role="substitute",
+                ordinal=ordinal,
+            )
+            for ordinal, player_id in enumerate(entity.substitutes)
+        ]
+        return row
 
 
 class PredictionMapper:

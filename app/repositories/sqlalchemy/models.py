@@ -33,7 +33,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base, TimestampMixin
 
@@ -465,6 +465,88 @@ class PlayerAvailabilityObservationORM(TimestampMixin, Base):
     )
     reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     expected_return: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+
+class LineupORM(TimestampMixin, Base):
+    """一支球队在指定比赛与采集时点的追加式阵容快照。"""
+
+    __tablename__ = "lineups"
+    __table_args__ = (
+        UniqueConstraint(
+            "fixture_id",
+            "team_id",
+            "source_name",
+            "captured_at",
+            name="uq_lineups_natural",
+        ),
+        CheckConstraint(
+            "status IN ('predicted', 'confirmed')",
+            name="ck_lineups_status",
+        ),
+        CheckConstraint(
+            "evidence_level IN ('A', 'B', 'C', 'D', 'E')",
+            name="ck_lineups_evidence_level",
+        ),
+        CheckConstraint(
+            "source_updated_at IS NULL OR source_updated_at <= captured_at",
+            name="ck_lineups_source_updated_at",
+        ),
+        Index("ix_lineups_fixture_captured", "fixture_id", "captured_at"),
+        Index("ix_lineups_team_captured", "team_id", "captured_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    fixture_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("fixtures.id"))
+    team_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("teams.id"))
+    status: Mapped[str] = mapped_column(String(20))
+    source_name: Mapped[str] = mapped_column(String(80))
+    evidence_level: Mapped[str] = mapped_column(String(1))
+    source_reference: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    formation: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    source_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    players: Mapped[list[LineupPlayerORM]] = relationship(
+        back_populates="lineup",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="LineupPlayerORM.ordinal",
+    )
+
+
+class LineupPlayerORM(Base):
+    """阵容快照中的有序球员明细。"""
+
+    __tablename__ = "lineup_players"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('starting', 'substitute')",
+            name="ck_lineup_players_role",
+        ),
+        CheckConstraint("ordinal >= 0", name="ck_lineup_players_ordinal"),
+        UniqueConstraint(
+            "lineup_id",
+            "role",
+            "ordinal",
+            name="uq_lineup_players_role_ordinal",
+        ),
+    )
+
+    lineup_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("lineups.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    player_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("players.id"),
+        primary_key=True,
+    )
+    role: Mapped[str] = mapped_column(String(20))
+    ordinal: Mapped[int] = mapped_column(Integer)
+    lineup: Mapped[LineupORM] = relationship(back_populates="players")
 
 
 class DecisionLogORM(TimestampMixin, Base):
