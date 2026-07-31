@@ -10,6 +10,7 @@ from app.models.value_objects.decision import (
     RiskLevel,
     StakeUnit,
 )
+from app.models.value_objects.lineup import Formation, LineupSource, LineupStatus
 from app.models.value_objects.market_movement import MarketMovement, MovementDirection
 from app.models.value_objects.markets import MarketType, Selection
 from app.models.value_objects.metrics import EloRating, ExpectedGoals
@@ -34,6 +35,9 @@ __all__ = [
     "EloRating",
     "EvidenceLevel",
     "ExpectedGoals",
+    "Formation",
+    "LineupSource",
+    "LineupStatus",
     "MarketMovement",
     "MarketType",
     "MatchResult",
