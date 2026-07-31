@@ -8,12 +8,15 @@ from uuid import uuid4
 
 import pytest
 
+from app.models.entities.enums import PlayerPosition
+from app.models.entities.player import Player
 from app.models.entities.player_availability import PlayerAvailabilityObservation
 from app.models.value_objects.availability import AvailabilitySource, AvailabilityStatus
 from app.models.value_objects.decision import EvidenceLevel
 from app.repositories.sqlalchemy.player_availability_repository import (
     SqlAlchemyPlayerAvailabilityObservationRepository,
 )
+from app.repositories.sqlalchemy.player_repository import SqlAlchemyPlayerRepository
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -21,6 +24,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.models.entities.fixture import Fixture
+    from app.models.entities.player import Player as PlayerEntity
 
 
 def _observation(
@@ -55,12 +59,13 @@ async def test_add_and_get_roundtrip_preserves_observation(
     db_session: AsyncSession,
     reference_ids: tuple[UUID, UUID, UUID],
     persisted_fixture: Fixture,
+    persisted_player: PlayerEntity,
 ) -> None:
     repository = SqlAlchemyPlayerAvailabilityObservationRepository(db_session)
     entity = _observation(
         persisted_fixture.id,
         reference_ids[1],
-        uuid4(),
+        persisted_player.id,
         datetime(2026, 7, 31, 12, 0, tzinfo=UTC),
     )
 
@@ -83,12 +88,13 @@ async def test_roundtrip_preserves_unknown_as_unknown(
     db_session: AsyncSession,
     reference_ids: tuple[UUID, UUID, UUID],
     persisted_fixture: Fixture,
+    persisted_player: PlayerEntity,
 ) -> None:
     repository = SqlAlchemyPlayerAvailabilityObservationRepository(db_session)
     entity = _observation(
         persisted_fixture.id,
         reference_ids[1],
-        uuid4(),
+        persisted_player.id,
         datetime(2026, 7, 31, 12, 0, tzinfo=UTC),
         status=AvailabilityStatus.UNKNOWN,
         evidence_level=EvidenceLevel.E,
@@ -107,9 +113,10 @@ async def test_add_if_absent_uses_natural_key(
     db_session: AsyncSession,
     reference_ids: tuple[UUID, UUID, UUID],
     persisted_fixture: Fixture,
+    persisted_player: PlayerEntity,
 ) -> None:
     repository = SqlAlchemyPlayerAvailabilityObservationRepository(db_session)
-    player_id = uuid4()
+    player_id = persisted_player.id
     captured_at = datetime(2026, 7, 31, 12, 0, tzinfo=UTC)
     first = _observation(
         persisted_fixture.id,
@@ -134,10 +141,22 @@ async def test_list_by_fixture_filters_all_boundaries(
     db_session: AsyncSession,
     reference_ids: tuple[UUID, UUID, UUID],
     persisted_fixture: Fixture,
+    persisted_player: PlayerEntity,
 ) -> None:
     repository = SqlAlchemyPlayerAvailabilityObservationRepository(db_session)
     home_id, away_id = reference_ids[1], reference_ids[2]
-    target_player, other_player = uuid4(), uuid4()
+    target_player = persisted_player.id
+    other_player = (
+        await SqlAlchemyPlayerRepository(db_session).add(
+            Player(
+                name="Other Player",
+                position=PlayerPosition.DEFENDER,
+                team_id=away_id,
+                external_source="test-provider",
+                external_id="player-2",
+            )
+        )
+    ).id
     base = datetime(2026, 7, 31, 12, 0, tzinfo=UTC)
     await repository.add(
         _observation(persisted_fixture.id, home_id, target_player, base),
@@ -185,9 +204,10 @@ async def test_get_latest_by_source_respects_as_of(
     db_session: AsyncSession,
     reference_ids: tuple[UUID, UUID, UUID],
     persisted_fixture: Fixture,
+    persisted_player: PlayerEntity,
 ) -> None:
     repository = SqlAlchemyPlayerAvailabilityObservationRepository(db_session)
-    player_id = uuid4()
+    player_id = persisted_player.id
     base = datetime(2026, 7, 31, 12, 0, tzinfo=UTC)
     await repository.add(
         _observation(

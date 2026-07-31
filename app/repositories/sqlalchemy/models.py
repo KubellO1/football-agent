@@ -88,6 +88,40 @@ class TeamORM(TimestampMixin, Base):
     external_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
+class PlayerORM(TimestampMixin, Base):
+    """球员主数据表；外部来源与外部 ID 共同形成采集幂等身份。"""
+
+    __tablename__ = "players"
+    __table_args__ = (
+        UniqueConstraint(
+            "external_source",
+            "external_id",
+            name="uq_players_external",
+        ),
+        CheckConstraint(
+            "position IN ('GK', 'DEF', 'MID', 'FWD')",
+            name="ck_players_position",
+        ),
+        CheckConstraint(
+            "(external_source IS NULL) = (external_id IS NULL)",
+            name="ck_players_external_identity_pair",
+        ),
+        Index("ix_players_team_name", "team_id", "name", "id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    position: Mapped[str] = mapped_column(String(3))
+    team_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("teams.id"),
+        nullable=True,
+    )
+    date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
+    external_source: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    external_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+
 class BookmakerORM(TimestampMixin, Base):
     """博彩公司表。external_source+external_id 为采集幂等键（唯一）。"""
 
@@ -419,7 +453,7 @@ class PlayerAvailabilityObservationORM(TimestampMixin, Base):
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     fixture_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("fixtures.id"))
     team_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("teams.id"))
-    player_id: Mapped[UUID] = mapped_column(Uuid)
+    player_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("players.id"))
     status: Mapped[str] = mapped_column(String(20))
     source_name: Mapped[str] = mapped_column(String(80))
     evidence_level: Mapped[str] = mapped_column(String(1))
