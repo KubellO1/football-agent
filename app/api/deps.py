@@ -10,17 +10,20 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator  # noqa: TC003 - FastAPI 会在运行时解析依赖注解
 from datetime import timedelta
 from decimal import Decimal
+from hmac import compare_digest
 from typing import Annotated, cast
 
 import redis.asyncio as redis
-from fastapi import Depends
+from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.interfaces import CommitteeReviewer, ReasoningEngine
+from app.config.settings import Settings, get_settings
 from app.core.container import container
 from app.core.service_factory import (
     build_market_movement_service,
     build_market_quote_policy,
+    build_player_availability_ingestion_service,
 )
 from app.models.value_objects.money import Money
 from app.providers.interfaces.fixtures_provider import FixturesProvider
@@ -58,6 +61,7 @@ from app.services.fixture_analysis import (
 from app.services.ingestion import IngestionService
 from app.services.modeling import MatchModel
 from app.services.odds_ingestion import OddsIngestionService
+from app.services.player_availability_ingestion import PlayerAvailabilityIngestionService
 from app.services.recommendation_gate import RecommendationGate
 
 
@@ -79,6 +83,28 @@ async def get_redis() -> AsyncGenerator[redis.Redis, None]:
 # 用于 endpoint 签名的类型别名。
 SessionDep = Annotated[AsyncSession, Depends(get_db_session)]
 RedisDep = Annotated[redis.Redis, Depends(get_redis)]
+SettingsDep = Annotated[Settings, Depends(get_settings)]
+
+
+def require_internal_sync_token(
+    settings: SettingsDep,
+    supplied_token: Annotated[
+        str | None,
+        Header(alias="X-Internal-Sync-Token"),
+    ] = None,
+) -> None:
+    """保护内部采集入口；未配置令牌时关闭入口。"""
+    configured_token = settings.internal_sync_token.get_secret_value()
+    if not configured_token:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Internal sync endpoint is not configured.",
+        )
+    if supplied_token is None or not compare_digest(supplied_token, configured_token):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid internal sync token.",
+        )
 
 
 # --- 仓储依赖（返回接口类型，注入 SQLAlchemy 实现）---
@@ -184,6 +210,19 @@ def get_odds_ingestion_service(
 
 
 OddsIngestionServiceDep = Annotated[OddsIngestionService, Depends(get_odds_ingestion_service)]
+
+
+def get_player_availability_ingestion_service(
+    session: SessionDep,
+) -> PlayerAvailabilityIngestionService:
+    """使用同一请求事务组装球员可用性采集服务。"""
+    return build_player_availability_ingestion_service(container, session)
+
+
+PlayerAvailabilityIngestionServiceDep = Annotated[
+    PlayerAvailabilityIngestionService,
+    Depends(get_player_availability_ingestion_service),
+]
 
 
 def get_fixture_analysis_service(
@@ -312,6 +351,7 @@ __all__ = [
     "OddsIngestionServiceDep",
     "OddsProviderDep",
     "OddsSnapshotRepositoryDep",
+    "PlayerAvailabilityIngestionServiceDep",
     "PredictionRepositoryDep",
     "RedisDep",
     "SeasonRepositoryDep",
@@ -333,9 +373,11 @@ __all__ = [
     "get_odds_ingestion_service",
     "get_odds_provider",
     "get_odds_snapshot_repository",
+    "get_player_availability_ingestion_service",
     "get_prediction_repository",
     "get_redis",
     "get_season_repository",
     "get_team_repository",
     "get_value_bet_repository",
+    "require_internal_sync_token",
 ]
