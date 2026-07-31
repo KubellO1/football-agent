@@ -23,6 +23,7 @@ from app.providers.interfaces.odds_provider import OddsProvider
 from app.providers.interfaces.player_availability_provider import (
     PlayerAvailabilityProvider,
 )
+from app.providers.interfaces.player_squad_provider import PlayerSquadProvider
 from app.repositories.sqlalchemy.decision_log_repository import SqlAlchemyDecisionLogRepository
 from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
 from app.repositories.sqlalchemy.odds_snapshot_repository import SqlAlchemyOddsSnapshotRepository
@@ -51,6 +52,7 @@ from app.services.performance_tracker import PerformanceTracker
 from app.services.player_availability_ingestion import (
     PlayerAvailabilityIngestionService,
 )
+from app.services.player_squad_ingestion import PlayerSquadIngestionService
 from app.services.recommendation_gate import RecommendationGate
 from app.services.settlement import SettlementService
 from app.services.verified_market_movement import VerifiedMarketMovementService
@@ -169,6 +171,19 @@ def build_player_availability_ingestion_service(
         observations=SqlAlchemyPlayerAvailabilityObservationRepository(session),
         source="api-football",
         evidence_level=EvidenceLevel.B,
+    )
+
+
+def build_player_squad_ingestion_service(
+    container: Container,
+    session: AsyncSession,
+) -> PlayerSquadIngestionService:
+    """组装 API-Football 球队阵容主数据采集服务。"""
+    return PlayerSquadIngestionService(
+        provider=container.resolve(PlayerSquadProvider),
+        teams=SqlAlchemyTeamRepository(session),
+        players=SqlAlchemyPlayerRepository(session),
+        source="api-football",
     )
 
 

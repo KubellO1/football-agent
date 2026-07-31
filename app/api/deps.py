@@ -24,6 +24,7 @@ from app.core.service_factory import (
     build_market_movement_service,
     build_market_quote_policy,
     build_player_availability_ingestion_service,
+    build_player_squad_ingestion_service,
 )
 from app.models.value_objects.money import Money
 from app.providers.interfaces.fixtures_provider import FixturesProvider
@@ -62,6 +63,7 @@ from app.services.ingestion import IngestionService
 from app.services.modeling import MatchModel
 from app.services.odds_ingestion import OddsIngestionService
 from app.services.player_availability_ingestion import PlayerAvailabilityIngestionService
+from app.services.player_squad_ingestion import PlayerSquadIngestionService
 from app.services.recommendation_gate import RecommendationGate
 
 
@@ -225,6 +227,19 @@ PlayerAvailabilityIngestionServiceDep = Annotated[
 ]
 
 
+def get_player_squad_ingestion_service(
+    session: SessionDep,
+) -> PlayerSquadIngestionService:
+    """使用同一请求事务组装球队阵容采集服务。"""
+    return build_player_squad_ingestion_service(container, session)
+
+
+PlayerSquadIngestionServiceDep = Annotated[
+    PlayerSquadIngestionService,
+    Depends(get_player_squad_ingestion_service),
+]
+
+
 def get_fixture_analysis_service(
     fixtures: FixtureRepositoryDep,
     teams: TeamRepositoryDep,
@@ -352,6 +367,7 @@ __all__ = [
     "OddsProviderDep",
     "OddsSnapshotRepositoryDep",
     "PlayerAvailabilityIngestionServiceDep",
+    "PlayerSquadIngestionServiceDep",
     "PredictionRepositoryDep",
     "RedisDep",
     "SeasonRepositoryDep",
@@ -374,6 +390,7 @@ __all__ = [
     "get_odds_provider",
     "get_odds_snapshot_repository",
     "get_player_availability_ingestion_service",
+    "get_player_squad_ingestion_service",
     "get_prediction_repository",
     "get_redis",
     "get_season_repository",
