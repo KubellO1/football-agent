@@ -130,3 +130,40 @@ def test_append_run_timeline_keeps_only_object_entries(
         "details": "completed",
     }
     assert len(stored) == 2
+
+
+@pytest.mark.unit
+def test_pre_kickoff_wrapper_updates_run_timeline_only_for_pre_kickoff(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    timeline_file = tmp_path / "run_timeline.json"
+    monkeypatch.setattr(scheduler_runner, "RUN_TIMELINE_FILE", timeline_file)
+
+    scheduler_runner._append_pre_kickoff_run_timeline(
+        command_name="pre_kickoff",
+        status="success",
+        trigger_source="scheduler",
+        run_id="runtime-smoke",
+        duration_s=2.3456,
+        error=None,
+    )
+    scheduler_runner._append_pre_kickoff_run_timeline(
+        command_name="daily_job",
+        status="success",
+        trigger_source="scheduler",
+        run_id="not-recorded",
+        duration_s=1.0,
+        error=None,
+    )
+
+    stored = json.loads(timeline_file.read_text(encoding="utf-8"))
+    assert stored == [
+        {
+            "time": stored[0]["time"],
+            "task": "pre_kickoff",
+            "status": "success",
+            "duration_s": 2.346,
+            "details": "trigger=scheduler run_id=runtime-smoke",
+        }
+    ]

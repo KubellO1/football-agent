@@ -926,6 +926,30 @@ def _append_run_timeline(
     )
 
 
+def _append_pre_kickoff_run_timeline(
+    *,
+    command_name: str,
+    status: str,
+    trigger_source: str,
+    run_id: str,
+    duration_s: float,
+    error: str | None,
+) -> None:
+    """Record the production pre-kickoff wrapper result exactly once."""
+    if command_name != "pre_kickoff":
+        return
+
+    details = f"trigger={trigger_source} run_id={run_id}"
+    if error:
+        details = f"{details} error={error.strip().splitlines()[-1]}"
+    _append_run_timeline(
+        command_name,
+        status,
+        details=details,
+        duration_s=duration_s,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Command: dashboard_refresh
 # ---------------------------------------------------------------------------
@@ -1132,6 +1156,18 @@ def main() -> None:
             delay_seconds=delay_seconds,
             run_id=run_id,
         )
+
+        try:
+            _append_pre_kickoff_run_timeline(
+                command_name=command_name,
+                status=status,
+                trigger_source=trigger_source,
+                run_id=run_id,
+                duration_s=duration,
+                error=error_detail,
+            )
+        except OSError as exc:
+            log.warning("Unable to update pre-kickoff run timeline: %s", exc)
 
         if lock_path:
             release_lock(lock_path)
