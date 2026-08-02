@@ -102,6 +102,13 @@ class SelectionAnalysisOut(BaseModel):
     explanation: str
 
 
+class LineupAdmissionOut(BaseModel):
+    """当前分析阶段的官方首发准入审计结果。"""
+
+    approved: bool
+    reasons: list[str] = Field(default_factory=list)
+
+
 class FixtureAnalysisResponse(BaseModel):
     """单场比赛分析响应。数据不足时 probabilities 为空并由 message 说明。"""
 
@@ -112,3 +119,6 @@ class FixtureAnalysisResponse(BaseModel):
     selections: list[SelectionAnalysisOut] = Field(default_factory=list)
     data_completeness: float
     message: str | None = None
+    analysis_stage: str
+    confidence_killer: str | None = None
+    lineup_admission: LineupAdmissionOut | None = None

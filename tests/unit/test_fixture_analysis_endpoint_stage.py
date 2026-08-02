@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -13,6 +14,7 @@ from app.api.deps import get_fixture_analysis_service, get_fixture_repository
 from app.api.v1.endpoints.analysis import router
 from app.models.value_objects.analysis_stage import AnalysisStage
 from app.services.fixture_analysis import FixtureAnalysisResult
+from app.services.lineup_admission_gate import LineupAdmissionDecision
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -26,19 +28,36 @@ class _FakeFixtureRepository:
         return self.fixture
 
 
+@dataclass(frozen=True, slots=True)
+class _FakeDetailedAnalysis:
+    result: FixtureAnalysisResult
+    lineup_admission: LineupAdmissionDecision
+
+
 class _FakeAnalysisService:
     def __init__(self, fixture_id: UUID) -> None:
         self.fixture_id = fixture_id
         self.stages: list[AnalysisStage] = []
 
-    async def analyze(
+    async def analyze_detailed(
         self,
         fixture: object,
         *,
         stage: AnalysisStage = AnalysisStage.INITIAL,
-    ) -> FixtureAnalysisResult:
+    ) -> _FakeDetailedAnalysis:
         self.stages.append(stage)
-        return FixtureAnalysisResult(fixture_id=self.fixture_id)
+        approved = not stage.requires_confirmed_lineups
+        confidence_killer = None if approved else "lineup_admission_failed"
+        return _FakeDetailedAnalysis(
+            result=FixtureAnalysisResult(
+                fixture_id=self.fixture_id,
+                confidence_killer=confidence_killer,
+            ),
+            lineup_admission=LineupAdmissionDecision(
+                approved=approved,
+                reasons=("initial stage accepted" if approved else "verified lineups missing",),
+            ),
+        )
 
 
 def _client() -> tuple[TestClient, _FakeAnalysisService, UUID]:
@@ -55,17 +74,18 @@ def _client() -> tuple[TestClient, _FakeAnalysisService, UUID]:
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    ("query", "expected_stage"),
+    ("query", "expected_stage", "expected_approved"),
     [
-        ("", AnalysisStage.INITIAL),
-        ("?stage=initial", AnalysisStage.INITIAL),
-        ("?stage=post_lineup", AnalysisStage.POST_LINEUP),
-        ("?stage=final", AnalysisStage.FINAL),
+        ("", AnalysisStage.INITIAL, True),
+        ("?stage=initial", AnalysisStage.INITIAL, True),
+        ("?stage=post_lineup", AnalysisStage.POST_LINEUP, False),
+        ("?stage=final", AnalysisStage.FINAL, False),
     ],
 )
 def test_analysis_endpoint_forwards_explicit_stage(
     query: str,
     expected_stage: AnalysisStage,
+    expected_approved: bool,
 ) -> None:
     client, analysis, fixture_id = _client()
 
@@ -73,6 +93,13 @@ def test_analysis_endpoint_forwards_explicit_stage(
 
     assert response.status_code == 200
     assert analysis.stages == [expected_stage]
+    payload = response.json()
+    assert payload["analysis_stage"] == expected_stage.value
+    assert payload["lineup_admission"]["approved"] is expected_approved
+    assert payload["lineup_admission"]["reasons"]
+    assert payload["confidence_killer"] == (
+        None if expected_approved else "lineup_admission_failed"
+    )
 
 
 @pytest.mark.unit
