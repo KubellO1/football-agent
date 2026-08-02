@@ -16,6 +16,11 @@ from app.models.value_objects.markets import MarketType, Selection
 from app.models.value_objects.metrics import EloRating, ExpectedGoals
 from app.models.value_objects.money import Money
 from app.models.value_objects.odds import Odds, OddsFormat
+from app.models.value_objects.pre_kickoff import (
+    PreKickoffCheckpoint,
+    PreKickoffSnapshot,
+    PreKickoffState,
+)
 from app.models.value_objects.probability import Probability
 from app.models.value_objects.score import MatchResult, Score
 from app.models.value_objects.statistics import (
@@ -47,6 +52,9 @@ __all__ = [
     "OddsFormat",
     "PlayerStatistics",
     "Probability",
+    "PreKickoffCheckpoint",
+    "PreKickoffSnapshot",
+    "PreKickoffState",
     "RiskLevel",
     "Score",
     "Selection",
