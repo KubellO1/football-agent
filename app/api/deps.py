@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator  # noqa: TC003 - FastAPI 会在运行时解析依赖注解
 from datetime import timedelta
-from decimal import Decimal
 from hmac import compare_digest
 from typing import Annotated, cast
 
@@ -21,14 +20,13 @@ from app.agents.interfaces import CommitteeReviewer, ReasoningEngine
 from app.config.settings import Settings, get_settings
 from app.core.container import container
 from app.core.service_factory import (
+    build_fixture_analysis_service,
     build_fixture_lineup_ingestion_service,
     build_fixture_squad_ingestion_service,
     build_market_movement_service,
-    build_market_quote_policy,
     build_player_availability_ingestion_service,
     build_player_squad_ingestion_service,
 )
-from app.models.value_objects.money import Money
 from app.providers.interfaces.fixtures_provider import FixturesProvider
 from app.providers.interfaces.odds_provider import OddsProvider
 from app.repositories.interfaces.decision_log_repository import DecisionLogRepository
@@ -57,10 +55,7 @@ from app.services.analysis_pipeline import MatchAnalysisPipeline
 from app.services.committee_review import CommitteeReviewService
 from app.services.daily_selection import DailySelectionService
 from app.services.daily_top_picks import DailyRecommendationsReader, DailyTopPicksService
-from app.services.fixture_analysis import (
-    FixtureAnalysisService,
-    MatchAnalysisInputBuilder,
-)
+from app.services.fixture_analysis import FixtureAnalysisService
 from app.services.fixture_lineup_ingestion import FixtureLineupIngestionService
 from app.services.fixture_squad_ingestion import FixtureSquadIngestionService
 from app.services.ingestion import IngestionService
@@ -271,26 +266,10 @@ FixtureLineupIngestionServiceDep = Annotated[
 
 
 def get_fixture_analysis_service(
-    fixtures: FixtureRepositoryDep,
-    teams: TeamRepositoryDep,
-    odds_snapshots: OddsSnapshotRepositoryDep,
+    session: SessionDep,
 ) -> FixtureAnalysisService:
-    """组装 DB 驱动的单场分析服务：请求作用域仓储 + 容器中的数学模型/gate + settings。"""
-    settings = container.settings
-    bankroll = Money(Decimal(str(settings.analysis_default_bankroll)), settings.analysis_currency)
-    builder = MatchAnalysisInputBuilder(
-        fixtures=fixtures,
-        teams=teams,
-        odds_snapshots=odds_snapshots,
-        bankroll=bankroll,
-        form_window=settings.analysis_form_window,
-        market_quote_policy=build_market_quote_policy(settings),
-    )
-    return FixtureAnalysisService(
-        builder=builder,
-        model=container.resolve(MatchModel),
-        gate=container.resolve(RecommendationGate),
-    )
+    """复用共享工厂组装分析服务，确保 API 与 worker 使用同一套首发准入接线。"""
+    return build_fixture_analysis_service(container, session)
 
 
 FixtureAnalysisServiceDep = Annotated[FixtureAnalysisService, Depends(get_fixture_analysis_service)]

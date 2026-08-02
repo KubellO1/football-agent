@@ -50,6 +50,7 @@ from app.services.fixture_analysis import FixtureAnalysisService, MatchAnalysisI
 from app.services.fixture_lineup_ingestion import FixtureLineupIngestionService
 from app.services.fixture_squad_ingestion import FixtureSquadIngestionService
 from app.services.ingestion import IngestionService
+from app.services.lineup_admission_gate import LineupAdmissionGate
 from app.services.modeling import MatchModel
 from app.services.odds_ingestion import OddsIngestionService
 from app.services.performance_tracker import PerformanceTracker
@@ -59,6 +60,7 @@ from app.services.player_availability_ingestion import (
 from app.services.player_squad_ingestion import PlayerSquadIngestionService
 from app.services.recommendation_gate import RecommendationGate
 from app.services.settlement import SettlementService
+from app.services.verified_lineup import VerifiedLineupService
 from app.services.verified_market_movement import VerifiedMarketMovementService
 from app.services.verified_market_quote import (
     VerifiedMarketQuotePolicy,
@@ -303,6 +305,10 @@ def build_fixture_analysis_service(
         builder=builder,
         model=container.resolve(MatchModel),
         gate=container.resolve(RecommendationGate),
+        lineup_verifier=VerifiedLineupService(
+            repository=SqlAlchemyLineupRepository(session),
+        ),
+        lineup_gate=LineupAdmissionGate(),
     )
 
 
