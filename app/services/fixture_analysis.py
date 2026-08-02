@@ -19,8 +19,14 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
+from app.models.value_objects.analysis_stage import AnalysisStage
 from app.models.value_objects.decision import DataCompleteness, EvidenceLevel
 from app.models.value_objects.statistics import TeamStatistics
+from app.services.lineup_admission_gate import (
+    LineupAdmissionDecision,
+    LineupAdmissionGate,
+    LineupAdmissionInput,
+)
 from app.services.modeling import (
     MarketQuote,
     MatchModel,
@@ -44,6 +50,7 @@ if TYPE_CHECKING:
     from app.repositories.interfaces.fixture_repository import FixtureRepository
     from app.repositories.interfaces.odds_snapshot_repository import OddsSnapshotRepository
     from app.repositories.interfaces.reference import TeamRepository
+    from app.services.verified_lineup import VerifiedLineupService
 
 INSUFFICIENT_DATA_MESSAGE = "历史数据不足，无法建模分析（缺少双方近期完赛记录或联赛基准）。"
 NO_ODDS_MESSAGE = "缺少可用赔率，只能给出概率，无法评估价值。"
@@ -282,6 +289,7 @@ class DetailedAnalysis:
     model_output: ModelOutput | None
     reviewed: list[ReviewedSelection]
     result: FixtureAnalysisResult
+    lineup_admission: LineupAdmissionDecision | None = None
 
 
 class FixtureAnalysisService:
@@ -293,29 +301,41 @@ class FixtureAnalysisService:
         builder: MatchAnalysisInputBuilder,
         model: MatchModel,
         gate: RecommendationGate,
+        lineup_verifier: VerifiedLineupService | None = None,
+        lineup_gate: LineupAdmissionGate | None = None,
     ) -> None:
         self._builder = builder
         self._model = model
         self._gate = gate
+        self._lineup_verifier = lineup_verifier
+        self._lineup_gate = lineup_gate or LineupAdmissionGate()
 
     async def analyze(
         self,
         fixture: Fixture,
         *,
         as_of: datetime | None = None,
+        stage: AnalysisStage = AnalysisStage.INITIAL,
     ) -> FixtureAnalysisResult:
         """对外的确定性分析结果（行为与产出保持稳定）。"""
-        return (await self.analyze_detailed(fixture, as_of=as_of)).result
+        return (await self.analyze_detailed(fixture, as_of=as_of, stage=stage)).result
 
     async def analyze_detailed(
         self,
         fixture: Fixture,
         *,
         as_of: datetime | None = None,
+        stage: AnalysisStage = AnalysisStage.INITIAL,
     ) -> DetailedAnalysis:
         """在对外结果之外，额外返回模型输入/输出与逐候选 gate 判定（供评审层落库）。"""
         decision_time = as_of or datetime.now(UTC)
         MatchAnalysisInputBuilder._validate_as_of(decision_time)
+        lineup_admission = await self._evaluate_lineup_admission(
+            fixture,
+            stage=stage,
+            as_of=decision_time,
+        )
+        lineup_confidence_killer = None if lineup_admission.approved else "lineup_admission_failed"
         model_input = await self._builder.build(fixture, as_of=decision_time)
         if model_input is None:
             return DetailedAnalysis(
@@ -325,16 +345,27 @@ class FixtureAnalysisService:
                 model_output=None,
                 reviewed=[],
                 result=FixtureAnalysisResult(
-                    fixture_id=fixture.id, message=INSUFFICIENT_DATA_MESSAGE
+                    fixture_id=fixture.id,
+                    message=INSUFFICIENT_DATA_MESSAGE,
+                    confidence_killer=lineup_confidence_killer,
                 ),
+                lineup_admission=lineup_admission,
             )
 
         output = await self._model.analyze(model_input)
         reviewed = [
-            ReviewedSelection(candidate=c, decision=self._evaluate(c)) for c in output.candidates
+            ReviewedSelection(
+                candidate=c,
+                decision=self._evaluate(c, lineup_admission=lineup_admission),
+            )
+            for c in output.candidates
         ]
         selections = [
-            self._to_selection_analysis(rs, confidence_killer=output.confidence_killer)
+            self._to_selection_analysis(
+                rs,
+                lineup_admission=lineup_admission,
+                confidence_killer=output.confidence_killer,
+            )
             for rs in reviewed
         ]
 
@@ -352,7 +383,15 @@ class FixtureAnalysisService:
             if model_input.quote_issues
             else None
         )
-        confidence_killer = output.confidence_killer or quote_confidence_killer
+        confidence_killer = (
+            lineup_confidence_killer or output.confidence_killer or quote_confidence_killer
+        )
+
+        if lineup_confidence_killer is not None:
+            selections = [
+                self._replace_confidence_killer(selection, lineup_confidence_killer)
+                for selection in selections
+            ]
 
         result = FixtureAnalysisResult(
             fixture_id=fixture.id,
@@ -371,10 +410,34 @@ class FixtureAnalysisService:
             model_output=output,
             reviewed=reviewed,
             result=result,
+            lineup_admission=lineup_admission,
         )
 
-    def _evaluate(self, candidate: ModelCandidate) -> GateDecision:
-        return self._gate.evaluate(
+    async def _evaluate_lineup_admission(
+        self,
+        fixture: Fixture,
+        *,
+        stage: AnalysisStage,
+        as_of: datetime,
+    ) -> LineupAdmissionDecision:
+        lineups = None
+        if stage.requires_confirmed_lineups and self._lineup_verifier is not None:
+            lineups = await self._lineup_verifier.verify(fixture, as_of=as_of)
+        return self._lineup_gate.evaluate(
+            LineupAdmissionInput(
+                fixture_id=fixture.id,
+                stage=stage,
+                lineups=lineups,
+            )
+        )
+
+    def _evaluate(
+        self,
+        candidate: ModelCandidate,
+        *,
+        lineup_admission: LineupAdmissionDecision,
+    ) -> GateDecision:
+        quantitative = self._gate.evaluate(
             GateInput(
                 decision_score=candidate.decision_score,
                 expected_value=candidate.edge.edge,
@@ -383,15 +446,26 @@ class FixtureAnalysisService:
                 risk_level=candidate.risk_level,
             )
         )
+        if lineup_admission.approved:
+            return quantitative
+
+        reasons = [] if quantitative.approved else list(quantitative.reasons)
+        reasons.extend(lineup_admission.reasons)
+        return GateDecision(approved=False, reasons=reasons)
 
     def _to_selection_analysis(
-        self, reviewed: ReviewedSelection, *, confidence_killer: str | None = None
+        self,
+        reviewed: ReviewedSelection,
+        *,
+        lineup_admission: LineupAdmissionDecision,
+        confidence_killer: str | None = None,
     ) -> SelectionAnalysis:
         candidate = reviewed.candidate
         decision = reviewed.decision
         stake = candidate.stake
-        kelly_fraction = stake.fraction_of_bankroll if stake is not None else 0.0
-        kelly_stake = float(stake.amount.amount) if stake is not None else 0.0
+        stake_allowed = lineup_admission.approved
+        kelly_fraction = stake.fraction_of_bankroll if stake is not None and stake_allowed else 0.0
+        kelly_stake = float(stake.amount.amount) if stake is not None and stake_allowed else 0.0
         currency = stake.amount.currency if stake is not None else "EUR"
         model_prob = candidate.model_probability.value
         implied = candidate.odds.implied_probability.value
@@ -418,5 +492,28 @@ class FixtureAnalysisService:
             confidence=confidence,
             reasons=list(decision.reasons),
             explanation=explanation,
+            confidence_killer=confidence_killer,
+        )
+
+    @staticmethod
+    def _replace_confidence_killer(
+        selection: SelectionAnalysis,
+        confidence_killer: str,
+    ) -> SelectionAnalysis:
+        return SelectionAnalysis(
+            code=selection.code,
+            selection_label=selection.selection_label,
+            decimal_odds=selection.decimal_odds,
+            model_probability=selection.model_probability,
+            implied_probability=selection.implied_probability,
+            edge=selection.edge,
+            expected_value=selection.expected_value,
+            kelly_fraction=selection.kelly_fraction,
+            kelly_stake=selection.kelly_stake,
+            currency=selection.currency,
+            recommended=selection.recommended,
+            confidence=selection.confidence,
+            reasons=selection.reasons,
+            explanation=selection.explanation,
             confidence_killer=confidence_killer,
         )
