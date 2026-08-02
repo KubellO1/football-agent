@@ -104,6 +104,7 @@ class Settings(BaseSettings):
     recommendations_min_ev: float = 0.05  # expected value >= 5%
     recommendations_min_kelly: float = 0.02  # Kelly fraction >= 2%
     recommendations_min_confidence: float = 0.70  # confidence >= 70%
+    recommendations_max_stake_fraction: float = Field(default=0.03, ge=0.0, le=0.03)
     recommendations_max_picks: int = 5
 
     # --- Scheduled daily worker ---

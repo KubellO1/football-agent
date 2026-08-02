@@ -15,6 +15,42 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    ("confidence", "expected"),
+    [(0.70, True), (0.6999, False)],
+)
+def test_pre_kickoff_confidence_uses_inclusive_configured_boundary(
+    confidence: float,
+    expected: bool,
+) -> None:
+    assert (
+        scheduler_runner._passes_pre_kickoff_review_thresholds(
+            expected_value=0.05,
+            confidence=confidence,
+            kelly_fraction=0.02,
+            gate_passed=True,
+            min_expected_value=0.05,
+            min_confidence=0.70,
+            min_kelly_fraction=0.02,
+        )
+        is expected
+    )
+
+
+@pytest.mark.unit
+def test_pre_kickoff_review_requires_recommendation_gate() -> None:
+    assert not scheduler_runner._passes_pre_kickoff_review_thresholds(
+        expected_value=0.20,
+        confidence=0.90,
+        kelly_fraction=0.03,
+        gate_passed=False,
+        min_expected_value=0.05,
+        min_confidence=0.70,
+        min_kelly_fraction=0.02,
+    )
+
+
+@pytest.mark.unit
 def test_load_heartbeat_rejects_non_object_json(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -11,11 +11,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-from app.agents.interfaces import ReasoningEngine
-from app.models.entities.fixture import Fixture
 from app.models.entities.value_bet import ValueBet
-from app.repositories.interfaces.value_bet_repository import ValueBetRepository
 from app.schemas.reasoning import (
     CandidateBet,
     OutcomeProbability,
@@ -24,8 +22,13 @@ from app.schemas.reasoning import (
     Verdict,
 )
 from app.services.daily_selection import CandidateEvaluation, DailySelectionService
-from app.services.modeling import MatchModel, ModelCandidate, ModelInput, ModelOutput
 from app.services.recommendation_gate import GateInput, RecommendationGate
+
+if TYPE_CHECKING:
+    from app.agents.interfaces import ReasoningEngine
+    from app.models.entities.fixture import Fixture
+    from app.repositories.interfaces.value_bet_repository import ValueBetRepository
+    from app.services.modeling import MatchModel, ModelCandidate, ModelInput, ModelOutput
 
 NO_VALUE_MESSAGE = "今天没有值得下注的比赛。"
 
@@ -84,7 +87,7 @@ class MatchAnalysisPipeline:
     def _evaluate(self, candidate: ModelCandidate) -> CandidateEvaluation:
         gate_input = GateInput(
             decision_score=candidate.decision_score,
-            expected_value=candidate.edge.edge,
+            expected_value=candidate.edge.expected_value_per_unit,
             data_completeness=candidate.data_completeness,
             evidence_level=candidate.evidence_level,
             risk_level=candidate.risk_level,

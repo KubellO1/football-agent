@@ -30,6 +30,26 @@ PARIS = ZoneInfo("Europe/Paris")
 
 type JsonObject = dict[str, object]
 
+
+def _passes_pre_kickoff_review_thresholds(
+    *,
+    expected_value: float,
+    confidence: float,
+    kelly_fraction: float,
+    gate_passed: bool,
+    min_expected_value: float,
+    min_confidence: float,
+    min_kelly_fraction: float,
+) -> bool:
+    """按配置门槛判断候选是否值得进入赛前委员会评审。"""
+    return (
+        gate_passed
+        and expected_value >= min_expected_value
+        and confidence >= min_confidence
+        and kelly_fraction >= min_kelly_fraction
+    )
+
+
 # ---------------------------------------------------------------------------
 # Logging setup — rotating file logs per command
 # ---------------------------------------------------------------------------
@@ -328,7 +348,7 @@ async def _run_daily_job(log: logging.Logger) -> None:
 
 
 async def _run_pre_kickoff(log: logging.Logger) -> None:
-    """Pre-kickoff validation: re-evaluate fixtures inside T-90 and T-30 windows."""
+    """Pre-kickoff validation: run the latest due T-90, T-60 or T-30 checkpoint."""
     from datetime import timedelta
 
     from app.config.whitelist import get_whitelist
@@ -344,6 +364,11 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
     from app.repositories.sqlalchemy.reference_repositories import (
         SqlAlchemyCompetitionRepository,
         SqlAlchemyTeamRepository,
+    )
+    from app.services.pre_kickoff_checkpoint_resolver import (
+        PreKickoffCheckpointResolver,
+        checkpoint_idempotency_key,
+        completed_checkpoints,
     )
     from app.services.prediction_logger import log_fixture_predictions
 
@@ -363,6 +388,12 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
         TRIGGER_LOG.parent.mkdir(parents=True, exist_ok=True)
         TRIGGER_LOG.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
+    def complete_checkpoint(data: JsonObject, key: str, completed_at: str) -> JsonObject:
+        updated = dict(data)
+        updated[key] = completed_at
+        save_triggers(updated)
+        return updated
+
     container.init_resources()
     try:
         async with container.database.session() as session:
@@ -377,23 +408,18 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
             now_ts = now.isoformat()
             processed = 0
             skipped_unsupported = 0
+            checkpoint_resolver = PreKickoffCheckpointResolver()
 
             for fixture in fixtures:
-                minutes_to_ko = (fixture.kickoff - now).total_seconds() / 60
-                window = None
-                if 85 <= minutes_to_ko <= 95:
-                    window = "T-90"
-                elif 25 <= minutes_to_ko <= 35:
-                    window = "T-30"
-                if window is None:
+                checkpoint = checkpoint_resolver.resolve(
+                    kickoff_time=fixture.kickoff,
+                    current_time=now,
+                    completed=completed_checkpoints(fixture.id, triggers.keys()),
+                )
+                if checkpoint is None:
                     continue
 
-                fixture_key = f"{fixture.id}:{window}"
-                if fixture_key in triggers:
-                    continue
-
-                triggers[fixture_key] = now_ts
-                processed += 1
+                fixture_key = checkpoint_idempotency_key(fixture.id, checkpoint)
 
                 try:
                     comp_repo = SqlAlchemyCompetitionRepository(session)
@@ -420,6 +446,7 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
                             comp_name,
                         )
                         skipped_unsupported += 1
+                        triggers = complete_checkpoint(triggers, fixture_key, now_ts)
                         continue
 
                     analysis = build_fixture_analysis_service(container, session)
@@ -437,7 +464,15 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
                     qualifying = [
                         s
                         for s in detailed.result.selections
-                        if s.expected_value > 0.03 and s.confidence > 0.5
+                        if _passes_pre_kickoff_review_thresholds(
+                            expected_value=s.expected_value,
+                            confidence=s.confidence,
+                            kelly_fraction=s.kelly_fraction,
+                            gate_passed=s.recommended,
+                            min_expected_value=container.settings.recommendations_min_ev,
+                            min_confidence=container.settings.recommendations_min_confidence,
+                            min_kelly_fraction=container.settings.recommendations_min_kelly,
+                        )
                     ]
                     if qualifying:
                         dec_log_repo = SqlAlchemyDecisionLogRepository(session)
@@ -454,11 +489,11 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
                                 fixture.id,
                                 len(result.value_bet_ids),
                             )
+                    triggers = complete_checkpoint(triggers, fixture_key, now_ts)
+                    processed += 1
                 except Exception as exc:
-                    save_triggers(triggers)
                     log.warning("Pre-kickoff error for fixture %s: %s", fixture.id, exc)
 
-            save_triggers(triggers)
             log.info(
                 "Pre-kickoff validation complete: %d fixture(s) processed, "
                 "%d skipped (unsupported competition)",

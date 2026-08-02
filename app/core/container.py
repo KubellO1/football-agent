@@ -111,10 +111,14 @@ class Container:
         from app.services.modeling import MatchModel
         from app.services.models.calibration import TemperatureCalibrator
         from app.services.models.ensemble import EnsembleMatchModel
+        from app.services.models.kelly import KellyCalculator
         from app.services.recommendation_gate import RecommendationGate
 
         calibrator = TemperatureCalibrator(self.settings.analysis_calibration_temperature)
-        self.register(MatchModel, EnsembleMatchModel(calibrator=calibrator))
+        kelly = KellyCalculator(
+            max_fraction=self.settings.recommendations_max_stake_fraction,
+        )
+        self.register(MatchModel, EnsembleMatchModel(calibrator=calibrator, kelly=kelly))
         self.register(RecommendationGate, RecommendationGate())
         self.register(DailySelectionService, DailySelectionService())
 

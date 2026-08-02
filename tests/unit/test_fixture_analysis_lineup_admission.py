@@ -19,11 +19,15 @@ from app.models.value_objects.markets import MarketType, Selection
 from app.models.value_objects.money import Money
 from app.models.value_objects.odds import Odds
 from app.models.value_objects.statistics import TeamStatistics
-from app.services.fixture_analysis import FixtureAnalysisService, MatchAnalysisInputBuilder
+from app.services.fixture_analysis import (
+    NO_ODDS_MESSAGE,
+    FixtureAnalysisService,
+    MatchAnalysisInputBuilder,
+)
 from app.services.modeling import MarketQuote, ModelInput
 from app.services.models.ensemble import EnsembleMatchModel
 from app.services.models.lambda_estimator import LeagueAverages
-from app.services.recommendation_gate import RecommendationGate
+from app.services.recommendation_gate import GateDecision, GateInput, RecommendationGate
 from app.services.verified_lineup import (
     VerifiedFixtureLineups,
     VerifiedLineupService,
@@ -55,18 +59,32 @@ def _stats(*, goals_for: int, goals_against: int) -> TeamStatistics:
     )
 
 
-def _model_input(fixture: Fixture) -> ModelInput:
+class RecordingRecommendationGate(RecommendationGate):
+    def __init__(self) -> None:
+        super().__init__()
+        self.call_count = 0
+
+    def evaluate(self, data: GateInput) -> GateDecision:
+        self.call_count += 1
+        return super().evaluate(data)
+
+
+def _model_input(fixture: Fixture, *, odds_available: bool = True) -> ModelInput:
     return ModelInput(
         fixture=fixture,
         home_stats=_stats(goals_for=20, goals_against=10),
         away_stats=_stats(goals_for=10, goals_against=20),
         league=LeagueAverages(goals_per_game=1.4),
-        quotes=[
-            MarketQuote(
-                selection=Selection(MarketType.MATCH_RESULT, "home"),
-                odds=Odds(Decimal("2.50")),
-            )
-        ],
+        quotes=(
+            [
+                MarketQuote(
+                    selection=Selection(MarketType.MATCH_RESULT, "home"),
+                    odds=Odds(Decimal("2.50")),
+                )
+            ]
+            if odds_available
+            else []
+        ),
         bankroll=Money(Decimal("1000"), "EUR"),
         data_completeness=DataCompleteness(100.0),
         evidence_level=EvidenceLevel.A,
@@ -200,3 +218,24 @@ async def test_lineup_failure_remains_auditable_when_model_input_is_missing() ->
     assert detailed.result.confidence_killer == "lineup_admission_failed"
     assert detailed.lineup_admission is not None
     assert not detailed.lineup_admission.approved
+
+
+@pytest.mark.unit
+async def test_missing_odds_keeps_probabilities_informational_and_skips_gate() -> None:
+    fixture = _fixture()
+    builder = AsyncMock(spec=MatchAnalysisInputBuilder)
+    builder.build.return_value = _model_input(fixture, odds_available=False)
+    gate = RecordingRecommendationGate()
+    service = FixtureAnalysisService(
+        builder=cast("MatchAnalysisInputBuilder", builder),
+        model=EnsembleMatchModel(),
+        gate=gate,
+    )
+
+    detailed = await service.analyze_detailed(fixture, as_of=_NOW)
+
+    assert detailed.result.probabilities
+    assert detailed.result.selections == []
+    assert detailed.result.message == NO_ODDS_MESSAGE
+    assert detailed.reviewed == []
+    assert gate.call_count == 0
