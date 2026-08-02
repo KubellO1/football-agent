@@ -21,6 +21,7 @@ from app.agents.interfaces import CommitteeReviewer, ReasoningEngine
 from app.config.settings import Settings, get_settings
 from app.core.container import container
 from app.core.service_factory import (
+    build_fixture_lineup_ingestion_service,
     build_fixture_squad_ingestion_service,
     build_market_movement_service,
     build_market_quote_policy,
@@ -60,6 +61,7 @@ from app.services.fixture_analysis import (
     FixtureAnalysisService,
     MatchAnalysisInputBuilder,
 )
+from app.services.fixture_lineup_ingestion import FixtureLineupIngestionService
 from app.services.fixture_squad_ingestion import FixtureSquadIngestionService
 from app.services.ingestion import IngestionService
 from app.services.modeling import MatchModel
@@ -255,6 +257,19 @@ FixtureSquadIngestionServiceDep = Annotated[
 ]
 
 
+def get_fixture_lineup_ingestion_service(
+    session: SessionDep,
+) -> FixtureLineupIngestionService:
+    """使用同一请求事务组装比赛官方阵容采集服务。"""
+    return build_fixture_lineup_ingestion_service(container, session)
+
+
+FixtureLineupIngestionServiceDep = Annotated[
+    FixtureLineupIngestionService,
+    Depends(get_fixture_lineup_ingestion_service),
+]
+
+
 def get_fixture_analysis_service(
     fixtures: FixtureRepositoryDep,
     teams: TeamRepositoryDep,
@@ -375,6 +390,7 @@ __all__ = [
     "DailyTopPicksServiceDep",
     "DecisionLogRepositoryDep",
     "FixtureAnalysisServiceDep",
+    "FixtureLineupIngestionServiceDep",
     "FixtureRepositoryDep",
     "FixtureSquadIngestionServiceDep",
     "FixturesProviderDep",
@@ -399,6 +415,7 @@ __all__ = [
     "get_db_session",
     "get_decision_log_repository",
     "get_fixture_analysis_service",
+    "get_fixture_lineup_ingestion_service",
     "get_fixture_repository",
     "get_fixture_squad_ingestion_service",
     "get_fixtures_provider",

@@ -58,6 +58,7 @@ class Container:
         # the container manages; bound to interfaces for injection. Lazy import
         # keeps the core container decoupled from the concrete vendor clients.
         from app.providers import (
+            FixtureLineupProvider,
             FixturesProvider,
             InjuryProvider,
             OddsProvider,
@@ -65,6 +66,7 @@ class Container:
             PlayerSquadProvider,
             # SportmonksProvider,  # DEPRECATED: 2026-07-17 - Removed from production.
             WeatherProvider,
+            build_fixture_lineup_provider,
             build_fixtures_provider,
             build_injury_provider,
             build_odds_provider,
@@ -75,6 +77,7 @@ class Container:
         )
 
         fixtures_provider = build_fixtures_provider(self._settings)
+        fixture_lineup_provider = build_fixture_lineup_provider(self._settings)
         odds_provider = build_odds_provider(self._settings)
         weather_provider = build_weather_provider(self._settings)
         # sportmonks_provider = build_sportmonks_provider(self._settings)  # DEPRECATED: 2026-07-17
@@ -86,6 +89,7 @@ class Container:
 
         self._providers = [
             fixtures_provider,
+            fixture_lineup_provider,
             odds_provider,
             weather_provider,
             # sportmonks_provider,  # DEPRECATED: 2026-07-17
@@ -94,6 +98,7 @@ class Container:
             player_squad_provider,
         ]
         self.register(FixturesProvider, fixtures_provider)
+        self.register(FixtureLineupProvider, fixture_lineup_provider)
         self.register(OddsProvider, odds_provider)
         self.register(WeatherProvider, weather_provider)
         # self.register(SportmonksProvider, sportmonks_provider)  # DEPRECATED: 2026-07-17

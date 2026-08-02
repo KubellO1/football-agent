@@ -18,6 +18,7 @@ from app.config.whitelist import get_whitelist
 from app.core.logging import get_logger
 from app.models.value_objects.decision import EvidenceLevel
 from app.models.value_objects.money import Money
+from app.providers.interfaces.fixture_lineup_provider import FixtureLineupProvider
 from app.providers.interfaces.fixtures_provider import FixturesProvider
 from app.providers.interfaces.odds_provider import OddsProvider
 from app.providers.interfaces.player_availability_provider import (
@@ -26,6 +27,7 @@ from app.providers.interfaces.player_availability_provider import (
 from app.providers.interfaces.player_squad_provider import PlayerSquadProvider
 from app.repositories.sqlalchemy.decision_log_repository import SqlAlchemyDecisionLogRepository
 from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
+from app.repositories.sqlalchemy.lineup_repository import SqlAlchemyLineupRepository
 from app.repositories.sqlalchemy.odds_snapshot_repository import SqlAlchemyOddsSnapshotRepository
 from app.repositories.sqlalchemy.player_availability_repository import (
     SqlAlchemyPlayerAvailabilityObservationRepository,
@@ -45,6 +47,7 @@ from app.repositories.sqlalchemy.value_bet_repository import SqlAlchemyValueBetR
 from app.services.committee_review import CommitteeReviewService
 from app.services.daily_top_picks import DailyRecommendationsReader, DailyTopPicksService
 from app.services.fixture_analysis import FixtureAnalysisService, MatchAnalysisInputBuilder
+from app.services.fixture_lineup_ingestion import FixtureLineupIngestionService
 from app.services.fixture_squad_ingestion import FixtureSquadIngestionService
 from app.services.ingestion import IngestionService
 from app.services.modeling import MatchModel
@@ -198,6 +201,22 @@ def build_fixture_squad_ingestion_service(
         teams=SqlAlchemyTeamRepository(session),
         squads=build_player_squad_ingestion_service(container, session),
         source="api-football",
+    )
+
+
+def build_fixture_lineup_ingestion_service(
+    container: Container,
+    session: AsyncSession,
+) -> FixtureLineupIngestionService:
+    """组装 API-Football 比赛官方阵容采集服务。"""
+    return FixtureLineupIngestionService(
+        provider=container.resolve(FixtureLineupProvider),
+        fixtures=SqlAlchemyFixtureRepository(session),
+        teams=SqlAlchemyTeamRepository(session),
+        players=SqlAlchemyPlayerRepository(session),
+        lineups=SqlAlchemyLineupRepository(session),
+        source="api-football",
+        evidence_level=EvidenceLevel.B,
     )
 
 

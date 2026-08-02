@@ -9,6 +9,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from app.providers.impl.api_football_fixture_lineup_provider import (
+    ApiFootballFixtureLineupProvider,
+)
 from app.providers.impl.api_football_player_availability_provider import (
     ApiFootballPlayerAvailabilityProvider,
 )
@@ -23,6 +26,7 @@ from app.providers.impl.prioritized_odds_provider import PrioritizedOddsProvider
 
 # from app.providers.impl.sportmonks_provider import SportmonksApiProvider  # DEPRECATED: 2026-07-17
 from app.providers.impl.weather_provider import WeatherApiProvider
+from app.providers.interfaces.fixture_lineup_provider import FixtureLineupProvider
 from app.providers.interfaces.fixtures_provider import FixturesProvider
 from app.providers.interfaces.injury_provider import InjuryProvider
 from app.providers.interfaces.odds_provider import OddsProvider
@@ -140,12 +144,25 @@ def build_player_squad_provider(settings: Settings) -> PlayerSquadProvider:
     )
 
 
+def build_fixture_lineup_provider(settings: Settings) -> FixtureLineupProvider:
+    """使用 API-Football 构造比赛官方阵容 Provider。"""
+    return ApiFootballFixtureLineupProvider(
+        api_key=settings.api_football_key,
+        base_url=settings.api_football_base_url,
+        timeout_seconds=settings.provider_timeout_seconds,
+        max_retries=settings.provider_max_retries,
+        backoff_base_seconds=settings.provider_backoff_base_seconds,
+    )
+
+
 __all__ = [
+    "ApiFootballFixtureLineupProvider",
     "ApiFootballInjuryProvider",
     "ApiFootballPlayerAvailabilityProvider",
     "ApiFootballPlayerSquadProvider",
     "ApiFootballProvider",
     "FixturesProvider",
+    "FixtureLineupProvider",
     "InjuryProvider",
     "OddsApiIoProvider",
     "OddsProvider",
@@ -158,6 +175,7 @@ __all__ = [
     "WeatherApiProvider",
     "WeatherProvider",
     "build_fixtures_provider",
+    "build_fixture_lineup_provider",
     "build_injury_provider",
     "build_odds_provider",
     "build_player_availability_provider",
