@@ -15,6 +15,7 @@ from app.api.deps import (  # noqa: TC001 - FastAPI 会在运行时解析依赖�
     FixtureAnalysisServiceDep,
     FixtureRepositoryDep,
 )
+from app.models.value_objects.analysis_stage import AnalysisStage
 from app.schemas.analysis import (
     FixtureAnalysisResponse,
     ProbabilitiesOut,
@@ -69,6 +70,7 @@ async def analyze_fixture(
     fixture_id: UUID,
     fixtures: FixtureRepositoryDep,
     analysis: FixtureAnalysisServiceDep,
+    stage: AnalysisStage = AnalysisStage.INITIAL,
 ) -> FixtureAnalysisResponse:
     """分析一场已入库的比赛：概率、EV、Kelly 下注、推荐、信心与解释。
 
@@ -79,5 +81,5 @@ async def analyze_fixture(
     if fixture is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="比赛不存在")
 
-    result = await analysis.analyze(fixture)
+    result = await analysis.analyze(fixture, stage=stage)
     return _to_response(result)
