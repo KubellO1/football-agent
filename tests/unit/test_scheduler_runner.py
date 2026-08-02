@@ -15,6 +15,42 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    ("confidence", "expected"),
+    [(0.70, True), (0.6999, False)],
+)
+def test_pre_kickoff_confidence_uses_inclusive_configured_boundary(
+    confidence: float,
+    expected: bool,
+) -> None:
+    assert (
+        scheduler_runner._passes_pre_kickoff_review_thresholds(
+            expected_value=0.05,
+            confidence=confidence,
+            kelly_fraction=0.02,
+            gate_passed=True,
+            min_expected_value=0.05,
+            min_confidence=0.70,
+            min_kelly_fraction=0.02,
+        )
+        is expected
+    )
+
+
+@pytest.mark.unit
+def test_pre_kickoff_review_requires_recommendation_gate() -> None:
+    assert not scheduler_runner._passes_pre_kickoff_review_thresholds(
+        expected_value=0.20,
+        confidence=0.90,
+        kelly_fraction=0.03,
+        gate_passed=False,
+        min_expected_value=0.05,
+        min_confidence=0.70,
+        min_kelly_fraction=0.02,
+    )
+
+
+@pytest.mark.unit
 def test_load_heartbeat_rejects_non_object_json(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -94,3 +130,40 @@ def test_append_run_timeline_keeps_only_object_entries(
         "details": "completed",
     }
     assert len(stored) == 2
+
+
+@pytest.mark.unit
+def test_pre_kickoff_wrapper_updates_run_timeline_only_for_pre_kickoff(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    timeline_file = tmp_path / "run_timeline.json"
+    monkeypatch.setattr(scheduler_runner, "RUN_TIMELINE_FILE", timeline_file)
+
+    scheduler_runner._append_pre_kickoff_run_timeline(
+        command_name="pre_kickoff",
+        status="success",
+        trigger_source="scheduler",
+        run_id="runtime-smoke",
+        duration_s=2.3456,
+        error=None,
+    )
+    scheduler_runner._append_pre_kickoff_run_timeline(
+        command_name="daily_job",
+        status="success",
+        trigger_source="scheduler",
+        run_id="not-recorded",
+        duration_s=1.0,
+        error=None,
+    )
+
+    stored = json.loads(timeline_file.read_text(encoding="utf-8"))
+    assert stored == [
+        {
+            "time": stored[0]["time"],
+            "task": "pre_kickoff",
+            "status": "success",
+            "duration_s": 2.346,
+            "details": "trigger=scheduler run_id=runtime-smoke",
+        }
+    ]

@@ -11,23 +11,26 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from app.models.value_objects.betting import Stake
 from app.models.value_objects.money import Money
-from app.models.value_objects.odds import Odds
-from app.models.value_objects.probability import Probability
+
+if TYPE_CHECKING:
+    from app.models.value_objects.odds import Odds
+    from app.models.value_objects.probability import Probability
 
 
 class KellyCalculator:
     """分数 Kelly 计算器，带单注上限风控。"""
 
-    def __init__(self, *, kelly_fraction: float = 0.25, max_fraction: float = 0.05) -> None:
+    def __init__(self, *, kelly_fraction: float = 0.25, max_fraction: float = 0.03) -> None:
         # kelly_fraction：分数 Kelly 系数（默认 1/4 Kelly，更抗模型误差）
-        # max_fraction：单注占 bankroll 的上限（默认 5%）
+        # max_fraction：单注占 bankroll 的上限（默认 3%）
         if not 0.0 < kelly_fraction <= 1.0:
             raise ValueError("kelly_fraction 必须在 (0, 1] 之间")
-        if not 0.0 < max_fraction <= 1.0:
-            raise ValueError("max_fraction 必须在 (0, 1] 之间")
+        if not 0.0 <= max_fraction <= 1.0:
+            raise ValueError("max_fraction 必须在 [0, 1] 之间")
         self._kelly_fraction = kelly_fraction
         self._max_fraction = max_fraction
 

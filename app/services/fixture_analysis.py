@@ -440,7 +440,7 @@ class FixtureAnalysisService:
         quantitative = self._gate.evaluate(
             GateInput(
                 decision_score=candidate.decision_score,
-                expected_value=candidate.edge.edge,
+                expected_value=candidate.edge.expected_value_per_unit,
                 data_completeness=candidate.data_completeness,
                 evidence_level=candidate.evidence_level,
                 risk_level=candidate.risk_level,

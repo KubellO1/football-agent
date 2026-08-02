@@ -9,19 +9,26 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 import pytest
 
 from app.agents.interfaces import ReasoningEngine
 from app.models.entities.fixture import Fixture
-from app.models.entities.value_bet import ValueBet
-from app.models.value_objects.decision import DataCompleteness, EvidenceLevel
+from app.models.value_objects.betting import ValueEdge
+from app.models.value_objects.decision import (
+    DataCompleteness,
+    DecisionScore,
+    EvidenceLevel,
+    RiskLevel,
+)
 from app.models.value_objects.markets import MarketType, Selection
 from app.models.value_objects.money import Money
 from app.models.value_objects.odds import Odds
+from app.models.value_objects.probability import Probability
 from app.models.value_objects.statistics import TeamStatistics
 from app.repositories.interfaces.value_bet_repository import ValueBetRepository
 from app.schemas.reasoning import (
@@ -32,10 +39,13 @@ from app.schemas.reasoning import (
 )
 from app.services.analysis_pipeline import NO_VALUE_MESSAGE, MatchAnalysisPipeline
 from app.services.daily_selection import DailySelectionService
-from app.services.modeling import MarketQuote, ModelInput
+from app.services.modeling import MarketQuote, ModelCandidate, ModelInput
 from app.services.models.ensemble import EnsembleMatchModel
 from app.services.models.lambda_estimator import LeagueAverages
 from app.services.recommendation_gate import RecommendationGate
+
+if TYPE_CHECKING:
+    from app.models.entities.value_bet import ValueBet
 
 
 class FakeReasoningEngine(ReasoningEngine):
@@ -95,7 +105,7 @@ def _model_input(*, home_odds: float, completeness: float = 95.0) -> ModelInput:
         competition_id=uuid4(),
         home_team_id=uuid4(),
         away_team_id=uuid4(),
-        kickoff=datetime(2026, 7, 3, 18, 0, tzinfo=timezone.utc),
+        kickoff=datetime(2026, 7, 3, 18, 0, tzinfo=UTC),
     )
     return ModelInput(
         fixture=fixture,
@@ -122,6 +132,30 @@ def _pipeline(reasoning: ReasoningEngine, repo: ValueBetRepository) -> MatchAnal
         reasoning=reasoning,
         value_bet_repository=repo,
     )
+
+
+@pytest.mark.unit
+def test_gate_input_uses_expected_value_per_unit_not_probability_edge() -> None:
+    probability = Probability(0.55)
+    odds = Odds(Decimal("2.00"))
+    candidate = ModelCandidate(
+        selection=Selection(MarketType.MATCH_RESULT, "home"),
+        odds=odds,
+        model_probability=probability,
+        edge=ValueEdge(model_probability=probability, odds=odds),
+        decision_score=DecisionScore(90.0),
+        data_completeness=DataCompleteness(95.0),
+        evidence_level=EvidenceLevel.B,
+        risk_level=RiskLevel.MEDIUM,
+    )
+    pipeline = _pipeline(FakeReasoningEngine(), InMemoryValueBetRepository())
+
+    evaluation = pipeline._evaluate(candidate)
+
+    probability_edge = probability.value - odds.implied_probability.value
+    assert probability_edge == pytest.approx(0.05)
+    assert candidate.edge.expected_value_per_unit == pytest.approx(0.10)
+    assert evaluation.gate_input.expected_value == pytest.approx(0.10)
 
 
 @pytest.mark.unit
