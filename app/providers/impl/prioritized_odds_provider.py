@@ -9,7 +9,7 @@ of which provider ultimately served the data.
 
 from __future__ import annotations
 
-from datetime import datetime
+from typing import TYPE_CHECKING
 
 from app.core.logging import get_logger
 from app.providers.impl.odds_api_io_provider import (
@@ -20,7 +20,12 @@ from app.providers.impl.odds_api_io_provider import (
     OddsRateLimitError,
 )
 from app.providers.interfaces.odds_provider import OddsProvider
-from app.providers.schemas.odds import ProviderFixtureOdds
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from datetime import datetime
+
+    from app.providers.schemas.odds import ProviderFixtureOdds, ProviderOddsTarget
 
 logger = get_logger(__name__)
 
@@ -49,8 +54,8 @@ class PrioritizedOddsProvider(OddsProvider):
         self,
         *,
         sport: str,
-        markets: str = "1x2",
-        regions: str = "eu",
+        markets: Sequence[str] = ("h2h",),
+        regions: Sequence[str] = ("eu",),
     ) -> list[ProviderFixtureOdds]:
         results, failure = await self._try_provider(
             self._primary, "primary (Odds-API.io)", sport, markets, regions
@@ -90,8 +95,8 @@ class PrioritizedOddsProvider(OddsProvider):
         *,
         sport: str,
         at: datetime,
-        markets: str = "1x2",
-        regions: str = "eu",
+        markets: Sequence[str] = ("h2h",),
+        regions: Sequence[str] = ("eu",),
     ) -> list[ProviderFixtureOdds]:
         results, failure = await self._try_provider_historical(
             self._primary, "primary (Odds-API.io)", sport, at, markets, regions
@@ -109,10 +114,36 @@ class PrioritizedOddsProvider(OddsProvider):
             self._fallback, "fallback (The Odds API)", sport, at, markets, regions
         )
         if fallback_failure is not None:
-            raise OddsProviderError(
-                f"All providers failed for historical odds (sport='{sport}')"
-            )
+            raise OddsProviderError(f"All providers failed for historical odds (sport='{sport}')")
         return fallback_results
+
+    async def get_odds_for_fixtures(
+        self,
+        *,
+        sport: str,
+        fixtures: Sequence[ProviderOddsTarget],
+        markets: Sequence[str] = ("h2h",),
+        regions: Sequence[str] = ("eu",),
+    ) -> list[ProviderFixtureOdds]:
+        """生产定向查询只走支持 multi 的主提供器，避免目录级回退请求。"""
+        try:
+            results = await self._primary.get_odds_for_fixtures(
+                sport=sport,
+                fixtures=fixtures,
+                markets=markets,
+                regions=regions,
+            )
+        except OddsRateLimitError:
+            self._errors["primary (Odds-API.io)"] = 1
+            raise
+        except OddsAuthError:
+            self._errors["primary (Odds-API.io)"] = 1
+            raise
+        except OddsProviderError:
+            self._errors["primary (Odds-API.io)"] = 1
+            raise
+        self._errors.clear()
+        return results
 
     # -- internal ----------------------------------------------------------
 
@@ -121,8 +152,8 @@ class PrioritizedOddsProvider(OddsProvider):
         provider: OddsProvider,
         label: str,
         sport: str,
-        markets: str,
-        regions: str,
+        markets: Sequence[str],
+        regions: Sequence[str],
     ) -> tuple[list[ProviderFixtureOdds], str | None]:
         """Attempt :meth:`get_odds` on *provider*. Returns ``(results, None)`` on
         success, or ``([], failure_reason)`` on failure."""
@@ -156,8 +187,8 @@ class PrioritizedOddsProvider(OddsProvider):
         label: str,
         sport: str,
         at: datetime,
-        markets: str,
-        regions: str,
+        markets: Sequence[str],
+        regions: Sequence[str],
     ) -> tuple[list[ProviderFixtureOdds], str | None]:
         """Same as :meth:`_try_provider` but for :meth:`get_historical_odds`."""
         try:

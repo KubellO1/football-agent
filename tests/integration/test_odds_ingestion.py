@@ -8,9 +8,9 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from typing import TYPE_CHECKING
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.entities.competition import Competition
 from app.models.entities.fixture import Fixture
@@ -27,6 +27,14 @@ from app.repositories.sqlalchemy.reference_repositories import (
     SqlAlchemyTeamRepository,
 )
 from app.services.odds_ingestion import OddsIngestionService
+from app.services.odds_matching import normalize_team_name
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.providers.schemas.odds import ProviderOddsTarget
 
 KICKOFF = datetime(2026, 7, 2, 18, 30, tzinfo=UTC)
 LAST_UPDATE = datetime(2026, 7, 2, 12, 0, tzinfo=UTC)
@@ -34,11 +42,41 @@ TARGET = date(2026, 7, 2)
 
 
 class FakeOddsProvider(OddsProvider):
-    def __init__(self, events: list[ProviderFixtureOdds]) -> None:
+    def __init__(
+        self,
+        events: list[ProviderFixtureOdds],
+        *,
+        filter_targets: bool = False,
+    ) -> None:
         self._events = events
+        self._filter_targets = filter_targets
+        self.requested_targets: list[ProviderOddsTarget] = []
 
     async def get_odds(self, *, sport, markets=("h2h",), regions=("eu",)):  # type: ignore[no-untyped-def]
         return self._events
+
+    async def get_odds_for_fixtures(
+        self,
+        *,
+        sport: str,
+        fixtures: Sequence[ProviderOddsTarget],
+        markets: Sequence[str] = ("h2h",),
+        regions: Sequence[str] = ("eu",),
+    ) -> list[ProviderFixtureOdds]:
+        del sport, markets, regions
+        self.requested_targets = list(fixtures)
+        if not self._filter_targets:
+            return self._events
+        pairs = {(target.home_team, target.away_team) for target in fixtures}
+        return [
+            event
+            for event in self._events
+            if (
+                normalize_team_name(event.home_team),
+                normalize_team_name(event.away_team),
+            )
+            in pairs
+        ]
 
 
 async def _insert_fixture(
@@ -143,6 +181,29 @@ async def test_odds_sync_is_idempotent(db_session: AsyncSession) -> None:
     assert second.events_matched == 1
     assert second.snapshots_created == 0
     assert second.snapshots_existing == 3
+
+
+@pytest.mark.integration
+async def test_odds_sync_queries_only_requested_database_fixtures(
+    db_session: AsyncSession,
+) -> None:
+    selected = await _insert_fixture(db_session, home="Alpha", away="Beta")
+    excluded = await _insert_fixture(db_session, home="Gamma", away="Delta")
+    provider = FakeOddsProvider(
+        [_event("Alpha", "Beta"), _event("Gamma", "Delta")],
+        filter_targets=True,
+    )
+
+    report = await _service(db_session, provider).sync_odds_today(
+        TARGET,
+        fixture_ids={selected.id},
+    )
+
+    assert [target.fixture_id for target in provider.requested_targets] == [selected.id]
+    assert report.events_fetched == 1
+    assert report.events_matched == 1
+    assert len(await SqlAlchemyOddsSnapshotRepository(db_session).list_by_fixture(selected.id)) == 3
+    assert len(await SqlAlchemyOddsSnapshotRepository(db_session).list_by_fixture(excluded.id)) == 0
 
 
 @pytest.mark.integration

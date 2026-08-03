@@ -9,22 +9,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from app.core.logging import get_logger
 from app.models.entities.bookmaker import Bookmaker
 from app.models.entities.odds_snapshot import OddsSnapshot
 from app.models.value_objects.markets import MarketType, Selection
 from app.models.value_objects.odds import Odds
-from app.providers.interfaces.odds_provider import OddsProvider
-from app.providers.schemas.odds import ProviderFixtureOdds
-from app.repositories.interfaces.fixture_repository import FixtureRepository
-from app.repositories.interfaces.odds_snapshot_repository import OddsSnapshotRepository
-from app.repositories.interfaces.reference import BookmakerRepository, TeamRepository
+from app.providers.schemas.odds import ProviderFixtureOdds, ProviderOddsTarget
 from app.schemas.odds_sync import HistoricalOddsBackfillReport, OddsSyncReport
 from app.services.odds_matching import (
     MatchCandidate,
@@ -33,6 +29,19 @@ from app.services.odds_matching import (
     normalize_team_name,
 )
 from app.services.team_aliases import accepted_names
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+    from uuid import UUID
+
+    from app.providers.interfaces.odds_provider import OddsProvider
+    from app.repositories.interfaces.fixture_repository import FixtureRepository
+    from app.repositories.interfaces.odds_snapshot_repository import OddsSnapshotRepository
+    from app.repositories.interfaces.reference import (
+        BookmakerRepository,
+        CompetitionRepository,
+        TeamRepository,
+    )
 
 logger = get_logger(__name__)
 
@@ -75,6 +84,7 @@ class OddsIngestionService:
         teams: TeamRepository,
         bookmakers: BookmakerRepository,
         odds_snapshots: OddsSnapshotRepository,
+        competitions: CompetitionRepository | None = None,
         sport_keys: list[str],
         regions: list[str],
         tolerance_minutes: int,
@@ -85,43 +95,55 @@ class OddsIngestionService:
         self._teams = teams
         self._bookmakers = bookmakers
         self._snapshots = odds_snapshots
+        self._competitions = competitions
         self._sport_keys = sport_keys
         self._regions = regions
         self._tolerance = timedelta(minutes=tolerance_minutes)
         self._alias_names = alias_names
 
-    async def sync_odds_today(self, on_date: date) -> OddsSyncReport:
+    async def sync_odds_today(
+        self,
+        on_date: date,
+        *,
+        fixture_ids: set[UUID] | None = None,
+    ) -> OddsSyncReport:
         """抓取并写入 ``on_date`` 当日的足球赔率快照，返回统计。可安全重复运行。"""
-        candidates = await self._build_candidates(on_date)
+        candidates = await self._build_candidates(on_date, fixture_ids=fixture_ids)
         counters = _Counters()
         unmatched_samples: list[str] = []
         ambiguous_samples: list[str] = []
         bookmaker_cache: dict[str, Bookmaker] = {}
         all_events: list[ProviderFixtureOdds] = []
 
-        for sport_key in self._sport_keys:
-            events = await self._odds.get_odds(
-                sport=sport_key, markets=("h2h",), regions=tuple(self._regions)
+        targets = [
+            ProviderOddsTarget(
+                fixture_id=candidate.fixture_id,
+                home_team=candidate.home_norm,
+                away_team=candidate.away_norm,
+                kickoff=candidate.kickoff,
             )
-            if events:
-                logger.info(
-                    "Odds API sport_key=%s returned %d events (candidates=%d)",
-                    sport_key, len(events), len(candidates),
-                )
-            else:
-                logger.info(
-                    "Odds API sport_key=%s returned 0 events (API empty/error or no data)",
-                    sport_key,
-                )
-            all_events.extend(events)
-            await self._process_events(
-                events,
-                candidates,
-                counters=counters,
-                unmatched_samples=unmatched_samples,
-                ambiguous_samples=ambiguous_samples,
-                bookmaker_cache=bookmaker_cache,
-            )
+            for candidate in candidates
+        ]
+        events = await self._odds.get_odds_for_fixtures(
+            sport="football",
+            fixtures=targets,
+            markets=("h2h",),
+            regions=tuple(self._regions),
+        )
+        logger.info(
+            "Targeted odds multi returned %d events (approved_candidates=%d)",
+            len(events),
+            len(candidates),
+        )
+        all_events.extend(events)
+        await self._process_events(
+            events,
+            candidates,
+            counters=counters,
+            unmatched_samples=unmatched_samples,
+            ambiguous_samples=ambiguous_samples,
+            bookmaker_cache=bookmaker_cache,
+        )
 
         primary_provider_hits = sum(1 for e in all_events if e.source == "odds-api.io")
         fallback_provider_hits = sum(1 for e in all_events if e.source == "the-odds-api")
@@ -135,7 +157,7 @@ class OddsIngestionService:
         else:
             source_label = "unknown"
 
-        provider_errors = getattr(self._odds, "pop_errors", lambda: {})()
+        provider_errors: dict[str, int] = getattr(self._odds, "pop_errors", lambda: {})()
         logger.info(
             "Odds sync %s: fetched=%d matched=%d unmatched=%d ambiguous=%d "
             "snapshots(created=%d existing=%d) outcomes_skipped=%d "
@@ -312,14 +334,47 @@ class OddsIngestionService:
             await self._ingest_event_odds(event, result.fixture_id, bookmaker_cache, counters)
 
     async def _build_candidates(
-        self, on_date: date, *, competition_id: UUID | None = None
+        self,
+        on_date: date,
+        *,
+        competition_id: UUID | None = None,
+        fixture_ids: set[UUID] | None = None,
     ) -> list[MatchCandidate]:
         start = datetime(on_date.year, on_date.month, on_date.day, tzinfo=UTC)
         end = start + timedelta(days=1)
         fixtures = await self._fixtures.list_by_kickoff_window(start, end)
+        if fixture_ids is not None:
+            fixtures = [fixture for fixture in fixtures if fixture.id in fixture_ids]
+        if on_date == datetime.now(UTC).date():
+            now = datetime.now(UTC)
+            pre_kickoff_end = now + timedelta(minutes=90)
+            fixtures = [f for f in fixtures if now <= f.kickoff <= pre_kickoff_end]
         if competition_id is not None:
             # 按赛事限定候选：赔率事件只能匹配到该赛事内的比赛（更保守）。
             fixtures = [f for f in fixtures if f.competition_id == competition_id]
+
+        if self._competitions is not None and fixtures:
+            from app.config.whitelist import get_whitelist
+
+            competition_ids = {f.competition_id for f in fixtures}
+            competitions = {
+                competition.id: competition
+                for competition in await self._competitions.list_by_ids(competition_ids)
+            }
+            whitelist = get_whitelist()
+            allowed_ids = set()
+            for competition in competitions.values():
+                league_id: int | None = None
+                if competition.external_id:
+                    with suppress(TypeError, ValueError):
+                        league_id = int(competition.external_id)
+                if whitelist.is_allowed(
+                    competition.name,
+                    league_id=league_id,
+                    country=competition.country,
+                ):
+                    allowed_ids.add(competition.id)
+            fixtures = [f for f in fixtures if f.competition_id in allowed_ids]
 
         team_ids = {f.home_team_id for f in fixtures} | {f.away_team_id for f in fixtures}
         team_names = {t.id: t.name for t in await self._teams.list_by_ids(team_ids)}

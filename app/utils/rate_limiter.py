@@ -14,14 +14,15 @@ Design decisions:
 from __future__ import annotations
 
 import asyncio
-import math
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.core.logging import get_logger
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from app.database.redis import RedisConnection
 
 logger = get_logger(__name__)
@@ -33,9 +34,12 @@ _BUDGET_PER_HOUR = 100
 @dataclass
 class RateLimitBudget:
     """Snapshot of current rate-limit state."""
+
     remaining: int
     capacity: int
     reset_at: float
+    daily_remaining: int
+    daily_capacity: int
 
 
 class TokenBucketRateLimiter:
@@ -54,49 +58,96 @@ class TokenBucketRateLimiter:
         self,
         budget: int = _BUDGET_PER_HOUR,
         *,
-        redis: "RedisConnection | None" = None,
+        daily_budget: int = 500,
+        redis: RedisConnection | None = None,
         redis_prefix: str = "odds:rate:",
     ) -> None:
         self._budget = budget
-        self._tokens = float(budget)
-        self._refill_interval = 3600.0  # 1 hour in seconds
-        self._last_refill = time.monotonic()
+        self._daily_budget = daily_budget
+        now = time.time()
+        self._hour_window = int(now // 3600)
+        self._day_window = int(now // 86400)
+        self._hourly_used = 0
+        self._daily_used = 0
+        self._server_remaining: int | None = None
+        self._server_reset_at: float | None = None
         self._lock = asyncio.Lock()
+        self._hydrate_lock = asyncio.Lock()
         self._redis = redis
+        self._hydrated = redis is None
         self._redis_prefix = redis_prefix
 
     # -- public ------------------------------------------------------------
 
     async def acquire(self, tokens: int = 1) -> bool:
         """Try to acquire *tokens* tokens. Returns ``True`` on success."""
+        await self._ensure_hydrated()
         async with self._lock:
             self._refill()
-            if self._tokens >= tokens:
-                self._tokens -= tokens
+            hourly_remaining = self._budget - self._hourly_used
+            daily_remaining = self._daily_budget - self._daily_used
+            if self._server_remaining is not None:
+                hourly_remaining = min(hourly_remaining, self._server_remaining)
+            if min(hourly_remaining, daily_remaining) >= tokens:
+                self._hourly_used += tokens
+                self._daily_used += tokens
+                if self._server_remaining is not None:
+                    self._server_remaining = max(0, self._server_remaining - tokens)
                 await self._sync_to_redis()
                 return True
             return False
 
     async def remaining(self) -> int:
         """Return current token count (thread-safe snapshot)."""
+        await self._ensure_hydrated()
         async with self._lock:
             self._refill()
-            return int(self._tokens)
+            remaining = self._budget - self._hourly_used
+            if self._server_remaining is not None:
+                remaining = min(remaining, self._server_remaining)
+            return max(0, remaining)
 
     async def reset_at(self) -> float:
         """Unix timestamp when the bucket next refills to capacity."""
+        await self._ensure_hydrated()
         async with self._lock:
-            return self._last_refill + self._refill_interval
+            if self._server_reset_at is not None:
+                return self._server_reset_at
+            return float((self._hour_window + 1) * 3600)
 
     async def budget(self) -> RateLimitBudget:
         """Get full budget snapshot."""
+        await self._ensure_hydrated()
         async with self._lock:
             self._refill()
+            remaining = self._budget - self._hourly_used
+            if self._server_remaining is not None:
+                remaining = min(remaining, self._server_remaining)
             return RateLimitBudget(
-                remaining=int(self._tokens),
+                remaining=max(0, remaining),
                 capacity=self._budget,
-                reset_at=self._last_refill + self._refill_interval,
+                reset_at=(
+                    self._server_reset_at
+                    if self._server_reset_at is not None
+                    else float((self._hour_window + 1) * 3600)
+                ),
+                daily_remaining=max(0, self._daily_budget - self._daily_used),
+                daily_capacity=self._daily_budget,
             )
+
+    async def update_from_headers(self, headers: Mapping[str, str]) -> None:
+        """吸收供应商真实配额头，使用更保守的剩余额度。"""
+        async with self._lock:
+            limit = self._parse_int(headers.get("x-ratelimit-limit"))
+            remaining = self._parse_int(headers.get("x-ratelimit-remaining"))
+            reset_at = self._parse_reset(headers.get("x-ratelimit-reset"))
+            if limit is not None:
+                self._budget = min(self._budget, limit)
+            if remaining is not None:
+                self._server_remaining = max(0, remaining)
+            if reset_at is not None:
+                self._server_reset_at = reset_at
+            await self._sync_to_redis()
 
     async def force_reserve(self, tokens: int) -> None:
         """Reserve tokens for near-kickoff events (called before batch fetch).
@@ -105,11 +156,11 @@ class TokenBucketRateLimiter:
         that the main batch must not consume. Call :meth:`release_reserve` after
         near-kickoff events are processed.
         """
+        await self._ensure_hydrated()
         async with self._lock:
             self._refill()
-            self._tokens -= tokens
-            if self._tokens < 0:
-                self._tokens = 0
+            self._hourly_used = min(self._budget, self._hourly_used + tokens)
+            self._daily_used = min(self._daily_budget, self._daily_used + tokens)
             await self._sync_to_redis()
 
     async def consume_reserve(self, used: int) -> None:
@@ -117,71 +168,128 @@ class TokenBucketRateLimiter:
 
         Called after near-kickoff processing completes.
         """
+        await self._ensure_hydrated()
         async with self._lock:
-            self._tokens += used
-            if self._tokens > self._budget:
-                self._tokens = self._budget
+            self._hourly_used = max(0, self._hourly_used - used)
+            self._daily_used = max(0, self._daily_used - used)
             await self._sync_to_redis()
 
     # -- internal ----------------------------------------------------------
 
     def _refill(self) -> None:
         """Refill tokens based on elapsed time (must be called under lock)."""
-        now = time.monotonic()
-        elapsed = now - self._last_refill
-        if elapsed <= 0:
-            return
-        new_tokens = (elapsed / self._refill_interval) * self._budget
-        self._tokens = min(self._budget, self._tokens + new_tokens)
-        self._last_refill = now
+        now = time.time()
+        hour_window = int(now // 3600)
+        day_window = int(now // 86400)
+        if hour_window != self._hour_window:
+            self._hour_window = hour_window
+            self._hourly_used = 0
+            self._server_remaining = None
+            self._server_reset_at = None
+        if day_window != self._day_window:
+            self._day_window = day_window
+            self._daily_used = 0
 
     async def _sync_to_redis(self) -> None:
         """Push current token state to Redis (best-effort)."""
         if self._redis is None:
             return
         try:
-            ttl = int(math.ceil(self._refill_interval))
+            ttl = 86400
             await self._redis.cache_set(
-                f"{self._redis_prefix}tokens",
-                str(self._tokens),
+                f"{self._redis_prefix}hourly_used",
+                str(self._hourly_used),
                 ttl=ttl,
             )
             await self._redis.cache_set(
-                f"{self._redis_prefix}last_refill",
-                str(self._last_refill),
+                f"{self._redis_prefix}hour_window",
+                str(self._hour_window),
+                ttl=ttl,
+            )
+            await self._redis.cache_set(
+                f"{self._redis_prefix}daily_used",
+                str(self._daily_used),
+                ttl=ttl,
+            )
+            await self._redis.cache_set(
+                f"{self._redis_prefix}day_window",
+                str(self._day_window),
                 ttl=ttl,
             )
         except Exception:
             logger.debug("Rate limiter Redis sync failed (non-critical)", exc_info=True)
 
-    async def hydra_from_redis(self) -> None:
+    async def _ensure_hydrated(self) -> None:
+        if self._hydrated:
+            return
+        async with self._hydrate_lock:
+            if not self._hydrated:
+                await self.hydrate_from_redis()
+
+    async def hydrate_from_redis(self) -> None:
         """Restore token state from Redis after worker restart."""
         if self._redis is None:
+            self._hydrated = True
             return
         try:
-            tokens_raw = await self._redis.cache_get(f"{self._redis_prefix}tokens")
-            refill_raw = await self._redis.cache_get(f"{self._redis_prefix}last_refill")
-            if tokens_raw is not None:
+            hourly_raw = await self._redis.cache_get(f"{self._redis_prefix}hourly_used")
+            hour_window_raw = await self._redis.cache_get(f"{self._redis_prefix}hour_window")
+            daily_raw = await self._redis.cache_get(f"{self._redis_prefix}daily_used")
+            day_window_raw = await self._redis.cache_get(f"{self._redis_prefix}day_window")
+            if hourly_raw is not None or daily_raw is not None:
                 async with self._lock:
-                    self._tokens = float(tokens_raw)
-                    if refill_raw is not None:
-                        self._last_refill = float(refill_raw)
-                    # Don't overfill from stale Redis data
+                    current_hour_window = int(time.time() // 3600)
+                    current_day_window = int(time.time() // 86400)
+                    if (
+                        hourly_raw is not None
+                        and hour_window_raw is not None
+                        and int(float(hour_window_raw)) == current_hour_window
+                    ):
+                        self._hourly_used = max(0, int(float(hourly_raw)))
+                    if (
+                        daily_raw is not None
+                        and day_window_raw is not None
+                        and int(float(day_window_raw)) == current_day_window
+                    ):
+                        self._daily_used = max(0, int(float(daily_raw)))
                     self._refill()
         except Exception:
             logger.debug("Rate limiter Redis hydrate failed", exc_info=True)
+        finally:
+            self._hydrated = True
+
+    async def hydra_from_redis(self) -> None:
+        """向后兼容旧方法名。"""
+        await self.hydrate_from_redis()
+
+    @staticmethod
+    def _parse_int(value: str | None) -> int | None:
+        try:
+            return int(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _parse_reset(value: str | None) -> float | None:
+        if value is None:
+            return None
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return None
+        now = time.time()
+        return numeric if numeric > now else now + max(0.0, numeric)
 
 
-def sort_events_by_kickoff(events: list) -> list:
+def sort_events_by_kickoff(events: list[Any]) -> list[Any]:
     """Sort events by kickoff time ascending so near-kickoff events get priority.
 
     Events with ``None`` kickoff are pushed to the end.
     """
-    from app.providers.impl.odds_api_io_provider import _EventInfo
 
-    def _sort_key(evt: _EventInfo) -> float:
+    def _sort_key(evt: Any) -> float:
         if evt.date is None:
             return float("inf")
-        return evt.date.timestamp()
+        return float(evt.date.timestamp())
 
     return sorted(events, key=_sort_key)

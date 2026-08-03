@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr, computed_field
+from pydantic import Field, SecretStr, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     # Odds-API.io (primary bookmaker odds provider).
     odds_api_io_api_key: str = ""
     odds_api_io_base_url: str = "https://api.odds-api.io/v3"
+    odds_api_io_plan: Literal["free", "solo", "starter"] = "free"
+    # Free 套餐仅允许 Bet365；升级套餐后可通过环境变量显式增加博彩公司。
+    odds_api_io_bookmakers: list[str] = ["Bet365"]
+    odds_api_io_hourly_request_limit: int = Field(default=100, ge=1, le=100)
+    odds_api_io_daily_request_limit: int = Field(default=500, ge=1, le=500)
+    odds_api_io_run_request_budget: int = Field(default=10, ge=1, le=100)
     # WeatherAPI (venue weather / sports events).
     weatherapi_key: str = ""
     # DEPRECATED: 2026-07-17 - Sportmonks removed from production. No consumer modules.
@@ -110,6 +116,13 @@ class Settings(BaseSettings):
     # --- Scheduled daily worker ---
     worker_schedule_time: str = "06:00"  # daily run time, HH:MM (UTC)
     worker_run_on_start: bool = False  # also run once immediately on startup
+
+    @model_validator(mode="after")
+    def validate_odds_api_io_bookmaker_access(self) -> Settings:
+        """Free 套餐只能请求 Bet365，升级套餐可由配置显式扩展。"""
+        if self.odds_api_io_plan == "free" and self.odds_api_io_bookmakers != ["Bet365"]:
+            raise ValueError("Odds-API.io Free plan only permits the Bet365 bookmaker")
+        return self
 
     @computed_field  # type: ignore[prop-decorator]
     @property

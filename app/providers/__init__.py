@@ -65,14 +65,20 @@ def build_odds_provider(
     """Wire the odds providers: Odds-API.io (primary) → The Odds API (fallback)."""
     global rate_limiter
     if rate_limiter is None:
-        rate_limiter = TokenBucketRateLimiter(budget=100, redis=redis)
+        rate_limiter = TokenBucketRateLimiter(
+            budget=settings.odds_api_io_hourly_request_limit,
+            daily_budget=settings.odds_api_io_daily_request_limit,
+            redis=redis,
+        )
     primary = OddsApiIoProvider(
         api_key=settings.odds_api_io_api_key,
         base_url=settings.odds_api_io_base_url,
         timeout_seconds=settings.provider_timeout_seconds,
         max_retries=settings.provider_max_retries,
         backoff_base_seconds=settings.provider_backoff_base_seconds,
+        bookmakers=settings.odds_api_io_bookmakers,
         rate_limiter=rate_limiter,
+        run_request_budget=settings.odds_api_io_run_request_budget,
         redis=redis,
         cache_ttl=300,
     )

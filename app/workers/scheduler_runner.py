@@ -21,6 +21,8 @@ from pathlib import Path
 from typing import cast
 from zoneinfo import ZoneInfo
 
+from app.core.logging import RedactingFormatter, configure_logging
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 LOCK_DIR = PROJECT_ROOT / ".lock"
 HEARTBEAT_FILE = PROJECT_ROOT / "app" / "state" / "heartbeat.json"
@@ -53,7 +55,7 @@ def _passes_pre_kickoff_review_thresholds(
 # ---------------------------------------------------------------------------
 # Logging setup — rotating file logs per command
 # ---------------------------------------------------------------------------
-_LOG_FORMAT = logging.Formatter(
+_LOG_FORMAT = RedactingFormatter(
     "%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
@@ -356,6 +358,7 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
     from app.core.service_factory import (
         build_committee_review_service,
         build_fixture_analysis_service,
+        build_odds_ingestion_service,
     )
     from app.repositories.sqlalchemy.decision_log_repository import (
         SqlAlchemyDecisionLogRepository,
@@ -409,6 +412,29 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
             processed = 0
             skipped_unsupported = 0
             checkpoint_resolver = PreKickoffCheckpointResolver()
+
+            due_fixture_ids = {
+                fixture.id
+                for fixture in fixtures
+                if checkpoint_resolver.resolve(
+                    kickoff_time=fixture.kickoff,
+                    current_time=now,
+                    completed=completed_checkpoints(fixture.id, triggers.keys()),
+                )
+                is not None
+            }
+            if due_fixture_ids:
+                odds_report = await build_odds_ingestion_service(
+                    container,
+                    session,
+                    sport_keys=["football"],
+                ).sync_odds_today(now.date(), fixture_ids=due_fixture_ids)
+                log.info(
+                    "Pre-kickoff targeted odds refresh: fixtures=%d matched=%d snapshots=%d",
+                    len(due_fixture_ids),
+                    odds_report.events_matched,
+                    odds_report.snapshots_created,
+                )
 
             for fixture in fixtures:
                 checkpoint = checkpoint_resolver.resolve(
@@ -581,7 +607,7 @@ async def _run_provider_health(log: logging.Logger) -> None:
     else:
         log.warning("provider_health.json not found at %s", health_path)
 
-    summary = f"PG={'OK' if pg_ok else 'FAILED'} " f"providers={providers_ok}/{providers_total}"
+    summary = f"PG={'OK' if pg_ok else 'FAILED'} providers={providers_ok}/{providers_total}"
     if providers_ok >= 5:
         _append_run_timeline("provider_health", "success", summary)
     else:
@@ -1112,6 +1138,7 @@ def main() -> None:
 
     sys.path.insert(0, str(PROJECT_ROOT))
     _ensure_dirs()
+    configure_logging()
     log = _get_logger(command_name)
 
     try:

@@ -78,7 +78,7 @@ class Container:
 
         fixtures_provider = build_fixtures_provider(self._settings)
         fixture_lineup_provider = build_fixture_lineup_provider(self._settings)
-        odds_provider = build_odds_provider(self._settings)
+        odds_provider = build_odds_provider(self._settings, self._redis)
         weather_provider = build_weather_provider(self._settings)
         # sportmonks_provider = build_sportmonks_provider(self._settings)  # DEPRECATED: 2026-07-17
         injury_provider = build_injury_provider(self._settings)
