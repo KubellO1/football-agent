@@ -1,7 +1,7 @@
-"""Token-bucket rate limiter for Odds-API.io (100 requests/hour).
+"""Token-bucket rate limiter for Odds-API.io.
 
 Design decisions:
-- Token bucket: fills 100 tokens every hour, 1 token = 1 API request.
+- Token bucket: fills to the configured capacity every hour, 1 token = 1 API request.
 - Atomic: all state changes are guarded by asyncio.Lock — safe for concurrent use.
 - Near-kickoff priority: events closer to kickoff are sorted first before
   acquiring tokens, so close matches always get quota priority.
@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from app.core.logging import get_logger
@@ -38,12 +39,12 @@ class RateLimitBudget:
     remaining: int
     capacity: int
     reset_at: float
-    daily_remaining: int
-    daily_capacity: int
+    daily_remaining: int | None
+    daily_capacity: int | None
 
 
 class TokenBucketRateLimiter:
-    """Token bucket enforcing 100 requests/hour for Odds-API.io.
+    """Token bucket enforcing configured and provider-reported request limits.
 
     Usage::
 
@@ -58,12 +59,14 @@ class TokenBucketRateLimiter:
         self,
         budget: int = _BUDGET_PER_HOUR,
         *,
-        daily_budget: int = 500,
+        daily_budget: int | None = 500,
+        dynamic_server_limit: bool = False,
         redis: RedisConnection | None = None,
         redis_prefix: str = "odds:rate:",
     ) -> None:
         self._budget = budget
-        self._daily_budget = daily_budget
+        self._daily_budget = daily_budget if daily_budget and daily_budget > 0 else None
+        self._dynamic_server_limit = dynamic_server_limit
         now = time.time()
         self._hour_window = int(now // 3600)
         self._day_window = int(now // 86400)
@@ -85,10 +88,12 @@ class TokenBucketRateLimiter:
         async with self._lock:
             self._refill()
             hourly_remaining = self._budget - self._hourly_used
-            daily_remaining = self._daily_budget - self._daily_used
             if self._server_remaining is not None:
                 hourly_remaining = min(hourly_remaining, self._server_remaining)
-            if min(hourly_remaining, daily_remaining) >= tokens:
+            daily_allowed = (
+                self._daily_budget is None or self._daily_budget - self._daily_used >= tokens
+            )
+            if hourly_remaining >= tokens and daily_allowed:
                 self._hourly_used += tokens
                 self._daily_used += tokens
                 if self._server_remaining is not None:
@@ -131,7 +136,11 @@ class TokenBucketRateLimiter:
                     if self._server_reset_at is not None
                     else float((self._hour_window + 1) * 3600)
                 ),
-                daily_remaining=max(0, self._daily_budget - self._daily_used),
+                daily_remaining=(
+                    None
+                    if self._daily_budget is None
+                    else max(0, self._daily_budget - self._daily_used)
+                ),
                 daily_capacity=self._daily_budget,
             )
 
@@ -142,7 +151,7 @@ class TokenBucketRateLimiter:
             remaining = self._parse_int(headers.get("x-ratelimit-remaining"))
             reset_at = self._parse_reset(headers.get("x-ratelimit-reset"))
             if limit is not None:
-                self._budget = min(self._budget, limit)
+                self._budget = limit if self._dynamic_server_limit else min(self._budget, limit)
             if remaining is not None:
                 self._server_remaining = max(0, remaining)
             if reset_at is not None:
@@ -160,7 +169,8 @@ class TokenBucketRateLimiter:
         async with self._lock:
             self._refill()
             self._hourly_used = min(self._budget, self._hourly_used + tokens)
-            self._daily_used = min(self._daily_budget, self._daily_used + tokens)
+            if self._daily_budget is not None:
+                self._daily_used = min(self._daily_budget, self._daily_used + tokens)
             await self._sync_to_redis()
 
     async def consume_reserve(self, used: int) -> None:
@@ -181,11 +191,27 @@ class TokenBucketRateLimiter:
         now = time.time()
         hour_window = int(now // 3600)
         day_window = int(now // 86400)
-        if hour_window != self._hour_window:
-            self._hour_window = hour_window
+
+        server_window_active = (
+            self._dynamic_server_limit
+            and self._server_reset_at is not None
+            and now < self._server_reset_at
+        )
+        if (
+            self._dynamic_server_limit
+            and self._server_reset_at is not None
+            and now >= self._server_reset_at
+        ):
             self._hourly_used = 0
             self._server_remaining = None
             self._server_reset_at = None
+
+        if hour_window != self._hour_window:
+            self._hour_window = hour_window
+            if not server_window_active:
+                self._hourly_used = 0
+                self._server_remaining = None
+                self._server_reset_at = None
         if day_window != self._day_window:
             self._day_window = day_window
             self._daily_used = 0
@@ -273,12 +299,16 @@ class TokenBucketRateLimiter:
     def _parse_reset(value: str | None) -> float | None:
         if value is None:
             return None
+        now = time.time()
         try:
             numeric = float(value)
+            return numeric if numeric > now else now + max(0.0, numeric)
         except (TypeError, ValueError):
-            return None
-        now = time.time()
-        return numeric if numeric > now else now + max(0.0, numeric)
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                return parsed.astimezone(UTC).timestamp()
+            except (TypeError, ValueError, OverflowError):
+                return None
 
 
 def sort_events_by_kickoff(events: list[Any]) -> list[Any]:

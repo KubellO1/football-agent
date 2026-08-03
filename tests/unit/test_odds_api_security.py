@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import logging
 import time
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -67,7 +68,14 @@ def test_scheduler_file_formatters_are_redacting() -> None:
 
 
 def test_free_odds_api_defaults_are_frozen() -> None:
-    settings = Settings(_env_file=None)
+    settings = Settings(
+        _env_file=None,
+        odds_api_io_plan="free",
+        odds_api_io_bookmakers=["Bet365"],
+        odds_api_io_hourly_request_limit=100,
+        odds_api_io_daily_request_limit=500,
+        odds_api_io_run_request_budget=10,
+    )
 
     assert settings.odds_api_io_plan == "free"
     assert settings.odds_api_io_bookmakers == ["Bet365"]
@@ -95,6 +103,19 @@ def test_solo_plan_can_enable_additional_bookmaker() -> None:
     assert settings.odds_api_io_bookmakers == ["Bet365", "10BET"]
 
 
+def test_paid_profile_accepts_verified_runtime_limits() -> None:
+    settings = Settings(
+        _env_file=None,
+        odds_api_io_plan="paid",
+        odds_api_io_bookmakers=["Bet365"],
+        odds_api_io_hourly_request_limit=10_000,
+        odds_api_io_daily_request_limit=0,
+    )
+
+    assert settings.odds_api_io_hourly_request_limit == 10_000
+    assert settings.odds_api_io_daily_request_limit == 0
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
@@ -104,8 +125,16 @@ def test_solo_plan_can_enable_additional_bookmaker() -> None:
     ],
 )
 def test_free_limits_cannot_be_configured_above_contract(field: str, value: int) -> None:
+    values: dict[str, object] = {
+        "odds_api_io_plan": "free",
+        "odds_api_io_bookmakers": ["Bet365"],
+        "odds_api_io_hourly_request_limit": 100,
+        "odds_api_io_daily_request_limit": 500,
+        "odds_api_io_run_request_budget": 10,
+    }
+    values[field] = value
     with pytest.raises(ValidationError):
-        Settings(_env_file=None, **{field: value})
+        Settings(_env_file=None, **values)  # type: ignore[arg-type]
 
 
 @pytest.mark.anyio
@@ -136,6 +165,59 @@ async def test_provider_headers_reduce_local_remaining_budget() -> None:
     assert await limiter.remaining() == 1
     assert await limiter.acquire()
     assert not await limiter.acquire()
+
+
+@pytest.mark.anyio
+async def test_paid_rate_limiter_adopts_server_capacity_and_has_no_daily_cap() -> None:
+    limiter = TokenBucketRateLimiter(
+        budget=1_000,
+        daily_budget=0,
+        dynamic_server_limit=True,
+    )
+
+    await limiter.update_from_headers(
+        {
+            "x-ratelimit-limit": "10000",
+            "x-ratelimit-remaining": "9999",
+            "x-ratelimit-reset": "2026-08-03T18:28:52Z",
+        }
+    )
+
+    budget = await limiter.budget()
+    assert budget.capacity == 10_000
+    assert budget.remaining == 9_999
+    assert budget.daily_capacity is None
+    assert budget.daily_remaining is None
+    assert budget.reset_at == pytest.approx(
+        datetime(2026, 8, 3, 18, 28, 52, tzinfo=UTC).timestamp()
+    )
+
+
+@pytest.mark.anyio
+async def test_paid_rate_limiter_honours_non_hour_aligned_server_reset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    before_reset = datetime(2026, 8, 3, 18, 20, tzinfo=UTC).timestamp()
+    reset_at = datetime(2026, 8, 3, 18, 28, 52, tzinfo=UTC).timestamp()
+    limiter = TokenBucketRateLimiter(
+        budget=10_000,
+        daily_budget=0,
+        dynamic_server_limit=True,
+    )
+    limiter._hour_window = int(before_reset // 3600)
+    monkeypatch.setattr(time, "time", lambda: before_reset)
+    await limiter.update_from_headers(
+        {
+            "x-ratelimit-limit": "10000",
+            "x-ratelimit-remaining": "0",
+            "x-ratelimit-reset": "2026-08-03T18:28:52Z",
+        }
+    )
+
+    assert not await limiter.acquire()
+
+    monkeypatch.setattr(time, "time", lambda: reset_at + 1)
+    assert await limiter.acquire()
 
 
 @pytest.mark.anyio

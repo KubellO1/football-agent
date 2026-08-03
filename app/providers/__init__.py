@@ -68,6 +68,7 @@ def build_odds_provider(
         rate_limiter = TokenBucketRateLimiter(
             budget=settings.odds_api_io_hourly_request_limit,
             daily_budget=settings.odds_api_io_daily_request_limit,
+            dynamic_server_limit=settings.odds_api_io_plan != "free",
             redis=redis,
         )
     primary = OddsApiIoProvider(

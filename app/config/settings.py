@@ -67,11 +67,13 @@ class Settings(BaseSettings):
     # Odds-API.io (primary bookmaker odds provider).
     odds_api_io_api_key: str = ""
     odds_api_io_base_url: str = "https://api.odds-api.io/v3"
-    odds_api_io_plan: Literal["free", "solo", "starter"] = "free"
+    odds_api_io_plan: Literal["free", "paid", "solo", "starter", "growth", "pro"] = "free"
     # Free 套餐仅允许 Bet365；升级套餐后可通过环境变量显式增加博彩公司。
     odds_api_io_bookmakers: list[str] = ["Bet365"]
-    odds_api_io_hourly_request_limit: int = Field(default=100, ge=1, le=100)
-    odds_api_io_daily_request_limit: int = Field(default=500, ge=1, le=500)
+    # Paid 套餐以此值作为安全启动上限，首个响应后由供应商限流头动态校准。
+    odds_api_io_hourly_request_limit: int = Field(default=100, ge=1, le=100_000)
+    # 0 表示供应商未声明每日限额；小时限额与单次运行预算仍然强制生效。
+    odds_api_io_daily_request_limit: int = Field(default=500, ge=0, le=2_400_000)
     odds_api_io_run_request_budget: int = Field(default=10, ge=1, le=100)
     # WeatherAPI (venue weather / sports events).
     weatherapi_key: str = ""
@@ -120,8 +122,13 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_odds_api_io_bookmaker_access(self) -> Settings:
         """Free 套餐只能请求 Bet365，升级套餐可由配置显式扩展。"""
-        if self.odds_api_io_plan == "free" and self.odds_api_io_bookmakers != ["Bet365"]:
-            raise ValueError("Odds-API.io Free plan only permits the Bet365 bookmaker")
+        if self.odds_api_io_plan == "free":
+            if self.odds_api_io_bookmakers != ["Bet365"]:
+                raise ValueError("Odds-API.io Free plan only permits the Bet365 bookmaker")
+            if self.odds_api_io_hourly_request_limit != 100:
+                raise ValueError("Odds-API.io Free plan hourly limit must remain 100")
+            if self.odds_api_io_daily_request_limit != 500:
+                raise ValueError("Odds-API.io Free plan daily limit must remain 500")
         return self
 
     @computed_field  # type: ignore[prop-decorator]
