@@ -191,6 +191,7 @@ IngestionServiceDep = Annotated[IngestionService, Depends(get_ingestion_service)
 
 
 def get_odds_ingestion_service(
+    competitions: CompetitionRepositoryDep,
     teams: TeamRepositoryDep,
     fixtures: FixtureRepositoryDep,
     bookmakers: BookmakerRepositoryDep,
@@ -204,6 +205,7 @@ def get_odds_ingestion_service(
         teams=teams,
         bookmakers=bookmakers,
         odds_snapshots=odds_snapshots,
+        competitions=competitions,
         sport_keys=settings.odds_sport_keys,
         regions=settings.odds_regions,
         tolerance_minutes=settings.odds_match_tolerance_minutes,

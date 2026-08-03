@@ -11,6 +11,8 @@ live in the concrete subclasses.
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
@@ -54,6 +56,41 @@ class BaseHTTPProvider:
         """Exponential backoff for a zero-based attempt index."""
         return self._backoff_base * (2.0**attempt)
 
+    async def _observe_response(self, response: httpx.Response) -> None:
+        """允许具体提供器读取响应头；默认不执行任何操作。"""
+
+    @staticmethod
+    def _rate_limit_delay(response: httpx.Response) -> float | None:
+        """从标准或供应商响应头计算真实限流等待秒数。"""
+        now = datetime.now(UTC)
+        retry_after = response.headers.get("Retry-After")
+        if retry_after:
+            try:
+                return max(0.0, float(retry_after))
+            except ValueError:
+                try:
+                    parsed = parsedate_to_datetime(retry_after)
+                    return max(0.0, (parsed.astimezone(UTC) - now).total_seconds())
+                except (TypeError, ValueError, OverflowError):
+                    pass
+
+        reset = response.headers.get("x-ratelimit-reset")
+        if not reset:
+            return None
+        try:
+            numeric = float(reset)
+            if numeric > now.timestamp():
+                return max(0.0, numeric - now.timestamp())
+            if numeric >= 0:
+                return numeric
+        except ValueError:
+            try:
+                parsed = datetime.fromisoformat(reset.replace("Z", "+00:00"))
+                return max(0.0, (parsed.astimezone(UTC) - now).total_seconds())
+            except (TypeError, ValueError, OverflowError):
+                return None
+        return None
+
     async def _get_json(
         self,
         path: str,
@@ -68,9 +105,12 @@ class BaseHTTPProvider:
         """
         # Total attempts = 1 initial + max_retries retries.
         last_error: Exception | None = None
+        last_status: int | None = None
+        retry_delay: float | None = None
         for attempt in range(self._max_retries + 1):
             if attempt > 0:
-                delay = self._backoff_delay(attempt - 1)
+                delay = retry_delay if retry_delay is not None else self._backoff_delay(attempt - 1)
+                retry_delay = None
                 logger.warning(
                     "Provider retry %d/%d for %s after %.2fs",
                     attempt,
@@ -87,13 +127,34 @@ class BaseHTTPProvider:
                 logger.warning("Provider transport error for %s: %s", path, exc)
                 continue
 
+            await self._observe_response(response)
+
             if response.status_code in _RETRYABLE_STATUSES:
+                last_status = response.status_code
                 last_error = httpx.HTTPStatusError(
                     f"retryable status {response.status_code}",
                     request=response.request,
                     response=response,
                 )
-                logger.warning("Provider transient status %d for %s", response.status_code, path)
+                if response.status_code == 429:
+                    retry_delay = self._rate_limit_delay(response)
+                    if retry_delay is None or attempt >= self._max_retries:
+                        logger.warning(
+                            "Provider rate limit status 429 for %s without retryable reset",
+                            path,
+                        )
+                        break
+                    logger.warning(
+                        "Provider rate limit status 429 for %s; waiting %.2fs until reset",
+                        path,
+                        retry_delay,
+                    )
+                else:
+                    logger.warning(
+                        "Provider transient status %d for %s",
+                        response.status_code,
+                        path,
+                    )
                 continue
 
             if response.is_error:  # non-retryable 4xx (bad key, bad request, ...)
@@ -108,22 +169,22 @@ class BaseHTTPProvider:
                 if response.status_code == 401:
                     x_rem = response.headers.get("x-requests-remaining")
                     if x_rem is not None and str(x_rem) == "0":
-                        detail = f"QUOTA_EXHAUSTED (x-requests-remaining=0, status 401)"
+                        detail = "QUOTA_EXHAUSTED (x-requests-remaining=0, status 401)"
                     else:
                         body = (response.text or "").lower()
                         if any(kw in body for kw in ("out_of_usage", "quota", "usage limit")):
-                            detail = f"QUOTA_EXHAUSTED (body indicates quota, status 401)"
+                            detail = "QUOTA_EXHAUSTED (body indicates quota, status 401)"
                         else:
-                            detail = f"INVALID_API_KEY (status 401)"
-                raise ExternalServiceError(
-                    f"provider request to {path} {detail}"
-                )
+                            detail = "INVALID_API_KEY (status 401)"
+                raise ExternalServiceError(f"provider request to {path} {detail}")
 
             try:
                 return response.json()
             except ValueError as exc:  # malformed JSON body
                 raise ExternalServiceError(f"provider returned invalid JSON for {path}") from exc
 
+        status_detail = f" with status {last_status}" if last_status is not None else ""
         raise ExternalServiceError(
-            f"provider request to {path} failed after {self._max_retries + 1} attempts"
+            f"provider request to {path} failed{status_detail} "
+            f"after {self._max_retries + 1} attempts"
         ) from last_error

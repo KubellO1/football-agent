@@ -260,6 +260,7 @@ def build_odds_ingestion_service(
         teams=SqlAlchemyTeamRepository(session),
         bookmakers=SqlAlchemyBookmakerRepository(session),
         odds_snapshots=SqlAlchemyOddsSnapshotRepository(session),
+        competitions=SqlAlchemyCompetitionRepository(session),
         sport_keys=used_keys,
         regions=s.odds_regions,
         tolerance_minutes=s.odds_match_tolerance_minutes,

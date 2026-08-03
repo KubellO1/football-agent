@@ -7,27 +7,41 @@ parameter.
 
 API flow (two-step):
 1. ``GET /events?sport=football`` — fetch all events (league, teams, kickoff).
-2. ``GET /odds?eventId=<id>&bookmakers=<list>`` — fetch odds per event.
+2. ``GET /odds/multi?eventIds=<ids>&bookmakers=<list>`` — fetch up to ten mapped events.
 
-Bookmaker names are **case-sensitive** (e.g. ``10BET`` not ``10bet``).
+Bookmaker names are **case-sensitive** (e.g. ``Bet365``).
 """
 
 from __future__ import annotations
 
-import asyncio
-from collections.abc import Sequence
-from datetime import UTC, datetime
-from typing import Any
-
-import httpx
+from contextlib import suppress
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, Any
 
 from app.core.exceptions import ExternalServiceError
 from app.core.logging import get_logger
-from app.database.redis import RedisConnection
 from app.providers.base import BaseHTTPProvider
 from app.providers.interfaces.odds_provider import OddsProvider
-from app.providers.schemas.odds import BookmakerMarket, OddsOutcome, ProviderFixtureOdds
+from app.providers.schemas.odds import (
+    BookmakerMarket,
+    OddsOutcome,
+    ProviderFixtureOdds,
+    ProviderOddsTarget,
+)
+from app.services.odds_matching import (
+    MatchCandidate,
+    MatchOutcome,
+    match_event,
+    normalize_team_name,
+)
 from app.utils.rate_limiter import TokenBucketRateLimiter, sort_events_by_kickoff
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    import httpx
+
+    from app.database.redis import RedisConnection
 
 logger = get_logger(__name__)
 
@@ -80,10 +94,8 @@ class _EventInfo:
         date_str: str = str(raw.get("date", ""))
         self.date: datetime | None = None
         if date_str:
-            try:
+            with suppress(ValueError, TypeError):
                 self.date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-            except (ValueError, TypeError):
-                pass
 
         league: dict[str, Any] = raw.get("league", {}) or {}
         self.league_name: str = str(league.get("name", "")).strip()
@@ -105,13 +117,9 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
     _MARKET_1X2 = "ML"
 
     # Default bookmakers to query (case-sensitive!)
-    _DEFAULT_BOOKMAKERS = (
-        "10BET",
-        "Bet365",
-    )
+    _DEFAULT_BOOKMAKERS = ("Bet365",)
 
-    # How many parallel odds requests to fire at once
-    _MAX_CONCURRENT = 8
+    _MAX_MULTI_EVENTS = 10
 
     def __init__(
         self,
@@ -125,6 +133,7 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
         rate_limiter: TokenBucketRateLimiter | None = None,
         redis: RedisConnection | None = None,
         cache_ttl: int = 300,
+        run_request_budget: int = 10,
         max_concurrent: int | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
@@ -137,8 +146,11 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
         )
         self._api_key = api_key
         self._bookmakers = tuple(bookmakers) if bookmakers else self._DEFAULT_BOOKMAKERS
-        self._max_concurrent = max_concurrent or self._MAX_CONCURRENT
+        # 保留构造参数兼容性；批量端点不再使用逐赛事并发。
+        self._max_concurrent = max_concurrent or self._MAX_MULTI_EVENTS
         self._rate_limiter = rate_limiter
+        self._run_request_budget = run_request_budget
+        self._run_requests_used = 0
         self._redis = redis
         self._cache_ttl = cache_ttl
         # Stats
@@ -176,13 +188,13 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
         self,
         *,
         sport: str,
-        markets: str = "1x2",
-        regions: str = "eu",
+        markets: Sequence[str] = ("h2h",),
+        regions: Sequence[str] = ("eu",),
     ) -> list[ProviderFixtureOdds]:
         """Fetch pre-match 1X2 odds for *sport* via the two-step flow.
 
         1. ``GET /events?sport=<sport>``
-        2. For each pending/future event: ``GET /odds?eventId=<id>&bookmakers=...``
+        2. Fetch mapped events in batches through ``GET /odds/multi``.
 
         Parameters
         ----------
@@ -192,6 +204,7 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
         markets / regions :
             Ignored in Phase 1 — provider hard-codes 1X2.
         """
+        self._run_requests_used = 0
         # -- Normalise sport key → Odds-API.io slug --------------------------------
         api_sport: str | None = self._normalise_sport(sport)
         if api_sport is None:
@@ -212,58 +225,77 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
 
         # -- Sort by kickoff: near-kickoff events get quota priority ---------------
         events = sort_events_by_kickoff(events)
+        return await self._fetch_odds_batches(events)
 
-        # -- Reserve tokens for near-kickoff events (within 3 hours) ---------------
-        if self._rate_limiter is not None:
-            near_threshold = datetime.now(UTC).timestamp() + 3 * 3600
-            near_count = sum(
-                1 for e in events if e.date is not None and e.date.timestamp() <= near_threshold
+    async def get_odds_for_fixtures(
+        self,
+        *,
+        sport: str,
+        fixtures: Sequence[ProviderOddsTarget],
+        markets: Sequence[str] = ("h2h",),
+        regions: Sequence[str] = ("eu",),
+    ) -> list[ProviderFixtureOdds]:
+        """仅对批准的 fixture 做目录映射，再按最多十场调用 multi。"""
+        del markets, regions
+        self._run_requests_used = 0
+        if not fixtures:
+            return []
+        api_sport = self._normalise_sport(sport)
+        if api_sport is None:
+            return []
+        try:
+            events = await self._fetch_events(api_sport)
+        except ExternalServiceError as exc:
+            return self._handle_get_events_error(exc, sport)
+
+        candidates = [
+            MatchCandidate(
+                fixture_id=target.fixture_id,
+                home_norm=normalize_team_name(target.home_team),
+                away_norm=normalize_team_name(target.away_team),
+                kickoff=target.kickoff,
             )
-            if near_count > 0:
-                budget = await self._rate_limiter.budget()
-                # Reserve up to 80% of remaining budget for near-kickoff, min 5 events
-                reserve = min(near_count, max(5, int(budget.remaining * 0.8)))
-                logger.info(
-                    "Odds-API.io: reserving %d tokens for %d near-kickoff events "
-                    "(budget remaining=%d)",
-                    reserve, near_count, budget.remaining,
-                )
-                self._near_kickoff_reserve = reserve
-
-        # -- Step 2: fetch odds per event (batched in parallel) --------------------
-        semaphore = asyncio.Semaphore(self._max_concurrent)
-
-        async def _one_event(event: _EventInfo) -> ProviderFixtureOdds | None:
-            async with semaphore:
-                return await self._fetch_event_odds(event)
-
-        tasks = [_one_event(evt) for evt in events]
-        raw_results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        results: list[ProviderFixtureOdds] = []
-        for item in raw_results:
-            if item is None:
+            for target in fixtures
+        ]
+        matched: list[_EventInfo] = []
+        matched_fixture_ids: set[object] = set()
+        for event in events:
+            if event.date is None:
                 continue
-            if isinstance(item, BaseException):
-                logger.debug("Odds-API.io event fetch exception: %s", item)
-                continue
-            if isinstance(item, ProviderFixtureOdds):
-                results.append(item)
-        return results
+            result = match_event(
+                event_home=event.home,
+                event_away=event.away,
+                commence_time=event.date,
+                candidates=candidates,
+                tolerance=timedelta(minutes=180),
+            )
+            if (
+                result.outcome is MatchOutcome.MATCHED
+                and result.fixture_id not in matched_fixture_ids
+            ):
+                matched.append(event)
+                matched_fixture_ids.add(result.fixture_id)
+        logger.info(
+            "Odds-API.io target mapping: requested=%d matched=%d",
+            len(fixtures),
+            len(matched),
+        )
+        return await self._fetch_odds_batches(sort_events_by_kickoff(matched))
 
     async def get_historical_odds(
         self,
         *,
         sport: str,
         at: datetime,
-        markets: str = "1x2",
-        regions: str = "eu",
+        markets: Sequence[str] = ("h2h",),
+        regions: Sequence[str] = ("eu",),
     ) -> list[ProviderFixtureOdds]:
         """Historical odds — uses the same two-step flow.
 
         For historical data the events endpoint still returns all events
         (including settled/cancelled), so we just pass everything through.
         """
+        self._run_requests_used = 0
         try:
             events = await self._fetch_events(sport, include_settled=True)
         except ExternalServiceError as exc:
@@ -283,20 +315,7 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
         if not nearby:
             return []
 
-        semaphore = asyncio.Semaphore(self._max_concurrent)
-
-        async def _one_event(event: _EventInfo) -> ProviderFixtureOdds | None:
-            async with semaphore:
-                return await self._fetch_event_odds(event)
-
-        tasks = [_one_event(evt) for evt in nearby]
-        raw_results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        results: list[ProviderFixtureOdds] = []
-        for item in raw_results:
-            if isinstance(item, ProviderFixtureOdds):
-                results.append(item)
-        return results
+        return await self._fetch_odds_batches(sort_events_by_kickoff(nearby))
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -316,15 +335,18 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
         # --- In-memory cache hit -------------------------------------------
         if sport in self._events_cache:
             logger.info(
-                "Odds-API.io /events cache hit for '%s' (%d events), "
-                "skipping API call",
-                sport, len(self._events_cache[sport]),
+                "Odds-API.io /events cache hit for '%s' (%d events), skipping API call",
+                sport,
+                len(self._events_cache[sport]),
             )
             return self._events_cache[sport]
 
         # --- API call -------------------------------------------------------
+        if not await self._acquire_request_budget():
+            raise OddsRateLimitError("Odds-API.io local request budget exhausted")
         params: dict[str, Any] = {"sport": sport, "apiKey": self._api_key}
         payload = await self._get_json("/events", params=params)
+        self._reqs_made += 1
 
         if not isinstance(payload, list):
             logger.warning(
@@ -339,21 +361,71 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
             if not isinstance(raw, dict):
                 continue
             evt = _EventInfo(raw)
-            if include_settled:
-                events.append(evt)
-            elif evt.status == "pending":
+            if include_settled or evt.status == "pending":
                 events.append(evt)
 
         # Cache for subsequent calls with same sport slug
         self._events_cache[sport] = events
         logger.info(
             "Odds-API.io /events cached %d events for sport '%s'",
-            len(events), sport,
+            len(events),
+            sport,
         )
         return events
 
+    async def _fetch_odds_batches(self, events: Sequence[_EventInfo]) -> list[ProviderFixtureOdds]:
+        """通过 ``/odds/multi`` 按最多十个 event ID 批量获取赔率。"""
+        results: list[ProviderFixtureOdds] = []
+        event_map = {event.event_id: event for event in events if event.event_id}
+        pending = list(event_map.values())
+        self._cache_misses += len(pending)
+        for offset in range(0, len(pending), self._MAX_MULTI_EVENTS):
+            batch = pending[offset : offset + self._MAX_MULTI_EVENTS]
+            if not await self._acquire_request_budget():
+                self._reqs_rate_limited += 1
+                logger.warning("Odds-API.io local request budget exhausted before multi batch")
+                break
+            params: dict[str, Any] = {
+                "eventIds": ",".join(event.event_id for event in batch),
+                "bookmakers": ",".join(self._bookmakers),
+                "apiKey": self._api_key,
+            }
+            try:
+                payload = await self._get_json("/odds/multi", params=params)
+                self._reqs_made += 1
+            except ExternalServiceError as exc:
+                self._reqs_made += 1
+                if "429" in str(exc):
+                    self._reqs_rate_limited += 1
+                logger.warning("Odds-API.io /odds/multi failed: %s", exc)
+                continue
+            rows = payload if isinstance(payload, list) else []
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                event = event_map.get(str(row.get("id", "")))
+                if event is None:
+                    continue
+                parsed = self._parse_odds_response(row, event)
+                if parsed is not None:
+                    results.append(parsed)
+                    await self._cache_odds(f"odds:event:{event.event_id}", row, parsed)
+        return results
+
+    async def _acquire_request_budget(self) -> bool:
+        if self._run_requests_used >= self._run_request_budget:
+            return False
+        if self._rate_limiter is not None and not await self._rate_limiter.acquire():
+            return False
+        self._run_requests_used += 1
+        return True
+
+    async def _observe_response(self, response: httpx.Response) -> None:
+        if self._rate_limiter is not None:
+            await self._rate_limiter.update_from_headers(response.headers)
+
     async def _fetch_event_odds(self, event: _EventInfo) -> ProviderFixtureOdds | None:
-        """Call ``GET /odds`` for a single event and parse into DTO.
+        """Compatibility helper using ``GET /odds/multi`` for one event.
 
         Respects rate limiter, uses Redis cache when available.
         """
@@ -369,12 +441,17 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
                 if cached is not None:
                     self._cache_hits += 1
                     import json
+
                     data = json.loads(cached)
                     if isinstance(data, dict) and data.get("_cached"):
                         return self._parse_odds_response(
-                            {"bookmakers": data.get("bookmakers", {}),
-                             "home": data.get("home", ""), "away": data.get("away", ""),
-                             "date": data.get("date", ""), "id": event.event_id},
+                            {
+                                "bookmakers": data.get("bookmakers", {}),
+                                "home": data.get("home", ""),
+                                "away": data.get("away", ""),
+                                "date": data.get("date", ""),
+                                "id": event.event_id,
+                            },
                             event,
                         )
                     # Stale/empty cache marker → skip
@@ -385,19 +462,18 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
         self._cache_misses += 1
 
         # --- Rate limiter check -----------------------------------------------
-        if self._rate_limiter is not None:
-            if not await self._rate_limiter.acquire():
-                self._reqs_rate_limited += 1
-                logger.info("Odds-API.io rate budget exhausted for event '%s'", event.event_id)
-                return None
+        if self._rate_limiter is not None and not await self._rate_limiter.acquire():
+            self._reqs_rate_limited += 1
+            logger.info("Odds-API.io rate budget exhausted for event '%s'", event.event_id)
+            return None
 
         params: dict[str, Any] = {
-            "eventId": event.event_id,
+            "eventIds": event.event_id,
             "bookmakers": ",".join(self._bookmakers),
             "apiKey": self._api_key,
         }
         try:
-            payload = await self._get_json("/odds", params=params)
+            payload = await self._get_json("/odds/multi", params=params)
             self._reqs_made += 1
         except ExternalServiceError as exc:
             self._reqs_made += 1
@@ -416,11 +492,12 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
                 logger.warning("Odds-API.io /odds failed for event '%s': %s", event.event_id, exc)
             return None
 
-        if not isinstance(payload, dict):
+        if not isinstance(payload, list) or not payload or not isinstance(payload[0], dict):
             return None
 
-        result = self._parse_odds_response(payload, event)
-        await self._cache_odds(cache_key, payload, result)
+        row = payload[0]
+        result = self._parse_odds_response(row, event)
+        await self._cache_odds(cache_key, row, result)
         return result
 
     async def _cache_odds(
@@ -431,6 +508,7 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
             return
         try:
             import json
+
             if result is not None and raw.get("bookmakers"):
                 cached = {
                     "_cached": True,
@@ -451,6 +529,7 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
             return
         try:
             import json
+
             empty = {"_empty": True}
             # Short TTL for failures (60s) vs success (5 min)
             await self._redis.cache_set(cache_key, json.dumps(empty), ttl=60)
@@ -480,7 +559,7 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
               "home": "...", "away": "...",
               "date": "2026-07-22T21:30:00Z",
               "bookmakers": {
-                "10BET": [{"name": "ML", "odds": [{"home": "1.17", "draw": "6.00", "away": "12.00"}]}]
+                "Bet365": [{"name": "ML", "odds": [{"home": "1.17", "draw": "6.00", "away": "12.00"}]}]
               }
             }
         """
@@ -540,10 +619,8 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
                     last_update: datetime | None = None
                     updated = market.get("updatedAt", "")
                     if updated:
-                        try:
+                        with suppress(ValueError, TypeError):
                             last_update = datetime.fromisoformat(updated.replace("Z", "+00:00"))
-                        except (ValueError, TypeError):
-                            pass
 
                     bookmaker_markets.append(
                         BookmakerMarket(
@@ -609,9 +686,7 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
             ) from exc
         if "401" in err_msg:
             logger.error("Odds-API.io /events auth failed for sport '%s'", sport)
-            raise OddsAuthError(
-                f"Odds-API.io auth failed on /events for sport '{sport}'"
-            ) from exc
+            raise OddsAuthError(f"Odds-API.io auth failed on /events for sport '{sport}'") from exc
         logger.error("Odds-API.io /events failed for sport '%s': %s", sport, exc)
         raise OddsProviderError(
             f"Odds-API.io provider error on /events for sport '{sport}'"

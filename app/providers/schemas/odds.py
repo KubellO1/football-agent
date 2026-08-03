@@ -8,8 +8,20 @@ object happens here (that is a service-layer concern, not wired yet).
 from __future__ import annotations
 
 from datetime import datetime  # noqa: TC003 - Pydantic 会在运行时解析字段注解
+from uuid import UUID  # noqa: TC003
 
 from pydantic import BaseModel, Field
+
+
+class ProviderOddsTarget(BaseModel):
+    """已由生产数据库和白名单确认、允许查询的单场比赛。"""
+
+    model_config = {"frozen": True}
+
+    fixture_id: UUID
+    home_team: str
+    away_team: str
+    kickoff: datetime
 
 
 class OddsOutcome(BaseModel):

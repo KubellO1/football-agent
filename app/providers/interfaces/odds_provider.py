@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from datetime import datetime
 
-    from app.providers.schemas.odds import ProviderFixtureOdds
+    from app.providers.schemas.odds import ProviderFixtureOdds, ProviderOddsTarget
 
 
 class OddsProvider(ABC):
@@ -49,6 +49,20 @@ class OddsProvider(ABC):
         capability — providers without a historical feed leave this unimplemented.
         """
         raise NotImplementedError
+
+    async def get_odds_for_fixtures(
+        self,
+        *,
+        sport: str,
+        fixtures: Sequence[ProviderOddsTarget],
+        markets: Sequence[str] = ("h2h",),
+        regions: Sequence[str] = ("eu",),
+    ) -> list[ProviderFixtureOdds]:
+        """仅查询调用方已批准的比赛。
+
+        默认实现仅用于兼容测试替身；生产组合器必须覆盖此方法。
+        """
+        return await self.get_odds(sport=sport, markets=markets, regions=regions)
 
     def pop_errors(self) -> dict[str, int]:
         """Return and clear per-source error counts (used by PrioritizedOddsProvider)."""
