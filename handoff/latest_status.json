@@ -1,15 +1,25 @@
 {
   "task_id": "TASK-20260827-022",
-  "status": "stopped_scope_blocker",
+  "status": "completed_with_known_baseline_failure",
   "branch": "codex/TASK-20260827-022",
-  "summary": "Latest master ends at Alembic 0019. The production-executed 0020 migration exists only on the unmerged TASK-20260827-021 branch, so an ORM-only branch cannot perform the required 0001-to-0020 validation without explicit authorization to carry the existing migration artifact.",
+  "summary": "SeasonORM metadata now exactly matches canonical Alembic 0020. The carried migration is byte-identical to ec88789, isolated 0001-to-0020 migration and Alembic check pass, integration tests are 100/100, and production read-only verification matches with zero writes.",
+  "commits": [
+    "cef3aeb07d812f55bfec34476f746bed2d6e6e7c",
+    "949d874f5b3361c0b3b022d2d01c927c4927ca39"
+  ],
   "artifacts": [
-    "tasks/pending/TASK-20260827-022.md",
+    "tasks/completed/TASK-20260827-022.md",
     "reports/codex/TASK-20260827-022-result.json",
     "reports/codex/TASK-20260827-022-result.md"
   ],
+  "tests": {
+    "focused": "2 passed",
+    "unit": "659 passed, 1 unchanged date-sensitive baseline failure",
+    "integration": "100 passed",
+    "quality": "Ruff, Black, MyPy and git diff check passed"
+  },
   "production_writes": 0,
   "frozen_unchanged": true,
   "allow_task_20260826_020": false,
-  "recommendation": "approval_required"
+  "recommendation": "review_required_before_merge"
 }
