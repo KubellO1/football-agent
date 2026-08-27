@@ -1,17 +1,27 @@
 {
   "task_id": "TASK-20260827-021",
-  "status": "stopped_at_approval_gate",
-  "outcome": "clone_rehearsal_passed",
-  "completed_at": "2026-08-27T20:12:31+02:00",
+  "status": "stopped_waiting_task_020_approval",
+  "outcome": "production_reconciliation_succeeded",
+  "completed_at": "2026-08-27T20:50:00+02:00",
   "branch": "codex/TASK-20260827-021",
-  "summary": "Two independent restores from the same production backup reconciled exactly to canonical 0019, stamped and upgraded to exact 0020, and produced identical schema/data results. Rollback and recovery rehearsal passed. Production remained at ledger 0002 with no schema writes.",
+  "summary": "Production was reconciled exactly to canonical 0019, stamped to 0019, upgraded to exact canonical 0020, and passed row-count, sequence, FK, constraint and read-only smoke checks. Scheduler locks were removed and the Windows task remains enabled. TASK-20260826-020 was not started.",
   "artifacts": [
+    "reports/codex/TASK-20260827-021-production-reconciliation.json",
+    "reports/codex/TASK-20260827-021-production-reconciliation.md",
     "reports/codex/TASK-20260827-021-result.json",
     "reports/codex/TASK-20260827-021-result.md"
   ],
-  "production_database_approval_required": true,
+  "production_alembic_revision": "0020",
+  "exact_0020": true,
+  "production_database_approval_consumed": true,
   "allow_task_20260826_020": false,
-  "production_mutations": false,
+  "production_mutations": true,
+  "application_data_rows_changed": 0,
+  "scheduled_jobs_restored": true,
   "frozen_unchanged": true,
+  "blockers": [
+    "Explicit approval is still required before TASK-20260826-020",
+    "ORM metadata does not yet declare the canonical 0020 season unique constraint"
+  ],
   "recommendation": "approval_required"
 }

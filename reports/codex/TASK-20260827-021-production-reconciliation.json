@@ -1,0 +1,144 @@
+{
+  "task_id": "TASK-20260827-021",
+  "title": "Alembic Production Ledger Reconciliation",
+  "status": "completed_stopped_waiting_task_020_approval",
+  "outcome": "production_reconciliation_succeeded",
+  "executed_at": "2026-08-27T20:25:44+02:00",
+  "completed_at": "2026-08-27T20:50:00+02:00",
+  "branch": "codex/TASK-20260827-021",
+  "commits_used": [
+    "ec8878991fd24d6181f9dbc92e803cef25db0114",
+    "8fbf62c0785fc08f5168eea2d7ed0d13d2ee30f8"
+  ],
+  "branch_pushed": true,
+  "merged": false,
+  "production_database": {
+    "database": "football",
+    "user": "football",
+    "postgres_version": "16.14",
+    "alembic_version_before": "0002",
+    "alembic_version_after": "0020"
+  },
+  "maintenance": {
+    "start": "2026-08-27T20:25:44+02:00",
+    "end": "2026-08-27T20:50:00+02:00",
+    "method": "13 reversible scheduler lock files held by a dedicated process",
+    "locks": 13,
+    "writers_running_before_ddl": 0,
+    "database_sessions_before_ddl": 0,
+    "scheduled_task_definition_changed": false,
+    "scheduled_task_before": "Enabled=True, Ready",
+    "scheduled_task_after": "Enabled=True, Ready",
+    "locks_remaining_after_restore": 0,
+    "jobs_triggered": []
+  },
+  "backup": {
+    "timestamp": "2026-08-27T20:26:31+02:00",
+    "method": "PostgreSQL custom-format full logical dump plus schema-only dump",
+    "path": "backups/TASK-20260827-021/production-approved-20260827T202631+0200/production-20260827T202631+0200.dump",
+    "bytes": 545396,
+    "sha256": "B58C5F0B1B6CBA78DDD16E3A579A571AAB4CFDB5C4F0B8A086F680183CA0FC6F",
+    "schema_path": "backups/TASK-20260827-021/production-approved-20260827T202631+0200/production-20260827T202631+0200-schema.sql",
+    "schema_bytes": 34580,
+    "schema_sha256": "F19C8CFB4CD9CAF43D9F48DD720B3581E6B74A4C6B3354DE8D9C00B4E6280336",
+    "archive_validation": "pg_restore --list passed; 125 TOC entries; schema, data, sequences and alembic_version included"
+  },
+  "preflight": {
+    "fresh_backup_clone": true,
+    "alembic_version": "0002",
+    "foreign_key_name_differences": 22,
+    "foreign_key_semantics_match": true,
+    "json_default_differences": 4,
+    "season_unique_constraint_present": false,
+    "schema_diff": {"missing": 22, "unexpected": 22, "divergent": 4},
+    "matches_rehearsed_input": true,
+    "material_new_drift": false
+  },
+  "ddl": {
+    "transactional": true,
+    "lock_timeout": "5s",
+    "statement_timeout": "60s",
+    "foreign_key_constraints_renamed": 22,
+    "decision_log_json_defaults_applied": 4,
+    "partial_execution": false,
+    "result": "committed"
+  },
+  "exact_0019": {
+    "missing": 0,
+    "unexpected": 0,
+    "divergent": 0,
+    "exact": true
+  },
+  "alembic": {
+    "stamp_0019": "success",
+    "upgrade_0020": "success",
+    "current": "0020 (head)",
+    "check": "non-zero: ORM metadata does not yet declare uq_seasons_competition_label and proposes removing it; canonical 0020 comparison remains exact"
+  },
+  "exact_0020": {
+    "missing": 0,
+    "unexpected": 0,
+    "divergent": 0,
+    "exact": true,
+    "season_unique_constraint": "uq_seasons_competition_label UNIQUE (competition_id, label)",
+    "canonical_named_foreign_keys": 22,
+    "total_foreign_keys": 24,
+    "json_defaults_matching": 4
+  },
+  "data_integrity": {
+    "row_counts_before_after_equal": true,
+    "row_counts": {
+      "alembic_version": 1,
+      "bankroll_entries": 0,
+      "bookmakers": 0,
+      "competitions": 365,
+      "decision_logs": 0,
+      "fixtures": 4949,
+      "lineup_players": 0,
+      "lineups": 0,
+      "odds_snapshots": 0,
+      "performance_snapshots": 0,
+      "player_availability_observations": 0,
+      "players": 0,
+      "predictions": 139,
+      "seasons": 0,
+      "settlements": 0,
+      "team_match_statistics": 0,
+      "teams": 4241,
+      "value_bets": 0
+    },
+    "sequence_state_before_after_equal": true,
+    "sequence": {"name": "bankroll_entries_sequence_seq", "start": 1, "increment": 1, "last_value": null},
+    "validated_foreign_keys": "24/24",
+    "invalid_or_unready_indexes": 0,
+    "unvalidated_constraints": 0,
+    "season_natural_key_duplicate_groups": 0,
+    "rows_lost": 0,
+    "rows_duplicated": 0
+  },
+  "rollback_recovery": {
+    "invoked": false,
+    "reason": "all production gates passed",
+    "authority": "fresh verified custom-format backup",
+    "rehearsal_status": "rollback and recovery previously passed twice on disposable clones"
+  },
+  "database_writes": {
+    "production": "22 FK constraint renames, four JSON server defaults, alembic ledger stamp to 0019 and migration upgrade to 0020",
+    "application_rows_inserted_updated_deleted": 0
+  },
+  "api_calls": 0,
+  "production_impact": "approximately 24 minute maintenance lock window; no application jobs or models were run",
+  "frozen_unchanged": true,
+  "prohibited_workflows_executed": [],
+  "task_020": {
+    "ledger_blocker_cleared": true,
+    "authorized_to_start": false,
+    "next_gate": "explicit user approval required"
+  },
+  "blockers": [
+    "TASK-20260826-020 remains unapproved",
+    "ORM metadata must be aligned with migration 0020 in a separate code task before relying on alembic check/autogenerate"
+  ],
+  "recommended_next_action": "Review this production report; create a separate metadata-alignment task, then explicitly decide whether to unblock TASK-20260826-020.",
+  "recommendation": "approval_required"
+}
