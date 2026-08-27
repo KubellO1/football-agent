@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-20260827-022",
+  "status": "stopped_scope_blocker",
+  "branch": "codex/TASK-20260827-022",
+  "summary": "Latest master ends at Alembic 0019. The production-executed 0020 migration exists only on the unmerged TASK-20260827-021 branch, so an ORM-only branch cannot perform the required 0001-to-0020 validation without explicit authorization to carry the existing migration artifact.",
+  "artifacts": [
+    "tasks/pending/TASK-20260827-022.md",
+    "reports/codex/TASK-20260827-022-result.json",
+    "reports/codex/TASK-20260827-022-result.md"
+  ],
+  "production_writes": 0,
+  "frozen_unchanged": true,
+  "allow_task_20260826_020": false,
+  "recommendation": "approval_required"
+}

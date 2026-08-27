@@ -1,0 +1,33 @@
+{
+  "task_id": "TASK-20260827-022",
+  "title": "Align ORM Metadata with Alembic 0020 Season Constraint",
+  "status": "stopped_scope_blocker",
+  "branch": "codex/TASK-20260827-022",
+  "base_branch": "origin/master",
+  "base_commit": "d7a25fd45b126b27e5c8d9a5f9e361b1760aaedb",
+  "audit": {
+    "master_alembic_head": "0019",
+    "migration_0020_on_master": false,
+    "migration_0020_source": "codex/TASK-20260827-021@ec8878991fd24d6181f9dbc92e803cef25db0114",
+    "migration_0020_table": "seasons",
+    "migration_0020_columns": ["competition_id", "label"],
+    "migration_0020_constraint_name": "uq_seasons_competition_label",
+    "season_orm_constraint_present": false
+  },
+  "blocker": "The requested branch must start from latest master and change only ORM metadata, but latest master does not contain the already-executed 0020 migration. Isolated migration 0001 to 0020 and Alembic head/check validation are impossible without carrying that existing migration artifact or prior branch history into this task.",
+  "implementation": "not_started",
+  "files_changed": [
+    "tasks/pending/TASK-20260827-022.md",
+    "reports/codex/TASK-20260827-022-result.json",
+    "reports/codex/TASK-20260827-022-result.md",
+    "handoff/latest_status.json"
+  ],
+  "tests": "not_run; no production code changed",
+  "database_writes": {"production": 0, "disposable": 0},
+  "api_calls": 0,
+  "production_impact": "none",
+  "frozen_unchanged": true,
+  "task_20260826_020_executed": false,
+  "recommended_resolution": "Explicitly authorize copying the unchanged existing 0020 migration file from ec88789 into this branch, then implement only the SeasonORM UniqueConstraint and complete isolated validation.",
+  "recommendation": "approval_required"
+}
