@@ -1,0 +1,17 @@
+{
+  "task_id": "TASK-20260827-021",
+  "status": "stopped_at_approval_gate",
+  "outcome": "clone_rehearsal_passed",
+  "completed_at": "2026-08-27T20:12:31+02:00",
+  "branch": "codex/TASK-20260827-021",
+  "summary": "Two independent restores from the same production backup reconciled exactly to canonical 0019, stamped and upgraded to exact 0020, and produced identical schema/data results. Rollback and recovery rehearsal passed. Production remained at ledger 0002 with no schema writes.",
+  "artifacts": [
+    "reports/codex/TASK-20260827-021-result.json",
+    "reports/codex/TASK-20260827-021-result.md"
+  ],
+  "production_database_approval_required": true,
+  "allow_task_20260826_020": false,
+  "production_mutations": false,
+  "frozen_unchanged": true,
+  "recommendation": "approval_required"
+}

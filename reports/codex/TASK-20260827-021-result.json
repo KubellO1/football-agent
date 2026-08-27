@@ -1,0 +1,176 @@
+{
+  "task_id": "TASK-20260827-021",
+  "title": "Alembic Production Ledger Reconciliation — Clone Rehearsal",
+  "status": "stopped_at_approval_gate",
+  "outcome": "clone_rehearsal_passed",
+  "completed_at": "2026-08-27T20:12:31+02:00",
+  "branch": "codex/TASK-20260827-021",
+  "base_branch": "origin/master",
+  "base_commit": "d7a25fd45b126b27e5c8d9a5f9e361b1760aaedb",
+  "commits": [],
+  "production": {
+    "database": "football",
+    "postgres_version": "16.14",
+    "alembic_revision_before": "0002",
+    "alembic_revision_after": "0002",
+    "schema_writes": 0,
+    "alembic_commands_executed": [],
+    "final_read_only_verification": {
+      "canonical_fk_names": 0,
+      "legacy_fk_names": 24,
+      "total_foreign_keys": 24,
+      "decision_log_defaults_present": 0,
+      "season_unique_present": false
+    }
+  },
+  "backup": {
+    "method": "pg_dump custom-format full logical backup plus schema-only pg_dump",
+    "custom_format_path": "backups/TASK-20260827-021/production.dump",
+    "custom_format_sha256": "F17F2987B8013A5616C7F4AC343D55B117F2507F8849D19E836FC120BFFD95A9",
+    "custom_format_bytes": 545291,
+    "schema_only_path": "backups/TASK-20260827-021/production-schema.sql",
+    "schema_only_sha256": "312A345E7A088D9A92B4AD70145FFD37F2FF0B26E7849923CB8E529C376A7C03",
+    "schema_only_bytes": 32912,
+    "archive_validation": "pg_restore --list passed; PostgreSQL 16.14; 125 TOC entries"
+  },
+  "clone": {
+    "method": "isolated disposable postgres:16-alpine container bound to 127.0.0.1:55432; no production volume reused",
+    "container": "football-reconcile-021",
+    "canonical_0019": "football_reconcile_canonical_0019",
+    "canonical_0020": "football_reconcile_canonical_0020",
+    "rehearsal_1": "football_reconcile_r1",
+    "rehearsal_2": "football_reconcile_r2"
+  },
+  "foreign_key_reconciliation": {
+    "count": 22,
+    "all_semantics_match": true,
+    "common_semantics": {
+      "on_update": "NO ACTION",
+      "deferrable": false,
+      "initially_deferred": false
+    },
+    "results": [
+      {"table":"seasons","local_columns":["competition_id"],"referenced_table":"competitions","referenced_columns":["id"],"on_delete":"NO ACTION","from":"seasons_competition_id_fkey","to":"fk_seasons_competition","semantic_match":true},
+      {"table":"fixtures","local_columns":["competition_id"],"referenced_table":"competitions","referenced_columns":["id"],"on_delete":"NO ACTION","from":"fixtures_competition_id_fkey","to":"fk_fixtures_competition","semantic_match":true},
+      {"table":"fixtures","local_columns":["season_id"],"referenced_table":"seasons","referenced_columns":["id"],"on_delete":"NO ACTION","from":"fixtures_season_id_fkey","to":"fk_fixtures_season","semantic_match":true},
+      {"table":"fixtures","local_columns":["home_team_id"],"referenced_table":"teams","referenced_columns":["id"],"on_delete":"NO ACTION","from":"fixtures_home_team_id_fkey","to":"fk_fixtures_home_team","semantic_match":true},
+      {"table":"fixtures","local_columns":["away_team_id"],"referenced_table":"teams","referenced_columns":["id"],"on_delete":"NO ACTION","from":"fixtures_away_team_id_fkey","to":"fk_fixtures_away_team","semantic_match":true},
+      {"table":"predictions","local_columns":["fixture_id"],"referenced_table":"fixtures","referenced_columns":["id"],"on_delete":"NO ACTION","from":"predictions_fixture_id_fkey","to":"fk_predictions_fixture","semantic_match":true},
+      {"table":"value_bets","local_columns":["fixture_id"],"referenced_table":"fixtures","referenced_columns":["id"],"on_delete":"NO ACTION","from":"value_bets_fixture_id_fkey","to":"fk_value_bets_fixture","semantic_match":true},
+      {"table":"value_bets","local_columns":["bookmaker_id"],"referenced_table":"bookmakers","referenced_columns":["id"],"on_delete":"NO ACTION","from":"value_bets_bookmaker_id_fkey","to":"fk_value_bets_bookmaker","semantic_match":true},
+      {"table":"decision_logs","local_columns":["fixture_id"],"referenced_table":"fixtures","referenced_columns":["id"],"on_delete":"NO ACTION","from":"decision_logs_fixture_id_fkey","to":"fk_decision_logs_fixture","semantic_match":true},
+      {"table":"decision_logs","local_columns":["value_bet_id"],"referenced_table":"value_bets","referenced_columns":["id"],"on_delete":"NO ACTION","from":"decision_logs_value_bet_id_fkey","to":"fk_decision_logs_value_bet","semantic_match":true},
+      {"table":"odds_snapshots","local_columns":["fixture_id"],"referenced_table":"fixtures","referenced_columns":["id"],"on_delete":"NO ACTION","from":"odds_snapshots_fixture_id_fkey","to":"fk_odds_snapshots_fixture","semantic_match":true},
+      {"table":"odds_snapshots","local_columns":["bookmaker_id"],"referenced_table":"bookmakers","referenced_columns":["id"],"on_delete":"NO ACTION","from":"odds_snapshots_bookmaker_id_fkey","to":"fk_odds_snapshots_bookmaker","semantic_match":true},
+      {"table":"team_match_statistics","local_columns":["fixture_id"],"referenced_table":"fixtures","referenced_columns":["id"],"on_delete":"NO ACTION","from":"team_match_statistics_fixture_id_fkey","to":"fk_team_match_statistics_fixture","semantic_match":true},
+      {"table":"team_match_statistics","local_columns":["team_id"],"referenced_table":"teams","referenced_columns":["id"],"on_delete":"NO ACTION","from":"team_match_statistics_team_id_fkey","to":"fk_team_match_statistics_team","semantic_match":true},
+      {"table":"player_availability_observations","local_columns":["fixture_id"],"referenced_table":"fixtures","referenced_columns":["id"],"on_delete":"NO ACTION","from":"player_availability_observations_fixture_id_fkey","to":"fk_player_availability_fixture","semantic_match":true},
+      {"table":"player_availability_observations","local_columns":["team_id"],"referenced_table":"teams","referenced_columns":["id"],"on_delete":"NO ACTION","from":"player_availability_observations_team_id_fkey","to":"fk_player_availability_team","semantic_match":true},
+      {"table":"players","local_columns":["team_id"],"referenced_table":"teams","referenced_columns":["id"],"on_delete":"NO ACTION","from":"players_team_id_fkey","to":"fk_players_team","semantic_match":true},
+      {"table":"player_availability_observations","local_columns":["player_id"],"referenced_table":"players","referenced_columns":["id"],"on_delete":"NO ACTION","from":"player_availability_observations_player_id_fkey","to":"fk_player_availability_player","semantic_match":true},
+      {"table":"lineups","local_columns":["fixture_id"],"referenced_table":"fixtures","referenced_columns":["id"],"on_delete":"NO ACTION","from":"lineups_fixture_id_fkey","to":"fk_lineups_fixture","semantic_match":true},
+      {"table":"lineups","local_columns":["team_id"],"referenced_table":"teams","referenced_columns":["id"],"on_delete":"NO ACTION","from":"lineups_team_id_fkey","to":"fk_lineups_team","semantic_match":true},
+      {"table":"lineup_players","local_columns":["lineup_id"],"referenced_table":"lineups","referenced_columns":["id"],"on_delete":"CASCADE","from":"lineup_players_lineup_id_fkey","to":"fk_lineup_players_lineup","semantic_match":true},
+      {"table":"lineup_players","local_columns":["player_id"],"referenced_table":"players","referenced_columns":["id"],"on_delete":"NO ACTION","from":"lineup_players_player_id_fkey","to":"fk_lineup_players_player","semantic_match":true}
+    ]
+  },
+  "default_reconciliation": {
+    "count": 4,
+    "type": "json",
+    "default": "'[]'::json",
+    "columns": [
+      "decision_logs.supporting_evidence",
+      "decision_logs.risks",
+      "decision_logs.rejected_alternatives",
+      "decision_logs.change_conditions"
+    ],
+    "result": "restored on both clones; second invocation was an idempotent no-op"
+  },
+  "schema_diff_scope": [
+    "tables",
+    "columns",
+    "data types",
+    "nullable",
+    "server defaults",
+    "identity/generated flags",
+    "indexes",
+    "unique constraints",
+    "foreign keys",
+    "check constraints",
+    "constraint names",
+    "sequences"
+  ],
+  "rehearsals": {
+    "first": {
+      "initial_ledger": "0002",
+      "pre_reconciliation_diff": {"missing":22,"unexpected":22,"divergent":4},
+      "exact_0019_diff": {"missing":0,"unexpected":0,"divergent":0,"exact":true},
+      "stamp_0019": "success",
+      "upgrade_0020": "success",
+      "season_unique": "uq_seasons_competition_label UNIQUE (competition_id, label)",
+      "exact_0020_diff": {"missing":0,"unexpected":0,"divergent":0,"exact":true},
+      "rollback": "downgrade to 0019 exact; re-upgrade to 0020 exact"
+    },
+    "second": {
+      "source": "fresh restore from the original unmodified production backup",
+      "initial_ledger": "0002",
+      "pre_reconciliation_diff": {"missing":22,"unexpected":22,"divergent":4},
+      "exact_0019_diff": {"missing":0,"unexpected":0,"divergent":0,"exact":true},
+      "stamp_0019": "success",
+      "upgrade_0020": "success",
+      "exact_0020_diff": {"missing":0,"unexpected":0,"divergent":0,"exact":true},
+      "matches_first_rehearsal": true
+    },
+    "normalized_data_dump_sha256": "15dbb026c22755bb522b2fef5171a67978825e567078a039b885a78c8dae66a0",
+    "data_and_sequence_state_identical": true
+  },
+  "rollback_and_recovery": {
+    "transaction_failure": "reconciliation DDL is transactional; any semantic/default precondition failure rolls back all changes",
+    "tested": "0020 downgrade to exact 0019 followed by upgrade to exact 0020",
+    "full_restore": "verified custom-format backup is the recovery authority"
+  },
+  "estimated_production_downtime": {
+    "recommended_maintenance_window_minutes": 5,
+    "expected_write_pause_minutes": "2-5",
+    "note": "online backup may be taken before the write pause; final duration depends on production lock acquisition"
+  },
+  "task_020": {
+    "allowed_now": false,
+    "can_be_unblocked_after_approved_production_reconciliation": true,
+    "conditions": ["verified production backup", "write freeze", "exact 0019 reconciliation", "stamp 0019", "upgrade 0020", "exact 0020 diff"]
+  },
+  "task_018": {
+    "original_status": "do_not_merge",
+    "code_reusable_later": "0020 season unique migration semantics can be reused after production reconciliation and fresh review; the original TASK-018 branch remains do_not_merge"
+  },
+  "tests": {
+    "focused": "14 passed",
+    "black": "passed",
+    "ruff": "passed",
+    "mypy": "passed with --explicit-package-bases",
+    "unit_collected": 642,
+    "unit_result": "641 passed; 1 pre-existing time-sensitive failure",
+    "pre_existing_failure": "tests/unit/test_odds_api_security.py::test_paid_rate_limiter_adopts_server_capacity_and_has_no_daily_cap uses reset 2026-08-03, which is in the past on 2026-08-27; no task diff touches this test or limiter",
+    "unit_result_excluding_pre_existing_failure": "641 passed"
+  },
+  "files_changed": [
+    "alembic/versions/0020_add_season_natural_key.py",
+    "scripts/alembic_ledger_reconciliation.py",
+    "tests/unit/test_alembic_ledger_reconciliation.py",
+    "tasks/pending/TASK-20260827-021.md -> tasks/completed/TASK-20260827-021.md",
+    "reports/codex/TASK-20260827-021-result.json",
+    "reports/codex/TASK-20260827-021-result.md",
+    "handoff/latest_status.json"
+  ],
+  "database_writes": {
+    "production": 0,
+    "disposable_clones": "22 FK renames, four defaults, stamp/upgrade/downgrade rehearsal repeated from fresh backup"
+  },
+  "api_calls": 0,
+  "production_impact": "none",
+  "frozen_unchanged": true,
+  "prohibited_workflows_executed": [],
+  "blockers": ["Production Database Approval required", "TASK-020 remains blocked", "merge/deployment not authorized"],
+  "recommended_next_action": "review this report and, only with explicit Production Database Approval, schedule the separately gated production reconciliation runbook",
+  "recommendation": "approval_required"
+}
