@@ -65,6 +65,13 @@ class SeasonORM(TimestampMixin, Base):
     """赛季表。"""
 
     __tablename__ = "seasons"
+    __table_args__ = (
+        UniqueConstraint(
+            "competition_id",
+            "label",
+            name="uq_seasons_competition_label",
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     competition_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("competitions.id"), index=True)
