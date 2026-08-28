@@ -1,0 +1,154 @@
+{
+  "task_id": "TASK-20260828-024",
+  "title": "RecommendationGate production funnel audit and shadow calibration",
+  "status": "completed_read_only_audit_stop",
+  "branch": "codex/TASK-20260828-024",
+  "base_commit": "6be5dbb819617bff87deab71c046e0b9ef14a021",
+  "commits": [],
+  "audit_window": {
+    "primary_days": 14,
+    "extended_days": 30,
+    "extension_reason": "No complete quantitative candidate existed in the 14-day window."
+  },
+  "production_thresholds": {
+    "min_ev": 0.05,
+    "min_kelly": 0.02,
+    "min_confidence": 0.70,
+    "max_stake_fraction": 0.03,
+    "gate_min_data_completeness": 90.0,
+    "gate_min_decision_score": 85.0,
+    "odds_max_age_minutes": 30,
+    "minimum_bookmakers": 2
+  },
+  "production_inventory": {
+    "fixtures": 5391,
+    "predictions": 173,
+    "odds_snapshots": 0,
+    "decision_logs": 0,
+    "value_bets": 0,
+    "settlements": 0
+  },
+  "funnel_14_day_run_event_grain": [
+    {"stage": "fixtures_discovered", "input": 1125, "passed": 1125, "eliminated": 0, "elimination_rate": 0.0},
+    {"stage": "fixtures_eligible", "input": 1125, "passed": 15, "eliminated": 1110, "elimination_rate": 0.9867},
+    {"stage": "odds_available", "input": 15, "passed": 0, "eliminated": 15, "elimination_rate": 1.0},
+    {"stage": "model_probability_available_persisted", "input": 0, "passed": 0, "eliminated": 0, "elimination_rate": null},
+    {"stage": "ev_calculated", "input": 0, "passed": 0, "eliminated": 0, "elimination_rate": null},
+    {"stage": "min_ev_passed", "input": 0, "passed": 0, "eliminated": 0, "elimination_rate": null},
+    {"stage": "kelly_calculated", "input": 0, "passed": 0, "eliminated": 0, "elimination_rate": null},
+    {"stage": "min_kelly_passed", "input": 0, "passed": 0, "eliminated": 0, "elimination_rate": null},
+    {"stage": "confidence_calculated", "input": 0, "passed": 0, "eliminated": 0, "elimination_rate": null},
+    {"stage": "min_confidence_passed", "input": 0, "passed": 0, "eliminated": 0, "elimination_rate": null},
+    {"stage": "data_completeness_passed", "input": 0, "passed": 0, "eliminated": 0, "elimination_rate": null},
+    {"stage": "freshness_passed", "input": 0, "passed": 0, "eliminated": 0, "elimination_rate": null},
+    {"stage": "final_qualified", "input": 0, "passed": 0, "eliminated": 0, "elimination_rate": null}
+  ],
+  "latest_fixture_status": {
+    "last_14_days": {"fixtures": 17, "bet": 0, "watch": 9, "no_bet_no_odds": 8},
+    "last_30_days": {"fixtures": 49, "bet": 0, "watch": 19, "no_bet_no_odds": 30}
+  },
+  "persisted_30_day_rows": {
+    "rows": 173,
+    "distinct_fixtures": 49,
+    "watch_rows": 73,
+    "no_odds_rows": 100,
+    "rows_with_odds": 0,
+    "rows_with_model_probability": 0,
+    "rows_with_expected_value": 0,
+    "rows_with_kelly": 0,
+    "rows_with_confidence": 0,
+    "rows_with_data_quality_at_least_90": 0
+  },
+  "primary_causes": [
+    {
+      "rank": 1,
+      "cause": "Odds ingestion/matching produced no persisted snapshots",
+      "classification": "data/provider integration failure",
+      "evidence": "odds_snapshots=0; 30 latest fixtures ended NO_ODDS_TRUE; provider monitoring reports both odds providers degraded."
+    },
+    {
+      "rank": 2,
+      "cause": "Insufficient historical team data",
+      "classification": "data insufficiency / expected safety filter",
+      "evidence": "19 latest fixtures ended WATCH for insufficient history."
+    },
+    {
+      "rank": 3,
+      "cause": "Bet365-only provider configuration conflicts with minimum two-bookmaker quote verification",
+      "classification": "configuration contract mismatch",
+      "evidence": "ODDS_API_IO_BOOKMAKERS contains only Bet365 while VerifiedMarketQuotePolicy requires at least 2 bookmakers."
+    },
+    {
+      "rank": 4,
+      "cause": "98.67% of recent run-event fixtures were unsupported",
+      "classification": "expected whitelist filtering with low operational coverage",
+      "evidence": "1125 discovered run-events, 15 eligible. Whitelist was not changed."
+    }
+  ],
+  "implementation_and_auditability_findings": [
+    "No-selection prediction rows do not persist aggregate model probabilities, so historical model_probability availability cannot be reconstructed.",
+    "RecommendationGate reasons are free text and decision_logs contains zero rows; structured stage reason codes are incomplete.",
+    "prediction_logger hardcodes odds_source=the-odds-api, preventing reliable primary/fallback grouping.",
+    "Fixture analysis currently assigns actual goals to xG fields; this is a provenance defect and was not modified.",
+    "Data completeness influences score, explicit completeness gate and risk classification, creating repeated influence that needs separate calibration evidence.",
+    "Confidence is decision_score/100 while the Gate already requires decision_score>=85; min_confidence=0.70 is redundant after Gate and is not the zero-qualified cause.",
+    "WATCH remains distinct from NO_ODDS_TRUE in persisted decisions; no evidence of WATCH being generally collapsed into NO BET."
+  ],
+  "shadow_calibration": {
+    "evidence_sufficiency": "insufficient",
+    "common_metrics": {
+      "average_ev": null,
+      "average_confidence": null,
+      "average_kelly": null,
+      "roi": null,
+      "brier": null,
+      "clv": null,
+      "max_drawdown": null,
+      "reason": "No complete quantitative or settled candidate sample exists."
+    },
+    "scenarios": [
+      {"id": "A", "change": "current thresholds", "qualified": 0, "bet": 0, "watch": 19},
+      {"id": "B", "change": "shadow min_ev 0.04 only", "qualified": 0, "bet": 0, "watch": 19},
+      {"id": "C", "change": "shadow min_kelly 0.015 only", "qualified": 0, "bet": 0, "watch": 19},
+      {"id": "D", "change": "shadow min_confidence 0.65 only", "qualified": 0, "bet": 0, "watch": 19},
+      {"id": "E", "change": "keep BET rules; expose WATCH/ODDS_MISSING information tiers", "qualified": 0, "bet": 0, "watch": 19, "odds_missing": 30}
+    ]
+  },
+  "recommendation": {
+    "threshold_action": "keep_current_thresholds",
+    "minimal_safe_plan": [
+      "Restore and verify odds event mapping/snapshot persistence before threshold calibration.",
+      "Resolve the Bet365-only versus two-bookmaker verification contract through a separately approved configuration/design task.",
+      "Add structured, persisted funnel stage and reason-code telemetry in a separate branch without changing betting decisions.",
+      "Collect complete and settled shadow samples before evaluating any threshold change."
+    ]
+  },
+  "tests": {
+    "focused": "81 passed",
+    "files": [
+      "tests/unit/test_recommendation_gate.py",
+      "tests/unit/test_daily_top_picks.py",
+      "tests/unit/test_verified_market_quote.py",
+      "tests/unit/test_pre_kickoff_state_resolver.py",
+      "tests/unit/test_pre_kickoff_checkpoint_resolver.py",
+      "tests/unit/test_kelly.py"
+    ]
+  },
+  "files_changed": [
+    "tasks/completed/TASK-20260828-024.md",
+    "reports/codex/TASK-20260828-024_result.json",
+    "reports/codex/TASK-20260828-024_result.md",
+    "handoff/latest_status.json"
+  ],
+  "database_writes": 0,
+  "external_api_calls": 0,
+  "production_jobs_run": 0,
+  "production_impact": "none",
+  "frozen_unchanged": true,
+  "blockers": [
+    "No odds snapshots or complete quantitative candidates for calibration.",
+    "No settled value-bet sample for ROI/Brier/CLV/Max Drawdown.",
+    "Historical funnel stage data is not fully persisted."
+  ],
+  "approval_gate": "STOP; no production threshold or behavior change authorized."
+}
