@@ -1,0 +1,86 @@
+{
+  "task_id": "TASK-20260827-022",
+  "title": "Align ORM Metadata with Alembic 0020 Season Constraint",
+  "status": "completed_with_known_baseline_failure",
+  "branch": "codex/TASK-20260827-022",
+  "base_commit": "d7a25fd45b126b27e5c8d9a5f9e361b1760aaedb",
+  "commits": [
+    "cef3aeb07d812f55bfec34476f746bed2d6e6e7c",
+    "949d874f5b3361c0b3b022d2d01c927c4927ca39"
+  ],
+  "migration": {
+    "source_commit": "ec8878991fd24d6181f9dbc92e803cef25db0114",
+    "filename": "alembic/versions/0020_add_season_natural_key.py",
+    "revision": "0020",
+    "down_revision": "0019",
+    "source_blob": "5321c0456822cedb97300b0d8528fb229b67d6e6",
+    "destination_blob": "5321c0456822cedb97300b0d8528fb229b67d6e6",
+    "source_sha256": "4a4268cb319046c00fae3f794181e0f71ae936f644442112d363c96f42a3fe89",
+    "destination_sha256": "4a4268cb319046c00fae3f794181e0f71ae936f644442112d363c96f42a3fe89",
+    "byte_identical": true
+  },
+  "migration_graph": {
+    "result": "0001 -> ... -> 0019 -> 0020",
+    "heads": ["0020"],
+    "branch_points": 0,
+    "duplicate_revision_ids": 0,
+    "orphan_revisions": 0
+  },
+  "orm_change": {
+    "table": "seasons",
+    "constraint": "uq_seasons_competition_label",
+    "columns": ["competition_id", "label"]
+  },
+  "alembic_check": {
+    "before": "exit 255; only detected removal of uq_seasons_competition_label",
+    "after": "exit 0; No new upgrade operations detected",
+    "season_unique_constraint_diff": 0
+  },
+  "isolated_database": {
+    "upgrade": "0001 -> 0020 passed",
+    "final_revision": "0020",
+    "constraint_count": 1,
+    "constraint_definition": "UNIQUE (competition_id, label)",
+    "duplicate_constraints": 0
+  },
+  "tests": {
+    "focused": "2 passed",
+    "unit_full": "659 passed, 1 failed; failure is unchanged date-sensitive Odds API reset fixture",
+    "unit_without_known_baseline_failure": "659 passed, 1 deselected",
+    "integration": "100 passed",
+    "ruff": "passed",
+    "black": "passed",
+    "mypy": "passed",
+    "git_diff_check": "passed"
+  },
+  "known_baseline_failure": {
+    "test": "tests/unit/test_odds_api_security.py::test_paid_rate_limiter_adopts_server_capacity_and_has_no_daily_cap",
+    "reason": "the fixed x-ratelimit-reset value 2026-08-03 is in the past on 2026-08-27",
+    "related_files_changed_by_task": false
+  },
+  "production_read_only_verification": {
+    "alembic_version": "0020",
+    "constraint_count": 1,
+    "constraint_definition": "UNIQUE (competition_id, label)",
+    "columns": ["competition_id", "label"]
+  },
+  "files_changed": [
+    "alembic/versions/0020_add_season_natural_key.py",
+    "app/repositories/sqlalchemy/models.py",
+    "tests/unit/test_season_schema_contract.py",
+    "tasks/pending/TASK-20260827-022.md (deleted)",
+    "tasks/completed/TASK-20260827-022.md",
+    "reports/codex/TASK-20260827-022-result.json",
+    "reports/codex/TASK-20260827-022-result.md",
+    "handoff/latest_status.json"
+  ],
+  "database_writes": {
+    "production": 0,
+    "disposable": "schema migrations and integration test data only"
+  },
+  "api_calls": 0,
+  "production_impact": "none",
+  "frozen_unchanged": true,
+  "task_20260826_020_executed": false,
+  "recommendation": "review_required_before_merge"
+}
