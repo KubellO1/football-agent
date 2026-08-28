@@ -1,15 +1,20 @@
 {
-  "task_id": "TASK-20260828-023",
+  "task_id": "TASK-20260828-026",
   "status": "completed_awaiting_pr_checks",
-  "branch": "codex/TASK-20260828-023",
-  "implementation_commit": "78f68c5",
-  "summary": "Expired rate-limit reset test now freezes time before reset; production behavior unchanged.",
+  "branch": "codex/TASK-20260828-026",
+  "implementation_commit": "9d4f2f862d25acb0c004be9884efb9d4f639609b",
+  "summary": "Odds-API.io exact three-way moneyline aliases now normalize to canonical h2h at the provider boundary; unknown markets emit an auditable reason code and counter.",
   "tests": {
-    "focused": "1 passed",
-    "unit": "658 passed",
-    "quality": "passed"
+    "focused_provider": "37 passed",
+    "focused_end_to_end_postgres": "1 passed",
+    "unit": "679 passed",
+    "integration": "101 passed",
+    "quality": "Ruff, Black, MyPy and git diff --check passed"
   },
+  "production_database_writes": 0,
+  "external_api_calls": 0,
+  "production_jobs_run": 0,
   "frozen_unchanged": true,
   "safe_to_merge": false,
-  "next_action": "Create PR and wait for required checks and merge approval."
+  "next_action": "Create PR, wait for all required checks, then STOP at Merge Approval Gate."
 }
