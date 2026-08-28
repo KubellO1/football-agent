@@ -1,15 +1,15 @@
 {
-  "task_id": "TASK-20260828-023",
-  "status": "completed_awaiting_pr_checks",
-  "branch": "codex/TASK-20260828-023",
-  "implementation_commit": "78f68c5",
-  "summary": "Expired rate-limit reset test now freezes time before reset; production behavior unchanged.",
+  "task_id": "TASK-20260828-025",
+  "status": "completed_read_only_audit_stop",
+  "branch": "codex/TASK-20260828-025",
+  "summary": "Confirmed a production market-key contract defect (Odds-API.io emits 1x2 while ingestion accepts h2h) and a second structural contradiction (Bet365-only versus minimum_bookmakers=2). Production odds snapshots and bookmakers remain zero.",
   "tests": {
-    "focused": "1 passed",
-    "unit": "658 passed",
-    "quality": "passed"
+    "focused_unit": "60 passed in 0.58s"
   },
+  "database_writes": 0,
+  "external_api_calls": 0,
+  "production_jobs_run": 0,
   "frozen_unchanged": true,
   "safe_to_merge": false,
-  "next_action": "Create PR and wait for required checks and merge approval."
+  "next_action": "STOP. Create separate approval-gated tasks for the market-key code fix, two-bookmaker paid configuration, and a minimal controlled timestamp/API-shape probe."
 }

@@ -1,0 +1,259 @@
+{
+  "task_id": "TASK-20260828-025",
+  "title": "Audit odds provider mapping and snapshot persistence",
+  "status": "completed_read_only_audit_stop",
+  "branch": "codex/TASK-20260828-025",
+  "base_commit": "6be5dbb819617bff87deab71c046e0b9ef14a021",
+  "commits": [],
+  "audit_window": {
+    "primary_days": 14,
+    "extended_days": 30,
+    "reason": "The 30-day window confirms that the zero-snapshot condition is persistent rather than a single-day outage."
+  },
+  "effective_configuration": {
+    "odds_primary": "Odds-API.io",
+    "generic_fallback": "The Odds API",
+    "targeted_production_fallback_active": false,
+    "api_football_is_odds_fallback": false,
+    "plan": "paid",
+    "bookmakers": ["Bet365"],
+    "minimum_bookmakers": 2,
+    "maximum_snapshot_age_minutes": 30
+  },
+  "production_inventory": {
+    "fixtures": 5391,
+    "predictions": 175,
+    "odds_snapshots": 0,
+    "bookmakers": 0,
+    "provider_fixture_mapping_table_exists": false
+  },
+  "runtime_stage_counts": {
+    "last_14_days": {
+      "pre_kickoff_refresh_runs": 130,
+      "fixture_instances_targeted": 3169,
+      "parsed_events_reaching_second_fixture_match": 9,
+      "snapshots_created": 0
+    },
+    "last_30_days": {
+      "pre_kickoff_refresh_runs": 290,
+      "fixture_instances_targeted": 6930,
+      "parsed_events_reaching_second_fixture_match": 9,
+      "snapshots_created": 0
+    },
+    "provider_response_row_count": null,
+    "provider_first_mapping_count": null,
+    "unobservable_reason": "The scheduler log exposes only target count, post-ingestion match count and snapshots; raw provider rows and first-stage mapping counts are not persisted."
+  },
+  "pipeline_trace": [
+    {
+      "stage": "provider_response",
+      "input_14d": 3169,
+      "output_14d": null,
+      "lost_14d": null,
+      "finding": "Raw /events and /odds/multi row counts are not persisted; no unexpired event cache remained in Redis."
+    },
+    {
+      "stage": "provider_event_to_fixture_mapping",
+      "input_14d": null,
+      "output_14d": null,
+      "lost_14d": null,
+      "finding": "Mapping is recomputed in memory from team names and kickoff. No provider-fixture mapping table exists. The first provider-side pass omits configured team aliases."
+    },
+    {
+      "stage": "second_fixture_event_match",
+      "input_14d": 3169,
+      "output_14d": 9,
+      "lost_14d": 3160,
+      "loss_rate": 0.9972,
+      "finding": "The aggregate loss combines provider data absence, first-stage mapping misses and parser omissions; current telemetry cannot separate them."
+    },
+    {
+      "stage": "market_outcome_normalization",
+      "input_14d": 9,
+      "output_14d": 0,
+      "lost_14d": 9,
+      "loss_rate": 1.0,
+      "finding": "Confirmed code defect: OddsApiIoProvider translates ML to market='1x2', while OddsIngestionService accepts only market='h2h'. The skip does not increment outcomes_skipped."
+    },
+    {
+      "stage": "timestamp_freshness_pre_persistence",
+      "input_14d": 0,
+      "output_14d": 0,
+      "lost_14d": 0,
+      "finding": "Not reached after the market-key mismatch. A latent risk remains because only market.updatedAt is parsed and missing timestamps are rejected. Verification requires a separately approved controlled API probe."
+    },
+    {
+      "stage": "bookmaker_id_mapping_and_snapshot_creation",
+      "input_14d": 0,
+      "output_14d": 0,
+      "lost_14d": 0,
+      "finding": "Production bookmakers=0 proves no matched market reached get-or-create bookmaker."
+    },
+    {
+      "stage": "database_persistence",
+      "input_14d": 0,
+      "output_14d": 0,
+      "lost_14d": 0,
+      "finding": "Repository uses ON CONFLICT natural-key idempotency and the service transaction commits on success. No post-creation persistence loss is evidenced."
+    },
+    {
+      "stage": "snapshot_retrieval_and_freshness",
+      "input_14d": 0,
+      "output_14d": 0,
+      "lost_14d": 0,
+      "finding": "Retrieval returns no rows because the table is globally empty; no retrieval or timezone defect can be demonstrated from production data."
+    },
+    {
+      "stage": "RecommendationGate_consumption",
+      "input_14d": 15,
+      "output_14d": 0,
+      "lost_14d": 15,
+      "loss_rate": 1.0,
+      "finding": "All 15 eligible candidates in TASK-20260828-024 stopped at odds availability, before EV, Kelly, confidence or RecommendationGate qualification."
+    }
+  ],
+  "latest_reason_distribution": {
+    "last_14_days": {
+      "NO_ODDS_TRUE_odds_verification_no_snapshots": 8,
+      "WATCH_insufficient_history": 9
+    },
+    "last_30_days": {
+      "NO_ODDS_TRUE_odds_verification_no_snapshots": 30,
+      "WATCH_insufficient_history": 19
+    }
+  },
+  "representative_fixture_traces": [
+    {
+      "fixture_id": "ed70afd6-bf62-4ac6-91d7-76d05d27a2a8",
+      "match": "Gimnasia M. vs Talleres Cordoba",
+      "kickoff_utc": "2026-08-18T00:30:00Z",
+      "checkpoints": ["T-90", "T-60", "T-30"],
+      "runtime_evidence": "Each checkpoint run logged matched=1 and snapshots=0.",
+      "database_evidence": "NO_ODDS_TRUE; odds_verification:no_snapshots; data_quality=60; zero snapshots globally.",
+      "terminal_stage": "market_outcome_normalization"
+    },
+    {
+      "fixture_id": "f9a0f3d1-0608-4416-8c6a-bc83683f7ac3",
+      "match": "Lille vs Paris Saint Germain",
+      "kickoff_utc": "2026-08-28T18:45:00Z",
+      "checkpoints": ["T-90", "T-60", "T-30"],
+      "runtime_evidence": "The shared checkpoint refreshes logged matched=2 and snapshots=0; per-event IDs were not logged, so exact event attribution is not auditable.",
+      "database_evidence": "WATCH for insufficient history; no hidden odds can exist because odds_snapshots=0 globally.",
+      "terminal_stage": "history_before_gate; odds chain also produced no persisted snapshot"
+    },
+    {
+      "fixture_id": "7e17b317-d8ba-4ebe-a863-42b2910aa58d",
+      "match": "Crystal Palace vs Manchester City",
+      "kickoff_utc": "2026-08-28T19:00:00Z",
+      "checkpoints": ["T-90", "T-60", "T-30"],
+      "runtime_evidence": "The shared checkpoint refreshes logged matched=2 and snapshots=0; per-event IDs were not logged.",
+      "database_evidence": "WATCH for insufficient history; data_quality=0; no odds rows.",
+      "terminal_stage": "history_before_gate; odds chain also produced no persisted snapshot"
+    },
+    {
+      "fixture_id": "e076d72b-4272-40e9-afb1-d87a965a56c2",
+      "match": "Huracan vs Estudiantes de Rio Cuarto",
+      "kickoff_utc": "2026-08-28T22:00:00Z",
+      "checkpoints": ["T-90", "T-60", "T-30"],
+      "runtime_evidence": "All three checkpoint refreshes logged matched=0 and snapshots=0.",
+      "database_evidence": "NO_ODDS_TRUE; odds_verification:no_snapshots; data_quality=60.",
+      "terminal_stage": "provider absence or event mapping before parser; current telemetry cannot distinguish"
+    },
+    {
+      "fixture_id": "855aa3b9-d419-436b-a0d8-f6a79f4d07fe",
+      "match": "Union Santa Fe vs Sarmiento Junin",
+      "kickoff_utc": "2026-08-28T22:00:00Z",
+      "checkpoints": ["T-90", "T-60", "T-30"],
+      "runtime_evidence": "All three checkpoint refreshes logged matched=0 and snapshots=0.",
+      "database_evidence": "NO_ODDS_TRUE; odds_verification:no_snapshots; data_quality=60.",
+      "terminal_stage": "provider absence or event mapping before parser; current telemetry cannot distinguish"
+    },
+    {
+      "fixture_id": "9478cbc7-9e6f-4781-a857-580b386b4f63",
+      "match": "Alaves vs Villarreal",
+      "kickoff_utc": "2026-08-28T19:30:00Z",
+      "checkpoints": ["T-90", "T-60", "T-30"],
+      "runtime_evidence": "Shared runs are not attributable by event ID; final T-30 refresh logged matched=0 and snapshots=0.",
+      "database_evidence": "WATCH for insufficient history; data_quality=0; no odds rows.",
+      "terminal_stage": "history before gate; upstream odds observability incomplete"
+    }
+  ],
+  "confirmed_findings": [
+    {
+      "severity": "P0",
+      "classification": "mapping_bug",
+      "finding": "Market vocabulary mismatch: provider emits 1x2, ingestion accepts h2h, causing 100% silent loss after successful fixture matching."
+    },
+    {
+      "severity": "P0",
+      "classification": "configuration_contradiction",
+      "finding": "Bet365-only produces at most one bookmaker per selection, while VerifiedMarketQuotePolicy requires at least two; VERIFIED is mathematically impossible."
+    },
+    {
+      "severity": "P1",
+      "classification": "provider_fallback_gap",
+      "finding": "Targeted production get_odds_for_fixtures bypasses The Odds API fallback. API-Football is not an odds provider."
+    },
+    {
+      "severity": "P1",
+      "classification": "mapping_observability_gap",
+      "finding": "No persistent provider-event mapping exists; the first mapping pass does not use configured team aliases, and raw response/mapping counts are not retained."
+    },
+    {
+      "severity": "P1",
+      "classification": "reason_code_gap",
+      "finding": "NO_ODDS_TRUE/no_snapshots accurately reports the database state but collapses provider absence, mapping failure, market mismatch and timestamp rejection."
+    },
+    {
+      "severity": "P2",
+      "classification": "source_provenance_bug",
+      "finding": "Bookmaker external_source and prediction provider_sources are hardcoded as the-odds-api even when Odds-API.io is the actual primary."
+    }
+  ],
+  "not_supported_by_evidence": {
+    "persistence_bug_after_snapshot_creation": false,
+    "retrieval_bug": false,
+    "fresh_snapshot_misclassified_as_stale": false,
+    "watch_has_unrecognized_odds": false,
+    "note": "These cannot explain current production because no bookmaker or snapshot row has ever been created."
+  },
+  "recommended_follow_up": {
+    "code_pr_required": true,
+    "code_pr_scope": [
+      "Canonicalize Odds-API.io ML to the ingestion contract market key h2h.",
+      "Add a provider-to-ingestion end-to-end unit test proving three Bet365 snapshots are attempted and natural-key idempotency is preserved.",
+      "Expose structured counters for raw rows, first mapping, parsed markets, market-key rejects, missing timestamps, created and existing snapshots.",
+      "Address targeted primary/fallback behavior explicitly; do not silently query a directory-level fallback outside approved fixture IDs."
+    ],
+    "configuration_pr_required": true,
+    "configuration_decision": "Under the paid plan, enable and validate at least one additional permitted bookmaker while retaining minimum_bookmakers=2. Do not lower the verification rule in order to create recommendations.",
+    "controlled_api_probe_required": true,
+    "controlled_api_probe_scope": "One approved fixture, one /events request and one /odds/multi request to verify actual market timestamp location, bookmaker key spelling and event/team fields; redact the API key.",
+    "snapshot_backfill_required_now": false,
+    "snapshot_backfill_note": "Do not fabricate historical capture timestamps. After the fix and probe, perform only a separately approved bounded refresh for currently eligible T-90/T-60/T-30 fixtures."
+  },
+  "tests": {
+    "focused_unit": "60 passed in 0.58s",
+    "files": [
+      "tests/unit/test_odds_api_io_provider.py",
+      "tests/unit/test_odds_api_security.py",
+      "tests/unit/test_odds_matching.py",
+      "tests/unit/test_odds_matching_io.py",
+      "tests/unit/test_verified_market_quote.py"
+    ],
+    "external_api_calls": 0,
+    "production_database_writes": 0
+  },
+  "files_changed": [
+    "tasks/completed/TASK-20260828-025.md",
+    "reports/codex/TASK-20260828-025_result.json",
+    "reports/codex/TASK-20260828-025_result.md",
+    "handoff/latest_status.json"
+  ],
+  "database_writes": 0,
+  "external_api_calls": 0,
+  "production_jobs_run": 0,
+  "production_impact": "none",
+  "frozen_unchanged": true,
+  "approval_gate": "STOP; no fix implemented. Separate code/config/probe approvals are required."
+}
