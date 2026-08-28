@@ -13,10 +13,12 @@ import httpx
 import pytest
 
 from app.providers.impl.odds_api_io_provider import (
+    MARKET_REJECTION_UNSUPPORTED,
     OddsApiIoProvider,
     OddsAuthError,
     OddsProviderError,
     OddsRateLimitError,
+    normalize_odds_api_io_market,
 )
 from app.providers.schemas.odds import ProviderOddsTarget
 from app.utils.rate_limiter import TokenBucketRateLimiter
@@ -58,6 +60,7 @@ def _make_odds_response(
     draw_price: float = 3.40,
     away_price: float = 3.25,
     bookmaker: str = "Bet365",
+    market_name: str = "ML",
 ) -> dict:
     """Shape of Odds-API.io GET /odds response for a single event."""
     return {
@@ -68,7 +71,7 @@ def _make_odds_response(
         "bookmakers": {
             bookmaker: [
                 {
-                    "name": "ML",
+                    "name": market_name,
                     "updatedAt": "2026-07-22T10:00:00Z",
                     "odds": [
                         {
@@ -143,7 +146,7 @@ async def test_get_odds_parses_single_event() -> None:
     assert len(odds.bookmakers) == 1
     bm = odds.bookmakers[0]
     assert bm.bookmaker_key == "Bet365"
-    assert bm.market == "1x2"
+    assert bm.market == "h2h"
     assert len(bm.outcomes) == 3
     assert all(isinstance(o.price, float) for o in bm.outcomes)
     outcome_names = {o.name for o in bm.outcomes}
@@ -178,6 +181,125 @@ async def test_get_odds_filters_non_1x2_markets() -> None:
     provider = OddsApiIoProvider(**_provider_kwargs(_client(handler)))
     result = await provider.get_odds(sport="soccer_epl")
     assert result == []
+
+
+@pytest.mark.parametrize(
+    "provider_market",
+    ["1x2", "1X2", " 1x2 ", "ML", " ml ", "h2h", " H2H ", "moneyline", "money line"],
+)
+def test_normalize_known_three_way_moneyline_aliases(provider_market: str) -> None:
+    assert normalize_odds_api_io_market(provider_market) == "h2h"
+
+
+@pytest.mark.parametrize(
+    "provider_market",
+    ["double chance", "DoubleChance", "draw no bet", "DNB", "asian_handicap", "totals"],
+)
+def test_similar_or_unknown_markets_are_not_mapped_to_h2h(provider_market: str) -> None:
+    assert normalize_odds_api_io_market(provider_market) is None
+
+
+@pytest.mark.anyio
+async def test_native_h2h_payload_remains_canonical() -> None:
+    payload = _make_odds_response(
+        "ev-1",
+        "Arsenal",
+        "Chelsea",
+        "2026-07-23T14:00:00Z",
+        market_name=" h2H ",
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/events"):
+            return httpx.Response(200, json=_OK_EVENTS_LIST)
+        return httpx.Response(200, json=[payload])
+
+    provider = OddsApiIoProvider(**_provider_kwargs(_client(handler)))
+    result = await provider.get_odds(sport="soccer_epl")
+
+    assert result[0].bookmakers[0].market == "h2h"
+
+
+@pytest.mark.anyio
+async def test_1x2_payload_preserves_outcome_mapping_and_prices() -> None:
+    payload = _make_odds_response(
+        "ev-1",
+        "Arsenal",
+        "Chelsea",
+        "2026-07-23T14:00:00Z",
+        home_price=2.11,
+        draw_price=3.41,
+        away_price=3.26,
+        market_name="1X2",
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/events"):
+            return httpx.Response(200, json=_OK_EVENTS_LIST)
+        return httpx.Response(200, json=[payload])
+
+    provider = OddsApiIoProvider(**_provider_kwargs(_client(handler)))
+    result = await provider.get_odds(sport="soccer_epl")
+    market = result[0].bookmakers[0]
+
+    assert market.market == "h2h"
+    assert [(outcome.name, outcome.price) for outcome in market.outcomes] == [
+        ("Arsenal", 2.11),
+        ("Draw", 3.41),
+        ("Chelsea", 3.26),
+    ]
+
+
+@pytest.mark.anyio
+async def test_unknown_market_is_rejected_with_reason_code_and_counter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    log_calls: list[tuple[str, tuple[object, ...]]] = []
+
+    def capture_log(message: str, *args: object) -> None:
+        log_calls.append((message, args))
+
+    monkeypatch.setattr("app.providers.impl.odds_api_io_provider.logger.info", capture_log)
+    payload = _make_odds_response(
+        "ev-1",
+        "Arsenal",
+        "Chelsea",
+        "2026-07-23T14:00:00Z",
+        market_name="mystery market",
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/events"):
+            return httpx.Response(200, json=_OK_EVENTS_LIST)
+        return httpx.Response(200, json=[payload])
+
+    provider = OddsApiIoProvider(**_provider_kwargs(_client(handler)))
+    result = await provider.get_odds(sport="soccer_epl")
+
+    assert result == []
+    assert provider.stats()["markets_rejected_unsupported"] == 1
+    assert any(MARKET_REJECTION_UNSUPPORTED in args for _, args in log_calls)
+
+
+@pytest.mark.anyio
+async def test_double_chance_payload_is_not_converted_to_h2h() -> None:
+    payload = _make_odds_response(
+        "ev-1",
+        "Arsenal",
+        "Chelsea",
+        "2026-07-23T14:00:00Z",
+        market_name="Double Chance",
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/events"):
+            return httpx.Response(200, json=_OK_EVENTS_LIST)
+        return httpx.Response(200, json=[payload])
+
+    provider = OddsApiIoProvider(**_provider_kwargs(_client(handler)))
+
+    assert await provider.get_odds(sport="soccer_epl") == []
+    assert provider.stats()["markets_rejected_unsupported"] == 1
 
 
 @pytest.mark.anyio
