@@ -168,7 +168,11 @@ async def test_provider_headers_reduce_local_remaining_budget() -> None:
 
 
 @pytest.mark.anyio
-async def test_paid_rate_limiter_adopts_server_capacity_and_has_no_daily_cap() -> None:
+async def test_paid_rate_limiter_adopts_server_capacity_and_has_no_daily_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    before_reset = datetime(2026, 8, 3, 18, 20, tzinfo=UTC).timestamp()
+    monkeypatch.setattr(time, "time", lambda: before_reset)
     limiter = TokenBucketRateLimiter(
         budget=1_000,
         daily_budget=0,
