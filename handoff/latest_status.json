@@ -1,6 +1,6 @@
 {
   "task_id": "TASK-20260828-026",
-  "status": "completed_awaiting_pr_checks",
+  "status": "merge_approval_gate",
   "branch": "codex/TASK-20260828-026",
   "implementation_commit": "9d4f2f862d25acb0c004be9884efb9d4f639609b",
   "summary": "Odds-API.io exact three-way moneyline aliases now normalize to canonical h2h at the provider boundary; unknown markets emit an auditable reason code and counter.",
@@ -15,6 +15,12 @@
   "external_api_calls": 0,
   "production_jobs_run": 0,
   "frozen_unchanged": true,
-  "safe_to_merge": false,
-  "next_action": "Create PR, wait for all required checks, then STOP at Merge Approval Gate."
+  "pull_request": {
+    "number": 68,
+    "url": "https://github.com/KubellO1/football-agent/pull/68",
+    "required_checks": "passed",
+    "mergeability": "clean"
+  },
+  "safe_to_merge": true,
+  "next_action": "Wait for explicit user Merge Approval; do not merge automatically."
 }

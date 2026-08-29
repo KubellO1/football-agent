@@ -1,7 +1,7 @@
 {
   "task_id": "TASK-20260828-026",
   "title": "Fix Odds-API.io 1x2 to h2h ingestion contract",
-  "status": "completed_awaiting_pr_checks",
+  "status": "merge_approval_gate",
   "branch": "codex/TASK-20260828-026",
   "base_commit": "6be5dbb819617bff87deab71c046e0b9ef14a021",
   "commits": [
@@ -63,5 +63,13 @@
   "production_impact_before_merge": "none",
   "frozen_unchanged": true,
   "unexpected_diff": false,
-  "approval_gate": "Create PR, wait for Quality/Unit/Integration required checks, then STOP without merging"
+  "pull_request": {
+    "number": 68,
+    "url": "https://github.com/KubellO1/football-agent/pull/68",
+    "quality": "passed",
+    "unit_tests": "passed",
+    "integration_tests": "passed",
+    "mergeability": "clean"
+  },
+  "approval_gate": "All required checks passed; STOP and wait for explicit Merge Approval"
 }
