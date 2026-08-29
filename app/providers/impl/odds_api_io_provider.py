@@ -45,6 +45,23 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+CANONICAL_H2H_MARKET = "h2h"
+MARKET_REJECTION_UNSUPPORTED = "ODDS_API_IO_UNSUPPORTED_MARKET"
+
+# Odds-API.io has used these exact names for three-way football moneyline.
+# Normalization is deliberately conservative: similar markets such as double
+# chance and draw-no-bet are not aliases of the canonical h2h market.
+_H2H_MARKET_ALIASES = frozenset({"1x2", "h2h", "ml", "moneyline", "money line"})
+
+
+def normalize_odds_api_io_market(raw_market: object) -> str | None:
+    """Map an exact Odds-API.io three-way moneyline alias to canonical ``h2h``."""
+    normalized = " ".join(str(raw_market).strip().casefold().split())
+    if normalized in _H2H_MARKET_ALIASES:
+        return CANONICAL_H2H_MARKET
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Failure detail classes — used inside predicate / NO_ODDS envelope
 # ---------------------------------------------------------------------------
@@ -113,9 +130,6 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
     *Phase 1*: football / pre-match / 1X2 ("ML") / decimal odds only.
     """
 
-    # Market names in Odds-API.io response
-    _MARKET_1X2 = "ML"
-
     # Default bookmakers to query (case-sensitive!)
     _DEFAULT_BOOKMAKERS = ("Bet365",)
 
@@ -156,6 +170,7 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
         # Stats
         self._reqs_made: int = 0
         self._reqs_rate_limited: int = 0
+        self._markets_rejected_unsupported: int = 0
         # In-memory events cache: avoids redundant /events when multiple
         # sport keys map to the same Odds-API.io slug (e.g. all "football").
         self._events_cache: dict[str, list[_EventInfo]] = {}
@@ -543,6 +558,7 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
             "requests_rate_limited": self._reqs_rate_limited,
             "cache_hits": self._cache_hits,
             "cache_misses": self._cache_misses,
+            "markets_rejected_unsupported": self._markets_rejected_unsupported,
         }
 
     def _parse_odds_response(
@@ -589,7 +605,17 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
                 if not isinstance(market, dict):
                     continue
                 market_name = market.get("name", "")
-                if market_name != self._MARKET_1X2:
+                canonical_market = normalize_odds_api_io_market(market_name)
+                if canonical_market is None:
+                    self._markets_rejected_unsupported += 1
+                    logger.info(
+                        "Odds-API.io market rejected reason_code=%s event_id=%s "
+                        "bookmaker=%s provider_market=%r",
+                        MARKET_REJECTION_UNSUPPORTED,
+                        event.event_id,
+                        bk_name,
+                        market_name,
+                    )
                     continue
 
                 odds_list: list[dict[str, Any]] = market.get("odds", [])
@@ -626,7 +652,7 @@ class OddsApiIoProvider(BaseHTTPProvider, OddsProvider):
                         BookmakerMarket(
                             bookmaker_key=bk_name,
                             bookmaker_title=bk_name,
-                            market="1x2",
+                            market=canonical_market,
                             last_update=last_update,
                             outcomes=[
                                 OddsOutcome(name=home_team, price=float(home_price)),

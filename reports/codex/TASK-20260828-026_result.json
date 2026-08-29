@@ -1,0 +1,75 @@
+{
+  "task_id": "TASK-20260828-026",
+  "title": "Fix Odds-API.io 1x2 to h2h ingestion contract",
+  "status": "merge_approval_gate",
+  "branch": "codex/TASK-20260828-026",
+  "base_commit": "6be5dbb819617bff87deab71c046e0b9ef14a021",
+  "commits": [
+    {
+      "sha": "9d4f2f862d25acb0c004be9884efb9d4f639609b",
+      "message": "fix(odds): normalize 1x2 market to h2h"
+    }
+  ],
+  "files_changed": [
+    "app/providers/impl/odds_api_io_provider.py",
+    "tests/unit/test_odds_api_io_provider.py",
+    "tests/integration/test_odds_ingestion.py",
+    "tasks/completed/TASK-20260828-026.md",
+    "reports/codex/TASK-20260828-026_result.json",
+    "reports/codex/TASK-20260828-026_result.md",
+    "handoff/latest_status.json"
+  ],
+  "implementation": {
+    "normalization_layer": "OddsApiIoProvider provider normalization boundary",
+    "canonical_market": "h2h",
+    "accepted_exact_aliases_after_case_and_whitespace_normalization": [
+      "1x2",
+      "h2h",
+      "ml",
+      "moneyline",
+      "money line"
+    ],
+    "explicitly_rejected_examples": [
+      "double chance",
+      "draw no bet",
+      "DNB",
+      "asian_handicap",
+      "totals"
+    ],
+    "unknown_market_reason_code": "ODDS_API_IO_UNSUPPORTED_MARKET",
+    "unknown_market_counter": "markets_rejected_unsupported"
+  },
+  "data_flow": {
+    "before": "Odds-API.io ML -> provider DTO market=1x2 -> ingestion accepts h2h only -> silent drop before bookmaker/snapshot creation",
+    "after": "Odds-API.io exact three-way moneyline alias -> provider normalization market=h2h -> fixture match -> ingestion validation -> bookmaker -> home/draw/away snapshot persistence boundary"
+  },
+  "tests": {
+    "focused_provider": "37 passed",
+    "focused_provider_to_ingestion_postgres": "1 passed",
+    "full_unit_ci_equivalent_container": "679 passed, 1 deprecation warning",
+    "full_integration": "101 passed",
+    "ruff": "passed",
+    "black_check": "passed",
+    "mypy_ci_parameters": "passed, no issues in 1 app source file",
+    "git_diff_check": "passed",
+    "windows_local_unit_note": "674 passed and 5 setup errors caused by pre-existing WinError 5 on the user TEMP pytest directory; the same full suite passed 679/679 in the CI-equivalent Linux container"
+  },
+  "production_schema_changed": false,
+  "production_config_changed": false,
+  "production_database_writes": 0,
+  "external_api_calls": 0,
+  "production_jobs_run": 0,
+  "migrations_run": 0,
+  "production_impact_before_merge": "none",
+  "frozen_unchanged": true,
+  "unexpected_diff": false,
+  "pull_request": {
+    "number": 68,
+    "url": "https://github.com/KubellO1/football-agent/pull/68",
+    "quality": "passed",
+    "unit_tests": "passed",
+    "integration_tests": "passed",
+    "mergeability": "clean"
+  },
+  "approval_gate": "All required checks passed; STOP and wait for explicit Merge Approval"
+}

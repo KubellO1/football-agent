@@ -8,13 +8,16 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
+import httpx
 import pytest
 
 from app.models.entities.competition import Competition
 from app.models.entities.fixture import Fixture
 from app.models.entities.team import Team
+from app.providers.impl.odds_api_io_provider import OddsApiIoProvider
 from app.providers.interfaces.odds_provider import OddsProvider
 from app.providers.schemas.odds import BookmakerMarket, OddsOutcome, ProviderFixtureOdds
 from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
@@ -167,6 +170,71 @@ async def test_matched_event_creates_snapshots(db_session: AsyncSession) -> None
         "the-odds-api", "pinnacle"
     )
     assert bookmaker is not None
+
+
+@pytest.mark.integration
+async def test_odds_api_io_1x2_payload_reaches_snapshot_persistence(
+    db_session: AsyncSession,
+) -> None:
+    fixture = await _insert_fixture(db_session, home="Alpha", away="Beta")
+    event_payload = {
+        "id": "event-alpha-beta",
+        "home": "Alpha",
+        "away": "Beta",
+        "date": "2026-07-02T18:30:00Z",
+        "status": "pending",
+        "league": {"name": "League", "slug": "league"},
+    }
+    odds_payload = {
+        "id": "event-alpha-beta",
+        "home": "Alpha",
+        "away": "Beta",
+        "date": "2026-07-02T18:30:00Z",
+        "bookmakers": {
+            "Bet365": [
+                {
+                    "name": "1X2",
+                    "updatedAt": "2026-07-02T12:00:00Z",
+                    "odds": [{"home": "2.50", "draw": "3.30", "away": "2.90"}],
+                }
+            ]
+        },
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/events"):
+            return httpx.Response(200, json=[event_payload])
+        assert request.url.path.endswith("/odds/multi")
+        return httpx.Response(200, json=[odds_payload])
+
+    client = httpx.AsyncClient(
+        base_url="https://example.test",
+        transport=httpx.MockTransport(handler),
+    )
+    provider = OddsApiIoProvider(
+        api_key="***",
+        base_url="https://example.test",
+        timeout_seconds=5.0,
+        max_retries=1,
+        backoff_base_seconds=0.0,
+        client=client,
+    )
+    try:
+        report = await _service(db_session, provider).sync_odds_today(TARGET)
+    finally:
+        await client.aclose()
+
+    assert report.events_fetched == 1
+    assert report.events_matched == 1
+    assert report.snapshots_created == 3
+    assert report.outcomes_skipped == 0
+
+    snapshots = await SqlAlchemyOddsSnapshotRepository(db_session).list_by_fixture(fixture.id)
+    by_code = {snapshot.selection.code: snapshot for snapshot in snapshots}
+    assert set(by_code) == {"home", "draw", "away"}
+    assert by_code["home"].odds.decimal == Decimal("2.50")
+    assert by_code["draw"].odds.decimal == Decimal("3.30")
+    assert by_code["away"].odds.decimal == Decimal("2.90")
 
 
 @pytest.mark.integration
