@@ -4,6 +4,18 @@
   "status": "approval_gate",
   "branch": "codex/TASK-20260830-031",
   "base_commit": "3495d0b46006d0400d0981068c21b8f1a09f8a33",
+  "commits": [
+    {
+      "sha": "7f8c1ea7359ba11be0d0124a7aaf6c5dd2ec8199",
+      "message": "feat(odds): add fixture-level provider fallback"
+    }
+  ],
+  "branch_pushed": true,
+  "pull_request": {
+    "created": false,
+    "blocker": "GitHub CLI is not installed in the execution environment.",
+    "manual_creation_url": "https://github.com/KubellO1/football-agent/pull/new/codex/TASK-20260830-031"
+  },
   "root_cause": {
     "summary": "The 97 due checkpoint fixture IDs were sent to odds synchronization before production-whitelist filtering. Ninety-three were unsupported. The four supported fixtures had no Odds-API.io provider-event match, so /odds/multi was never called. The existing composite provider also treated an empty or partial primary result as success, so The Odds API fallback was not called.",
     "production_run_id": "f63a686486a6",
