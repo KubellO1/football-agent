@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from uuid import UUID
 
 import httpx
 import pytest
@@ -15,6 +16,7 @@ import pytest
 from app.core.exceptions import ExternalServiceError
 from app.providers.impl.api_football_provider import ApiFootballProvider
 from app.providers.impl.odds_api_provider import TheOddsApiProvider
+from app.providers.schemas.odds import ProviderOddsTarget
 
 # --- 假响应载荷 -------------------------------------------------------------
 
@@ -137,6 +139,33 @@ async def test_odds_api_parses_and_flattens_markets() -> None:
     assert market.market == "h2h"
     assert len(market.outcomes) == 3
     assert market.outcomes[0].price == 2.5
+
+
+@pytest.mark.unit
+async def test_odds_api_targeted_fallback_uses_fixture_sport_key() -> None:
+    requested_paths: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested_paths.append(request.url.path)
+        return httpx.Response(200, json=_ODDS_PAYLOAD)
+
+    provider = TheOddsApiProvider(**_provider_kwargs(_client(handler)))
+    target = ProviderOddsTarget(
+        fixture_id=UUID(int=1),
+        home_team="Manchester United",
+        away_team="Liverpool",
+        kickoff=datetime(2026, 7, 2, 18, 30, tzinfo=UTC),
+        sport_key="soccer_epl",
+    )
+
+    events = await provider.get_odds_for_fixtures(
+        sport="football",
+        fixtures=[target],
+    )
+
+    assert requested_paths == ["/sports/soccer_epl/odds"]
+    assert [event.provider_id for event in events] == ["abc123"]
+    assert provider.stats() == {"requests_made": 1}
 
 
 _HISTORICAL_PAYLOAD = {

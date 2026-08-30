@@ -1,0 +1,155 @@
+{
+  "task_id": "TASK-20260830-031",
+  "title": "Production Odds Coverage Activation — Dual Provider Audit + Canary",
+  "status": "approval_gate",
+  "branch": "codex/TASK-20260830-031",
+  "base_commit": "3495d0b46006d0400d0981068c21b8f1a09f8a33",
+  "commits": [
+    {
+      "sha": "7f8c1ea7359ba11be0d0124a7aaf6c5dd2ec8199",
+      "message": "feat(odds): add fixture-level provider fallback"
+    }
+  ],
+  "branch_pushed": true,
+  "pull_request": {
+    "created": false,
+    "blocker": "GitHub CLI is not installed in the execution environment.",
+    "manual_creation_url": "https://github.com/KubellO1/football-agent/pull/new/codex/TASK-20260830-031"
+  },
+  "root_cause": {
+    "summary": "The 97 due checkpoint fixture IDs were sent to odds synchronization before production-whitelist filtering. Ninety-three were unsupported. The four supported fixtures had no Odds-API.io provider-event match, so /odds/multi was never called. The existing composite provider also treated an empty or partial primary result as success, so The Odds API fallback was not called.",
+    "production_run_id": "f63a686486a6",
+    "production_run_time": "2026-08-30T13:05:04+02:00",
+    "actual_odds_http_requests": 0,
+    "fallback_attempts": 0
+  },
+  "production_97_fixture_funnel": {
+    "total_targeted_fixtures": 97,
+    "production_whitelist_passed": 4,
+    "supported_competition_mapping": 4,
+    "provider_league_mapping": 4,
+    "provider_event_id_mapping": 0,
+    "within_odds_request_window": 4,
+    "eligible_for_odds_api_io_request": 0,
+    "actually_requested": 0,
+    "odds_returned": 0,
+    "normalized": 0,
+    "fixture_matched": 0,
+    "snapshot_persisted": 0,
+    "reason_counts": {
+      "UNSUPPORTED_COMPETITION": 93,
+      "NO_PROVIDER_EVENT": 4
+    },
+    "fixture_level_reason_codes": "All 97 fixture IDs and reason codes are listed in the Markdown report appendix."
+  },
+  "five_league_7_day_coverage": {
+    "window": "2026-08-30 through 2026-09-06 UTC",
+    "fixtures": 15,
+    "primary_covered": 3,
+    "primary_coverage_percent": 20.0,
+    "fallback_covered": 10,
+    "fallback_incremental": 7,
+    "fallback_incremental_coverage_percent": 46.7,
+    "combined_covered": 10,
+    "combined_coverage_percent": 66.7,
+    "by_league": [
+      {"league": "Premier League", "fixtures": 4, "primary": 2, "fallback_incremental": 1, "combined": 3, "combined_percent": 75.0},
+      {"league": "La Liga", "fixtures": 3, "primary": 0, "fallback_incremental": 2, "combined": 2, "combined_percent": 66.7},
+      {"league": "Serie A", "fixtures": 3, "primary": 0, "fallback_incremental": 2, "combined": 2, "combined_percent": 66.7},
+      {"league": "Bundesliga", "fixtures": 2, "primary": 1, "fallback_incremental": 0, "combined": 1, "combined_percent": 50.0},
+      {"league": "Ligue 1", "fixtures": 3, "primary": 0, "fallback_incremental": 2, "combined": 2, "combined_percent": 66.7}
+    ]
+  },
+  "controlled_api_probe": {
+    "requests": 7,
+    "statuses": {"200": 7},
+    "odds_api_io_requests": 2,
+    "the_odds_api_requests": 5,
+    "retries": 0,
+    "credential_leakage": false,
+    "production_database_writes": 0
+  },
+  "implementation": {
+    "fallback_semantics": [
+      "primary exception -> fallback",
+      "primary empty for eligible fixture -> fallback",
+      "primary partial batch -> fallback only missing fixtures",
+      "primary valid complete coverage -> no fallback"
+    ],
+    "observability": [
+      "primary_requests",
+      "primary_events_returned",
+      "primary_empty_events",
+      "fallback_attempts",
+      "fallback_successes",
+      "fallback_events_returned",
+      "combined_odds_coverage",
+      "unmatched_reason_counts"
+    ],
+    "data_integrity": [
+      "provider_source and provider_event_id are retained on snapshots",
+      "provider event IDs remain provider-scoped",
+      "Bet365 feed variants normalize to one canonical bookmaker identity",
+      "fallback targets only missing fixtures",
+      "snapshot natural-key idempotency remains active"
+    ],
+    "schema_change": "New pending Alembic revision 0021 adds nullable provider provenance columns and an index. It was tested only on a disposable database and has not been applied to production."
+  },
+  "canary": {
+    "type": "isolated PostgreSQL integration canary",
+    "fixtures": 2,
+    "first_run_snapshots_created": 6,
+    "second_run_snapshots_created": 0,
+    "second_run_existing_snapshots": 6,
+    "duplicate_natural_keys": 0,
+    "production_canary_executed": false,
+    "blocker": "Production is at Alembic 0020. Snapshot provenance requires 0021 and therefore a production-clone reconciliation/rehearsal plus explicit Production Database Approval before any production snapshot-write canary."
+  },
+  "tests": {
+    "focused": "25 passed",
+    "unit": "686 passed",
+    "integration": "103 passed",
+    "integration_note": "The first Windows run hit pre-existing TEMP permission errors; the worktree-local basetemp rerun passed 103/103.",
+    "migration_upgrade": "0020 -> 0021 passed on disposable PostgreSQL",
+    "migration_downgrade": "0021 -> 0020 passed on disposable PostgreSQL",
+    "alembic_check": "passed at 0021 before and after rollback rehearsal",
+    "ruff": "passed",
+    "black_check": "passed",
+    "mypy": "passed, 9 changed app source files",
+    "git_diff_check": "passed"
+  },
+  "files_changed": [
+    "alembic/versions/0021_add_odds_snapshot_provider_provenance.py",
+    "app/models/entities/odds_snapshot.py",
+    "app/providers/impl/odds_api_provider.py",
+    "app/providers/impl/prioritized_odds_provider.py",
+    "app/providers/schemas/odds.py",
+    "app/repositories/sqlalchemy/mappers.py",
+    "app/repositories/sqlalchemy/models.py",
+    "app/repositories/sqlalchemy/odds_snapshot_repository.py",
+    "app/schemas/odds_sync.py",
+    "app/services/odds_ingestion.py",
+    "tests/integration/test_odds_ingestion.py",
+    "tests/unit/test_prioritized_odds_fallback.py",
+    "tests/unit/test_providers.py",
+    "tests/unit/test_season_schema_contract.py",
+    "tasks/completed/TASK-20260830-031.md",
+    "reports/codex/TASK-20260830-031_result.json",
+    "reports/codex/TASK-20260830-031_result.md",
+    "handoff/latest_status.json"
+  ],
+  "database_writes": {
+    "production": 0,
+    "disposable_test_database_only": true
+  },
+  "production_jobs_run": 0,
+  "sports_game_odds_added": false,
+  "frozen_unchanged": true,
+  "recommended_rollout": [
+    "Review this code and migration in a PR without merging.",
+    "Perform the mandatory production-clone rehearsal for migration 0021, including schema diff, rollback and repeated rehearsal.",
+    "Obtain explicit Production Database Approval before applying 0021.",
+    "After migration and deployment approval, run a maximum-five-fixture production canary, then stop for rollout approval."
+  ],
+  "approval_gate": "STOP. No merge, production migration, deployment, Windows task change or bulk execution is authorized."
+}

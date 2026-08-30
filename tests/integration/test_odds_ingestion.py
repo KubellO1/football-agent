@@ -18,6 +18,7 @@ from app.models.entities.competition import Competition
 from app.models.entities.fixture import Fixture
 from app.models.entities.team import Team
 from app.providers.impl.odds_api_io_provider import OddsApiIoProvider
+from app.providers.impl.prioritized_odds_provider import PrioritizedOddsProvider
 from app.providers.interfaces.odds_provider import OddsProvider
 from app.providers.schemas.odds import BookmakerMarket, OddsOutcome, ProviderFixtureOdds
 from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
@@ -109,6 +110,9 @@ def _event(
     extra_outcomes: list[OddsOutcome] | None = None,
     last_update: datetime | None = LAST_UPDATE,
     bookmaker_key: str = "pinnacle",
+    bookmaker_title: str = "Pinnacle",
+    provider_id: str | None = None,
+    source: str = "unknown",
 ) -> ProviderFixtureOdds:
     outcomes = [
         OddsOutcome(name=home, price=prices[0]),
@@ -118,7 +122,7 @@ def _event(
     if extra_outcomes:
         outcomes.extend(extra_outcomes)
     return ProviderFixtureOdds(
-        provider_id=f"evt-{home}-{away}",
+        provider_id=provider_id or f"evt-{home}-{away}",
         commence_time=commence,
         home_team=home,
         away_team=away,
@@ -126,22 +130,30 @@ def _event(
         bookmakers=[
             BookmakerMarket(
                 bookmaker_key=bookmaker_key,
-                bookmaker_title="Pinnacle",
+                bookmaker_title=bookmaker_title,
                 market="h2h",
                 last_update=last_update,
                 outcomes=outcomes,
             )
         ],
+        source=source,
     )
 
 
-def _service(session: AsyncSession, provider: OddsProvider, *, tolerance: int = 180):
+def _service(
+    session: AsyncSession,
+    provider: OddsProvider,
+    *,
+    tolerance: int = 180,
+    enforce_whitelist: bool = False,
+):
     return OddsIngestionService(
         odds_provider=provider,
         fixtures=SqlAlchemyFixtureRepository(session),
         teams=SqlAlchemyTeamRepository(session),
         bookmakers=SqlAlchemyBookmakerRepository(session),
         odds_snapshots=SqlAlchemyOddsSnapshotRepository(session),
+        competitions=(SqlAlchemyCompetitionRepository(session) if enforce_whitelist else None),
         sport_keys=["soccer_epl"],
         regions=["eu"],
         tolerance_minutes=tolerance,
@@ -235,6 +247,79 @@ async def test_odds_api_io_1x2_payload_reaches_snapshot_persistence(
     assert by_code["home"].odds.decimal == Decimal("2.50")
     assert by_code["draw"].odds.decimal == Decimal("3.30")
     assert by_code["away"].odds.decimal == Decimal("2.90")
+    assert {snapshot.provider_source for snapshot in snapshots} == {"odds-api.io"}
+    assert {snapshot.provider_event_id for snapshot in snapshots} == {"event-alpha-beta"}
+
+
+@pytest.mark.integration
+async def test_dual_provider_canary_persists_only_missing_fixture_fallback(
+    db_session: AsyncSession,
+) -> None:
+    primary_fixture = await _insert_fixture(db_session, home="Alpha", away="Beta")
+    fallback_fixture = await _insert_fixture(db_session, home="Gamma", away="Delta")
+    primary = FakeOddsProvider(
+        [
+            _event(
+                "Alpha",
+                "Beta",
+                bookmaker_key="Bet365",
+                bookmaker_title="Bet365",
+                provider_id="primary-event",
+                source="odds-api.io",
+            )
+        ],
+        filter_targets=True,
+    )
+    fallback = FakeOddsProvider(
+        [
+            _event(
+                "Gamma",
+                "Delta",
+                bookmaker_key="bet365",
+                bookmaker_title="Bet365",
+                provider_id="fallback-event",
+                source="the-odds-api",
+            )
+        ],
+        filter_targets=True,
+    )
+    provider = PrioritizedOddsProvider(primary=primary, fallback=fallback)  # type: ignore[arg-type]
+    service = _service(db_session, provider)
+
+    first = await service.sync_odds_today(
+        TARGET,
+        fixture_ids={primary_fixture.id, fallback_fixture.id},
+    )
+
+    assert first.primary_requests == 0  # fakes expose no HTTP request counter
+    assert first.fallback_attempts == 1
+    assert first.fallback_successes == 1
+    assert first.combined_odds_coverage == 1.0
+    assert first.snapshots_created == 6
+    assert [target.fixture_id for target in fallback.requested_targets] == [fallback_fixture.id]
+
+    primary_snapshots = await SqlAlchemyOddsSnapshotRepository(db_session).list_by_fixture(
+        primary_fixture.id
+    )
+    fallback_snapshots = await SqlAlchemyOddsSnapshotRepository(db_session).list_by_fixture(
+        fallback_fixture.id
+    )
+    assert {snapshot.provider_source for snapshot in primary_snapshots} == {"odds-api.io"}
+    assert {snapshot.provider_event_id for snapshot in primary_snapshots} == {"primary-event"}
+    assert {snapshot.provider_source for snapshot in fallback_snapshots} == {"the-odds-api"}
+    assert {snapshot.provider_event_id for snapshot in fallback_snapshots} == {"fallback-event"}
+
+    bookmaker = await SqlAlchemyBookmakerRepository(db_session).get_by_external_id(
+        "the-odds-api", "bet365"
+    )
+    assert bookmaker is not None
+
+    second = await service.sync_odds_today(
+        TARGET,
+        fixture_ids={primary_fixture.id, fallback_fixture.id},
+    )
+    assert second.snapshots_created == 0
+    assert second.snapshots_existing == 6
 
 
 @pytest.mark.integration
@@ -272,6 +357,26 @@ async def test_odds_sync_queries_only_requested_database_fixtures(
     assert report.events_matched == 1
     assert len(await SqlAlchemyOddsSnapshotRepository(db_session).list_by_fixture(selected.id)) == 3
     assert len(await SqlAlchemyOddsSnapshotRepository(db_session).list_by_fixture(excluded.id)) == 0
+
+
+@pytest.mark.integration
+async def test_odds_sync_reports_unsupported_target_before_provider_request(
+    db_session: AsyncSession,
+) -> None:
+    fixture = await _insert_fixture(db_session, home="Alpha", away="Beta")
+    provider = FakeOddsProvider([_event("Alpha", "Beta")])
+
+    report = await _service(
+        db_session,
+        provider,
+        enforce_whitelist=True,
+    ).sync_odds_today(TARGET, fixture_ids={fixture.id})
+
+    assert report.requested_fixtures == 1
+    assert report.targeted_fixtures == 0
+    assert report.unmatched_reason_counts == {"UNSUPPORTED_COMPETITION": 1}
+    assert provider.requested_targets == []
+    assert report.snapshots_created == 0
 
 
 @pytest.mark.integration

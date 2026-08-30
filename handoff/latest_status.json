@@ -1,26 +1,41 @@
 {
-  "task_id": "TASK-20260828-026",
-  "status": "merge_approval_gate",
-  "branch": "codex/TASK-20260828-026",
-  "implementation_commit": "9d4f2f862d25acb0c004be9884efb9d4f639609b",
-  "summary": "Odds-API.io exact three-way moneyline aliases now normalize to canonical h2h at the provider boundary; unknown markets emit an auditable reason code and counter.",
-  "tests": {
-    "focused_provider": "37 passed",
-    "focused_end_to_end_postgres": "1 passed",
-    "unit": "679 passed",
-    "integration": "101 passed",
-    "quality": "Ruff, Black, MyPy and git diff --check passed"
+  "task_id": "TASK-20260830-031",
+  "status": "approval_gate",
+  "branch": "codex/TASK-20260830-031",
+  "implementation_commit": "7f8c1ea7359ba11be0d0124a7aaf6c5dd2ec8199",
+  "branch_pushed": true,
+  "summary": "Production odds zero-coverage root cause identified and fixture-level Odds-API.io -> The Odds API fallback implemented. Isolated canary is idempotent; production canary is blocked until pending Alembic 0021 completes the mandatory production-clone rehearsal and receives Production Database Approval.",
+  "audit": {
+    "production_run_id": "f63a686486a6",
+    "targeted": 97,
+    "unsupported_competition": 93,
+    "no_provider_event": 4,
+    "actual_http_requests": 0,
+    "fallback_attempts": 0
+  },
+  "coverage": {
+    "five_league_fixtures": 15,
+    "primary_percent": 20.0,
+    "fallback_incremental_percent": 46.7,
+    "combined_percent": 66.7
+  },
+  "verification": {
+    "focused": "25 passed",
+    "unit": "686 passed",
+    "integration": "103 passed",
+    "quality": "Ruff, Black, MyPy and git diff --check passed",
+    "isolated_migration": "0020 -> 0021 -> 0020 -> 0021 and alembic check passed",
+    "canary": "2 fixtures; first run 6 snapshots, repeat run 0 new, duplicate natural keys 0"
   },
   "production_database_writes": 0,
-  "external_api_calls": 0,
   "production_jobs_run": 0,
+  "external_api_calls": 7,
   "frozen_unchanged": true,
+  "blocker": "No production snapshot write canary until migration 0021 has a production-clone double rehearsal, rollback proof and explicit Production Database Approval.",
   "pull_request": {
-    "number": 68,
-    "url": "https://github.com/KubellO1/football-agent/pull/68",
-    "required_checks": "passed",
-    "mergeability": "clean"
+    "created": false,
+    "blocker": "GitHub CLI is not installed in the execution environment.",
+    "manual_creation_url": "https://github.com/KubellO1/football-agent/pull/new/codex/TASK-20260830-031"
   },
-  "safe_to_merge": true,
-  "next_action": "Wait for explicit user Merge Approval; do not merge automatically."
+  "next_action": "Review task report and pushed branch. Create the PR manually if desired, then create a separate production-clone rehearsal task for 0021; do not merge, migrate or deploy automatically."
 }

@@ -22,6 +22,10 @@ class ProviderOddsTarget(BaseModel):
     home_team: str
     away_team: str
     kickoff: datetime
+    sport_key: str | None = Field(
+        default=None,
+        description="Provider-specific league key used by league-scoped fallbacks.",
+    )
 
 
 class OddsOutcome(BaseModel):
