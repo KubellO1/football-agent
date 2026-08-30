@@ -1,41 +1,33 @@
 {
-  "task_id": "TASK-20260830-031",
+  "task_id": "TASK-20260830-032",
   "status": "approval_gate",
-  "branch": "codex/TASK-20260830-031",
-  "implementation_commit": "7f8c1ea7359ba11be0d0124a7aaf6c5dd2ec8199",
-  "branch_pushed": true,
-  "summary": "Production odds zero-coverage root cause identified and fixture-level Odds-API.io -> The Odds API fallback implemented. Isolated canary is idempotent; production canary is blocked until pending Alembic 0021 completes the mandatory production-clone rehearsal and receives Production Database Approval.",
-  "audit": {
-    "production_run_id": "f63a686486a6",
-    "targeted": 97,
-    "unsupported_competition": 93,
-    "no_provider_event": 4,
-    "actual_http_requests": 0,
-    "fallback_attempts": 0
-  },
-  "coverage": {
-    "five_league_fixtures": 15,
-    "primary_percent": 20.0,
-    "fallback_incremental_percent": 46.7,
-    "combined_percent": 66.7
+  "branch": "codex/TASK-20260830-032",
+  "summary": "Alembic 0021 passed two independent production-clone upgrade/downgrade/re-upgrade rehearsals with identical exact schema hashes, no data loss, no duplicates and no fabricated provenance. Production remained read-only at revision 0020.",
+  "migration": {
+    "from": "0020",
+    "to": "0021",
+    "first_rehearsal": "PASS",
+    "second_rehearsal": "PASS",
+    "rollback": "PASS",
+    "deterministic": true
   },
   "verification": {
-    "focused": "25 passed",
+    "focused": "47 passed",
     "unit": "686 passed",
     "integration": "103 passed",
-    "quality": "Ruff, Black, MyPy and git diff --check passed",
-    "isolated_migration": "0020 -> 0021 -> 0020 -> 0021 and alembic check passed",
-    "canary": "2 fixtures; first run 6 snapshots, repeat run 0 new, duplicate natural keys 0"
+    "ruff_incremental": "PASS",
+    "mypy_incremental": "PASS",
+    "git_diff_check": "PASS",
+    "black": "Inherited TASK-031 test formatting drift detected; not modified in TASK-032"
   },
   "production_database_writes": 0,
+  "external_api_calls": 0,
   "production_jobs_run": 0,
-  "external_api_calls": 7,
   "frozen_unchanged": true,
-  "blocker": "No production snapshot write canary until migration 0021 has a production-clone double rehearsal, rollback proof and explicit Production Database Approval.",
-  "pull_request": {
-    "created": false,
-    "blocker": "GitHub CLI is not installed in the execution environment.",
-    "manual_creation_url": "https://github.com/KubellO1/football-agent/pull/new/codex/TASK-20260830-031"
-  },
-  "next_action": "Review task report and pushed branch. Create the PR manually if desired, then create a separate production-clone rehearsal task for 0021; do not merge, migrate or deploy automatically."
+  "blockers": [
+    "Explicit Production Database Approval is required before production 0021.",
+    "TASK-031 has not been merged or deployed.",
+    "Inherited TASK-031 Black formatting drift should be fixed before its PR/CI gate."
+  ],
+  "next_action": "Review TASK-20260830-032 reports. If accepted, separately approve the exact production 0021 procedure; do not start TASK-031 live Canary automatically."
 }

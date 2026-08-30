@@ -1,0 +1,135 @@
+{
+  "task_id": "TASK-20260830-032",
+  "title": "Alembic 0021 Provider Provenance — Production Clone Rehearsal",
+  "status": "approval_gate",
+  "branch": "codex/TASK-20260830-032",
+  "base_commit": "c37e2b5504cb2e71445493e58e16fa009b72e4c2",
+  "source_task": "TASK-20260830-031",
+  "source_implementation_commit": "7f8c1ea7359ba11be0d0124a7aaf6c5dd2ec8199",
+  "migration_audit": {
+    "revision": "0021",
+    "down_revision": "0020",
+    "table": "odds_snapshots",
+    "columns_added": [
+      {"name": "provider_source", "type": "VARCHAR(40)", "nullable": true, "default": null},
+      {"name": "provider_event_id", "type": "VARCHAR(128)", "nullable": true, "default": null}
+    ],
+    "index_added": "ix_odds_snapshots_provider_event(provider_source, provider_event_id)",
+    "constraints_changed": [],
+    "existing_row_behavior": "Existing rows remain unchanged with NULL provenance. No source is guessed or fabricated.",
+    "downgrade_behavior": "Drops the provenance index and the two provenance columns; existing odds snapshot rows remain intact.",
+    "data_update_or_delete": false,
+    "locking": "Nullable ADD COLUMN without default requires brief table locks; non-concurrent CREATE INDEX scans the table and may block writes. Production currently has zero odds snapshot rows."
+  },
+  "production_backup": {
+    "method": "PostgreSQL custom-format pg_dump including schema, data, sequences and alembic_version",
+    "path": "backups/TASK-20260830-032/production_0020_20260830_192838.dump",
+    "timestamp_local": "2026-08-30T19:28:38+02:00",
+    "bytes": 887067,
+    "sha256": "ACA31B8DA841F0D8D5EBA3AF1D1D4315A12E50F6357A1A4B9A6ECBF1FB85A84A",
+    "readability_check": "pg_restore -l PASS"
+  },
+  "production_baseline": {
+    "database": "football",
+    "server_version": "16.14",
+    "alembic_version": "0020",
+    "fixtures": 7624,
+    "odds_snapshots": 0,
+    "bookmakers": 0,
+    "predictions_at_backup": 549,
+    "decision_logs": 0,
+    "duplicate_natural_key_groups": 0,
+    "provider_provenance_columns": 0,
+    "public_sequences": 0
+  },
+  "clone_method": "Create fresh disposable PostgreSQL database and restore the same original custom-format production backup with pg_restore.",
+  "schema_hashes": {
+    "canonical_0020": "CC7F48A45F44D09B2A03A9DF9748C272E84DE57D4197991F8146B27E12DF79BF",
+    "canonical_0021": "D5B4418C03DE750AB56F9AAE8F1E6895986933214C5F013B4C5565C7322AB202",
+    "method": "Normalized schema-only pg_dump with random psql restrict markers excluded"
+  },
+  "rehearsals": [
+    {
+      "clone": "football_task_032_r1_test",
+      "baseline_revision": "0020",
+      "upgrade_1": {"result": "PASS", "elapsed_ms": 1541, "revision": "0021", "alembic_check": "PASS"},
+      "downgrade": {"result": "PASS", "elapsed_ms": 1115, "revision": "0020", "exact_schema": true},
+      "upgrade_2": {"result": "PASS", "elapsed_ms": 1315, "revision": "0021", "alembic_check": "PASS"},
+      "final_schema_hash": "D5B4418C03DE750AB56F9AAE8F1E6895986933214C5F013B4C5565C7322AB202",
+      "odds_rows_before_after": [0, 0],
+      "duplicate_groups_before_after": [0, 0],
+      "fabricated_provenance_rows": 0,
+      "sequence_changes": 0
+    },
+    {
+      "clone": "football_task_032_r2_test",
+      "baseline_revision": "0020",
+      "upgrade_1": {"result": "PASS", "elapsed_ms": 1126, "revision": "0021", "alembic_check": "PASS"},
+      "downgrade": {"result": "PASS", "elapsed_ms": 1189, "revision": "0020", "exact_schema": true},
+      "upgrade_2": {"result": "PASS", "elapsed_ms": 1115, "revision": "0021", "alembic_check": "PASS"},
+      "final_schema_hash": "D5B4418C03DE750AB56F9AAE8F1E6895986933214C5F013B4C5565C7322AB202",
+      "odds_rows_before_after": [0, 0],
+      "duplicate_groups_before_after": [0, 0],
+      "fabricated_provenance_rows": 0,
+      "sequence_changes": 0
+    }
+  ],
+  "deterministic_rehearsal": true,
+  "application_compatibility": {
+    "odds_api_io_provenance": "PASS",
+    "the_odds_api_fallback_provenance": "PASS",
+    "provider_scoped_event_id": "PASS",
+    "same_bookmaker_cross_provider_deduplication": "PASS",
+    "fixture_market_bookmaker_source_auditability": "PASS",
+    "ev_pipeline_read_compatibility": "PASS",
+    "model_or_gate_behavior_changed": false
+  },
+  "tests": {
+    "focused_application_compatibility": "47 passed",
+    "unit": "686 passed",
+    "integration": "103 passed",
+    "integration_note": "A first seeded-clone run produced one expected isolation failure because the production clone already contained 7,624 fixtures. The full suite was rerun against a fresh empty disposable PostgreSQL database and passed 103/103.",
+    "ruff_incremental_ci_scope": "PASS",
+    "mypy_incremental_ci_scope": "PASS — 9 app files",
+    "git_diff_check": "PASS",
+    "black_incremental_ci_scope": "BLOCKED by inherited TASK-031 formatting drift in tests/unit/test_prioritized_odds_fallback.py",
+    "full_repository_mypy": "72 pre-existing errors in 7 files; CI does not run full-repository MyPy",
+    "full_repository_ruff": "229 pre-existing findings; CI uses changed-file scope"
+  },
+  "quality_blocker": "Before TASK-031 enters its PR gate, reformat only its inherited tests/unit/test_prioritized_odds_fallback.py with the CI Black version. TASK-032 did not modify production code to hide this unrelated issue.",
+  "production_final_read_only_check": {
+    "alembic_version": "0020",
+    "odds_snapshots": 0,
+    "duplicate_natural_key_groups": 0,
+    "provider_provenance_columns": 0,
+    "production_writes_by_task": 0,
+    "note": "Predictions increased from 549 at backup to 561 during the long rehearsal due to independently scheduled existing production activity, not this task."
+  },
+  "estimated_production_downtime": "Expected DDL execution about 1.1–1.6 seconds with the current zero-row odds_snapshots table; reserve a 5-minute maintenance window for backup, preflight, migration and exact verification.",
+  "future_production_procedure": [
+    "Temporarily pause PostgreSQL-writing FootballAgent jobs without changing task definitions.",
+    "Take and verify a fresh custom-format production backup.",
+    "Run a read-only preflight confirming revision 0020 and the rehearsed schema/input counts.",
+    "From the reviewed/deployed repository containing unchanged 0021, run: alembic upgrade 0021.",
+    "Run: alembic current and alembic check.",
+    "Verify exact 0021 columns/index, row counts, duplicates, sequences and NULL-only historical provenance.",
+    "Restore scheduled execution only after all checks pass. If verification fails, restore the backup or run the rehearsed downgrade under the approved recovery decision."
+  ],
+  "task_031_canary_status": "Technically unblocked only after TASK-031 code/migration is reviewed and merged, production 0021 receives separate approval and passes post-migration verification, and a separate live Canary approval is granted.",
+  "blockers": [
+    "Production Database Approval has not been granted for 0021.",
+    "TASK-031 is not merged/deployed.",
+    "Inherited TASK-031 Black formatting drift must be resolved before its CI/PR gate."
+  ],
+  "database_writes": {"production": 0, "disposable_databases_only": true},
+  "external_api_calls": 0,
+  "production_jobs_run": 0,
+  "files_changed_by_task": [
+    "tasks/completed/TASK-20260830-032.md",
+    "reports/codex/TASK-20260830-032_result.json",
+    "reports/codex/TASK-20260830-032_result.md",
+    "handoff/latest_status.json"
+  ],
+  "frozen_unchanged": true,
+  "approval_gate": "STOP. Await explicit Production Database Approval; do not migrate, deploy, merge, run production jobs or start a live Canary."
+}
