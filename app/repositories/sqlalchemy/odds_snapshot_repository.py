@@ -52,6 +52,8 @@ class SqlAlchemyOddsSnapshotRepository(OddsSnapshotRepository):
                 selection_line=entity.selection.line,
                 odds_decimal=entity.odds.decimal,
                 captured_at=entity.captured_at,
+                provider_source=entity.provider_source,
+                provider_event_id=entity.provider_event_id,
             )
             .on_conflict_do_nothing(constraint="uq_odds_snapshots_natural")
             .returning(OddsSnapshotORM.id)

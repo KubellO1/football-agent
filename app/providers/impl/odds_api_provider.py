@@ -7,17 +7,30 @@ markets; we flatten bookmaker×market into one :class:`BookmakerMarket` each.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from datetime import UTC, datetime
-from typing import Any
-
-import httpx
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, Any
 
 from app.core.exceptions import ExternalServiceError
 from app.core.logging import get_logger
 from app.providers.base import BaseHTTPProvider
 from app.providers.interfaces.odds_provider import OddsProvider
-from app.providers.schemas.odds import BookmakerMarket, OddsOutcome, ProviderFixtureOdds
+from app.providers.schemas.odds import (
+    BookmakerMarket,
+    OddsOutcome,
+    ProviderFixtureOdds,
+    ProviderOddsTarget,
+)
+from app.services.odds_matching import (
+    MatchCandidate,
+    MatchOutcome,
+    match_event,
+    normalize_team_name,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    import httpx
 
 logger = get_logger(__name__)
 
@@ -43,6 +56,11 @@ class TheOddsApiProvider(BaseHTTPProvider, OddsProvider):
             client=client,
         )
         self._api_key = api_key
+        self._requests_made = 0
+
+    async def _observe_response(self, response: httpx.Response) -> None:
+        del response
+        self._requests_made += 1
 
     async def get_odds(
         self,
@@ -79,7 +97,8 @@ class TheOddsApiProvider(BaseHTTPProvider, OddsProvider):
             elif "401" in err_msg or "403" in err_msg:
                 logger.warning(
                     "Odds API sport key '%s' returned %s (auth failed). Skipping.",
-                    sport, "401" if "401" in err_msg else "403",
+                    sport,
+                    "401" if "401" in err_msg else "403",
                 )
             elif "422" in err_msg:
                 logger.warning(
@@ -89,11 +108,71 @@ class TheOddsApiProvider(BaseHTTPProvider, OddsProvider):
             else:
                 logger.warning(
                     "Odds API sport key '%s' failed: %s. Skipping.",
-                    sport, exc,
+                    sport,
+                    exc,
                 )
             return []
         # The v4 odds endpoint returns a bare JSON array of events.
         return [self._parse_event(event) for event in payload]
+
+    async def get_odds_for_fixtures(
+        self,
+        *,
+        sport: str,
+        fixtures: Sequence[ProviderOddsTarget],
+        markets: Sequence[str] = ("h2h",),
+        regions: Sequence[str] = ("eu",),
+    ) -> list[ProviderFixtureOdds]:
+        """Query only league feeds required by the missing fixture targets."""
+        if not fixtures:
+            return []
+
+        grouped: dict[str, list[ProviderOddsTarget]] = {}
+        for fixture in fixtures:
+            sport_key = fixture.sport_key
+            if sport_key is None and sport != "football":
+                sport_key = sport
+            if sport_key is None:
+                logger.warning(
+                    "The Odds API targeted fallback skipped fixture %s: MISSING_PROVIDER_MAPPING",
+                    fixture.fixture_id,
+                )
+                continue
+            grouped.setdefault(sport_key, []).append(fixture)
+
+        results: list[ProviderFixtureOdds] = []
+        seen: set[tuple[str, str]] = set()
+        for sport_key, targets in grouped.items():
+            candidates = [
+                MatchCandidate(
+                    fixture_id=target.fixture_id,
+                    home_norm=normalize_team_name(target.home_team),
+                    away_norm=normalize_team_name(target.away_team),
+                    kickoff=target.kickoff,
+                )
+                for target in targets
+            ]
+            for event in await self.get_odds(
+                sport=sport_key,
+                markets=markets,
+                regions=regions,
+            ):
+                match = match_event(
+                    event_home=event.home_team,
+                    event_away=event.away_team,
+                    commence_time=event.commence_time,
+                    candidates=candidates,
+                    tolerance=timedelta(minutes=180),
+                )
+                event_key = (event.source, event.provider_id)
+                if match.outcome is MatchOutcome.MATCHED and event_key not in seen:
+                    results.append(event)
+                    seen.add(event_key)
+        return results
+
+    def stats(self) -> dict[str, int]:
+        """Return actual upstream HTTP response count."""
+        return {"requests_made": self._requests_made}
 
     async def get_historical_odds(
         self,
@@ -132,12 +211,14 @@ class TheOddsApiProvider(BaseHTTPProvider, OddsProvider):
             elif "401" in err_msg or "403" in err_msg:
                 logger.warning(
                     "Historical odds sport key '%s' returned %s (auth failed). Skipping.",
-                    sport, "401" if "401" in err_msg else "403",
+                    sport,
+                    "401" if "401" in err_msg else "403",
                 )
             else:
                 logger.warning(
                     "Historical odds sport key '%s' failed: %s. Skipping.",
-                    sport, exc,
+                    sport,
+                    exc,
                 )
             return []
         # Unlike the live endpoint, the historical endpoint wraps the event array

@@ -512,6 +512,8 @@ class OddsSnapshotMapper:
             ),
             odds=Odds(row.odds_decimal),
             captured_at=row.captured_at,
+            provider_source=row.provider_source,
+            provider_event_id=row.provider_event_id,
         )
 
     @staticmethod
@@ -525,6 +527,8 @@ class OddsSnapshotMapper:
             selection_line=entity.selection.line,
             odds_decimal=entity.odds.decimal,
             captured_at=entity.captured_at,
+            provider_source=entity.provider_source,
+            provider_event_id=entity.provider_event_id,
         )
 
 

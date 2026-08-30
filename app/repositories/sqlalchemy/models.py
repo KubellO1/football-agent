@@ -301,6 +301,11 @@ class OddsSnapshotORM(TimestampMixin, Base):
             "fixture_id",
             "captured_at",
         ),
+        Index(
+            "ix_odds_snapshots_provider_event",
+            "provider_source",
+            "provider_event_id",
+        ),
         UniqueConstraint(
             "fixture_id",
             "bookmaker_id",
@@ -321,6 +326,8 @@ class OddsSnapshotORM(TimestampMixin, Base):
     selection_line: Mapped[float | None] = mapped_column(Float, nullable=True)
     odds_decimal: Mapped[Decimal] = mapped_column(Numeric(9, 3))
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    provider_source: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    provider_event_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
 
 class TeamMatchStatisticsORM(TimestampMixin, Base):

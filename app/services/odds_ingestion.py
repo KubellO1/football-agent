@@ -9,11 +9,12 @@
 
 from __future__ import annotations
 
+import re
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.core.logging import get_logger
 from app.models.entities.bookmaker import Bookmaker
@@ -47,7 +48,16 @@ logger = get_logger(__name__)
 
 _H2H_MARKET = "h2h"
 _SAMPLE_CAP = 20  # 报告中未匹配/歧义样例的最大条数
-_BOOKMAKER_SOURCE = "the-odds-api"  # 博彩公司 external_source 幂等键（不随 provider 切换改变）
+_BOOKMAKER_SOURCE = "the-odds-api"
+
+
+def canonical_bookmaker_identity(key: str, title: str) -> tuple[str, str]:
+    """Return a provider-neutral bookmaker identity without merging brands."""
+    raw = key or title
+    normalized = re.sub(r"[^a-z0-9]+", "", raw.casefold())
+    if normalized in {"bet365", "bet365nolatency"}:
+        return "bet365", "Bet365"
+    return normalized, title or key
 
 
 def classify_outcome(name: str, home_team: str, away_team: str) -> str | None:
@@ -71,6 +81,14 @@ class _Counters:
     created: int = 0
     existing: int = 0
     outcomes_skipped: int = 0
+
+
+@dataclass(frozen=True)
+class _CandidateBatch:
+    candidates: list[MatchCandidate]
+    sport_keys_by_fixture: dict[UUID, str]
+    requested_fixtures: int
+    reason_counts: dict[str, int]
 
 
 class OddsIngestionService:
@@ -108,7 +126,8 @@ class OddsIngestionService:
         fixture_ids: set[UUID] | None = None,
     ) -> OddsSyncReport:
         """抓取并写入 ``on_date`` 当日的足球赔率快照，返回统计。可安全重复运行。"""
-        candidates = await self._build_candidates(on_date, fixture_ids=fixture_ids)
+        candidate_batch = await self._build_candidates(on_date, fixture_ids=fixture_ids)
+        candidates = candidate_batch.candidates
         counters = _Counters()
         unmatched_samples: list[str] = []
         ambiguous_samples: list[str] = []
@@ -121,6 +140,7 @@ class OddsIngestionService:
                 home_team=candidate.home_norm,
                 away_team=candidate.away_norm,
                 kickoff=candidate.kickoff,
+                sport_key=candidate_batch.sport_keys_by_fixture.get(candidate.fixture_id),
             )
             for candidate in candidates
         ]
@@ -157,6 +177,11 @@ class OddsIngestionService:
         else:
             source_label = "unknown"
 
+        coverage_stats: dict[str, Any] = getattr(self._odds, "pop_coverage_stats", lambda: {})()
+        provider_reasons = dict(coverage_stats.get("unmatched_reason_counts", {}))
+        for reason, count in candidate_batch.reason_counts.items():
+            provider_reasons[reason] = provider_reasons.get(reason, 0) + count
+        coverage_stats["unmatched_reason_counts"] = provider_reasons
         provider_errors: dict[str, int] = getattr(self._odds, "pop_errors", lambda: {})()
         logger.info(
             "Odds sync %s: fetched=%d matched=%d unmatched=%d ambiguous=%d "
@@ -190,6 +215,8 @@ class OddsIngestionService:
             primary_provider_hits=primary_provider_hits,
             fallback_provider_hits=fallback_provider_hits,
             provider_errors_by_source=provider_errors,
+            requested_fixtures=candidate_batch.requested_fixtures,
+            **coverage_stats,
         )
 
     async def backfill_historical(
@@ -221,7 +248,8 @@ class OddsIngestionService:
         day = start
         days_skipped_empty = 0
         while day <= end:
-            candidates = await self._build_candidates(day, competition_id=competition_id)
+            candidate_batch = await self._build_candidates(day, competition_id=competition_id)
+            candidates = candidate_batch.candidates
             if not candidates:
                 # 当天该赛事无比赛（如国际比赛周/休赛日）→ 不必消耗一次历史赔率请求
                 days_skipped_empty += 1
@@ -339,20 +367,31 @@ class OddsIngestionService:
         *,
         competition_id: UUID | None = None,
         fixture_ids: set[UUID] | None = None,
-    ) -> list[MatchCandidate]:
+    ) -> _CandidateBatch:
         start = datetime(on_date.year, on_date.month, on_date.day, tzinfo=UTC)
         end = start + timedelta(days=1)
         fixtures = await self._fixtures.list_by_kickoff_window(start, end)
+        requested_fixtures = len(fixture_ids) if fixture_ids is not None else len(fixtures)
+        reason_counts: dict[str, int] = {}
         if fixture_ids is not None:
+            found_ids = {fixture.id for fixture in fixtures}
+            missing_count = len(fixture_ids - found_ids)
+            if missing_count:
+                reason_counts["MISSING_FIXTURE"] = missing_count
             fixtures = [fixture for fixture in fixtures if fixture.id in fixture_ids]
         if on_date == datetime.now(UTC).date():
             now = datetime.now(UTC)
             pre_kickoff_end = now + timedelta(minutes=90)
+            before_window = len(fixtures)
             fixtures = [f for f in fixtures if now <= f.kickoff <= pre_kickoff_end]
+            outside_window = before_window - len(fixtures)
+            if outside_window:
+                reason_counts["OUTSIDE_REQUEST_WINDOW"] = outside_window
         if competition_id is not None:
             # 按赛事限定候选：赔率事件只能匹配到该赛事内的比赛（更保守）。
             fixtures = [f for f in fixtures if f.competition_id == competition_id]
 
+        candidate_sport_keys: dict[UUID, str] = {}
         if self._competitions is not None and fixtures:
             from app.config.whitelist import get_whitelist
 
@@ -374,16 +413,36 @@ class OddsIngestionService:
                     country=competition.country,
                 ):
                     allowed_ids.add(competition.id)
+                    sport_key = whitelist.get_sport_key_for(
+                        competition.name,
+                        league_id=league_id,
+                        country=competition.country,
+                    )
+                    if sport_key is not None:
+                        candidate_sport_keys[competition.id] = sport_key
+            unsupported = sum(
+                1 for fixture in fixtures if fixture.competition_id not in allowed_ids
+            )
+            if unsupported:
+                reason_counts["UNSUPPORTED_COMPETITION"] = unsupported
             fixtures = [f for f in fixtures if f.competition_id in allowed_ids]
+        elif len(self._sport_keys) == 1:
+            candidate_sport_keys = {
+                fixture.competition_id: self._sport_keys[0] for fixture in fixtures
+            }
 
         team_ids = {f.home_team_id for f in fixtures} | {f.away_team_id for f in fixtures}
         team_names = {t.id: t.name for t in await self._teams.list_by_ids(team_ids)}
 
         candidates: list[MatchCandidate] = []
+        sport_keys_by_fixture: dict[UUID, str] = {}
         for f in fixtures:
             home = team_names.get(f.home_team_id)
             away = team_names.get(f.away_team_id)
             if home is None or away is None:
+                reason_counts["MISSING_TEAM_MAPPING"] = (
+                    reason_counts.get("MISSING_TEAM_MAPPING", 0) + 1
+                )
                 continue  # 参考数据缺失，无法安全匹配 → 忽略该比赛
             candidates.append(
                 MatchCandidate(
@@ -393,7 +452,15 @@ class OddsIngestionService:
                     kickoff=f.kickoff,
                 )
             )
-        return candidates
+            sport_key = candidate_sport_keys.get(f.competition_id)
+            if sport_key is not None:
+                sport_keys_by_fixture[f.id] = sport_key
+        return _CandidateBatch(
+            candidates=candidates,
+            sport_keys_by_fixture=sport_keys_by_fixture,
+            requested_fixtures=requested_fixtures,
+            reason_counts=reason_counts,
+        )
 
     async def _ingest_event_odds(
         self,
@@ -424,6 +491,8 @@ class OddsIngestionService:
                     selection=Selection(market=MarketType.MATCH_RESULT, code=code),
                     odds=Odds(Decimal(str(outcome.price))),
                     captured_at=market.last_update,
+                    provider_source=event.source,
+                    provider_event_id=event.provider_id,
                 )
                 if await self._snapshots.add_if_absent(snapshot):
                     counters.created += 1
@@ -433,14 +502,19 @@ class OddsIngestionService:
     async def _get_or_create_bookmaker(
         self, key: str, title: str, cache: dict[str, Bookmaker]
     ) -> Bookmaker:
-        if key in cache:
-            return cache[key]
-        existing = await self._bookmakers.get_by_external_id(_BOOKMAKER_SOURCE, key)
+        canonical_key, canonical_title = canonical_bookmaker_identity(key, title)
+        if canonical_key in cache:
+            return cache[canonical_key]
+        existing = await self._bookmakers.get_by_external_id(_BOOKMAKER_SOURCE, canonical_key)
         if existing is not None:
-            cache[key] = existing
+            cache[canonical_key] = existing
             return existing
         created = await self._bookmakers.add(
-            Bookmaker(name=title, external_id=key, external_source=_BOOKMAKER_SOURCE)
+            Bookmaker(
+                name=canonical_title,
+                external_id=canonical_key,
+                external_source=_BOOKMAKER_SOURCE,
+            )
         )
-        cache[key] = created
+        cache[canonical_key] = created
         return created

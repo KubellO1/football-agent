@@ -21,18 +21,18 @@ def test_season_orm_declares_canonical_natural_key() -> None:
     assert [column.name for column in constraints[0].columns] == ["competition_id", "label"]
 
 
-def test_alembic_graph_is_linear_through_0020() -> None:
+def test_alembic_graph_is_linear_through_0021() -> None:
     repository_root = Path(__file__).resolve().parents[2]
     config = Config(repository_root / "alembic.ini")
     config.set_main_option("script_location", str(repository_root / "alembic"))
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_heads() == ["0020"]
+    assert script.get_heads() == ["0021"]
 
     revisions = list(script.walk_revisions(base="base", head="heads"))
     revision_ids = [revision.revision for revision in revisions]
 
-    assert revision_ids == [f"{revision:04d}" for revision in range(20, 0, -1)]
+    assert revision_ids == [f"{revision:04d}" for revision in range(21, 0, -1)]
     assert len(revision_ids) == len(set(revision_ids))
     assert all(revision.is_branch_point is False for revision in revisions)
     assert revisions[-1].down_revision is None

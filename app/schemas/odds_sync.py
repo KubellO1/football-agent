@@ -27,11 +27,27 @@ class OddsSyncReport(BaseModel):
     ambiguous_samples: list[str] = Field(
         default_factory=list, description="歧义事件样例（最多若干条）。"
     )
-    primary_provider_hits: int = Field(default=0, description="由 primary provider 成功返回的事件数。")
-    fallback_provider_hits: int = Field(default=0, description="由 fallback provider 成功返回的事件数。")
-    provider_errors_by_source: dict[str, int] = Field(
-        default_factory=dict, description="各 provider 的错误次数，如 {'odds-api.io': 1, 'the-odds-api': 0}。"
+    primary_provider_hits: int = Field(
+        default=0, description="由 primary provider 成功返回的事件数。"
     )
+    fallback_provider_hits: int = Field(
+        default=0, description="由 fallback provider 成功返回的事件数。"
+    )
+    provider_errors_by_source: dict[str, int] = Field(
+        default_factory=dict,
+        description="各 provider 的错误次数，如 {'odds-api.io': 1, 'the-odds-api': 0}。",
+    )
+    requested_fixtures: int = 0
+    targeted_fixtures: int = 0
+    primary_requests: int = 0
+    primary_events_returned: int = 0
+    primary_empty_events: int = 0
+    fallback_attempts: int = 0
+    fallback_requests: int = 0
+    fallback_successes: int = 0
+    fallback_events_returned: int = 0
+    combined_odds_coverage: float = 0.0
+    unmatched_reason_counts: dict[str, int] = Field(default_factory=dict)
 
 
 class HistoricalOddsBackfillReport(BaseModel):
