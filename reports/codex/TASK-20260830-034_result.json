@@ -1,0 +1,52 @@
+{
+  "task_id": "TASK-20260830-034",
+  "title": "Declare Windows tzdata Runtime Dependency",
+  "status": "merge_approval_gate",
+  "branch": "codex/TASK-20260830-034",
+  "implementation_commit": "5a7d00542f1bf491b559311d466adea67900fc28",
+  "dependency": "tzdata>=2026.3,<2027; sys_platform == 'win32'",
+  "files_changed": [
+    "pyproject.toml",
+    "tests/unit/test_windows_runtime_dependencies.py",
+    "tasks/completed/TASK-20260830-034.md",
+    "reports/codex/TASK-20260830-034_result.json",
+    "reports/codex/TASK-20260830-034_result.md",
+    "handoff/latest_status.json"
+  ],
+  "clean_windows_venv": {
+    "path": "C:/Users/ruowa/Projects/football-agent-runtime-contract-TASK-20260830-034",
+    "python": "3.12.10",
+    "install_method": "python -m venv, then pip install from the task worktree project manifest",
+    "tzdata_version": "2026.3",
+    "tzdata_required_by": "football-agent",
+    "pip_check": "PASS"
+  },
+  "runtime_contract": {
+    "zoneinfo_europe_paris": "PASS",
+    "scheduler_runner_import": "PASS",
+    "odds_api_io_provider_import": "PASS",
+    "the_odds_api_provider_import": "PASS"
+  },
+  "tests": {
+    "focused": "2 passed",
+    "unit": "688 passed",
+    "integration": "103 passed",
+    "ruff": "PASS",
+    "black": "PASS",
+    "mypy_changed_test": "PASS",
+    "git_diff_check": "PASS",
+    "full_app_mypy_diagnostic": "70 pre-existing errors in unchanged files; not part of the CI changed-file gate"
+  },
+  "required_checks": {
+    "quality": "PENDING",
+    "unit_tests": "PENDING",
+    "integration_tests": "PENDING"
+  },
+  "production_database_writes": 0,
+  "external_api_calls": 0,
+  "production_jobs_run": 0,
+  "windows_scheduled_task_changes": 0,
+  "production_impact": "None before merge and deployment approval.",
+  "frozen_unchanged": true,
+  "next_action": "Create the pull request, wait for all required checks, then stop for Merge Approval."
+}
