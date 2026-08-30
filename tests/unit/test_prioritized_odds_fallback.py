@@ -59,9 +59,7 @@ class _TargetedProvider(OddsProvider):
         self.requests_made += 1
         if self.failure is not None:
             raise self.failure
-        requested = {
-            (target.home_team, target.away_team, target.kickoff) for target in fixtures
-        }
+        requested = {(target.home_team, target.away_team, target.kickoff) for target in fixtures}
         return [
             event
             for event in self.events
@@ -109,9 +107,7 @@ def _event(source: str, event_id: str, home: str, away: str) -> ProviderFixtureO
 async def test_primary_exception_falls_back_for_all_targets() -> None:
     targets = [_target(1, "Alpha", "Beta"), _target(2, "Gamma", "Delta")]
     primary = _TargetedProvider(failure=OddsProviderError("upstream failed"))
-    fallback = _TargetedProvider(
-        [_event("the-odds-api", "fallback-1", "Alpha", "Beta")]
-    )
+    fallback = _TargetedProvider([_event("the-odds-api", "fallback-1", "Alpha", "Beta")])
     provider = PrioritizedOddsProvider(primary=primary, fallback=fallback)  # type: ignore[arg-type]
 
     events = await provider.get_odds_for_fixtures(sport="football", fixtures=targets)
@@ -128,9 +124,7 @@ async def test_primary_exception_falls_back_for_all_targets() -> None:
 async def test_primary_empty_falls_back_for_all_targets() -> None:
     targets = [_target(1, "Alpha", "Beta")]
     primary = _TargetedProvider()
-    fallback = _TargetedProvider(
-        [_event("the-odds-api", "fallback-1", "Alpha", "Beta")]
-    )
+    fallback = _TargetedProvider([_event("the-odds-api", "fallback-1", "Alpha", "Beta")])
     provider = PrioritizedOddsProvider(primary=primary, fallback=fallback)  # type: ignore[arg-type]
 
     events = await provider.get_odds_for_fixtures(sport="football", fixtures=targets)
@@ -153,14 +147,10 @@ async def test_primary_event_without_usable_odds_falls_back() -> None:
         away_team="Beta",
     )
     primary = _TargetedProvider([empty_event])
-    fallback = _TargetedProvider(
-        [_event("the-odds-api", "fallback-1", "Alpha", "Beta")]
-    )
+    fallback = _TargetedProvider([_event("the-odds-api", "fallback-1", "Alpha", "Beta")])
     provider = PrioritizedOddsProvider(primary=primary, fallback=fallback)  # type: ignore[arg-type]
 
-    events = await provider.get_odds_for_fixtures(
-        sport="football", fixtures=[target]
-    )
+    events = await provider.get_odds_for_fixtures(sport="football", fixtures=[target])
     coverage = provider.pop_coverage_stats()
 
     assert fallback.calls == [[target]]
@@ -176,17 +166,11 @@ async def test_primary_event_without_usable_odds_falls_back() -> None:
 async def test_primary_partial_falls_back_only_for_missing_target() -> None:
     first = _target(1, "Alpha", "Beta")
     missing = _target(2, "Gamma", "Delta")
-    primary = _TargetedProvider(
-        [_event("odds-api.io", "primary-1", "Alpha", "Beta")]
-    )
-    fallback = _TargetedProvider(
-        [_event("the-odds-api", "fallback-2", "Gamma", "Delta")]
-    )
+    primary = _TargetedProvider([_event("odds-api.io", "primary-1", "Alpha", "Beta")])
+    fallback = _TargetedProvider([_event("the-odds-api", "fallback-2", "Gamma", "Delta")])
     provider = PrioritizedOddsProvider(primary=primary, fallback=fallback)  # type: ignore[arg-type]
 
-    events = await provider.get_odds_for_fixtures(
-        sport="football", fixtures=[first, missing]
-    )
+    events = await provider.get_odds_for_fixtures(sport="football", fixtures=[first, missing])
     coverage = provider.pop_coverage_stats()
 
     assert [(event.source, event.provider_id) for event in events] == [
@@ -202,9 +186,7 @@ async def test_primary_partial_falls_back_only_for_missing_target() -> None:
 @pytest.mark.asyncio
 async def test_primary_full_coverage_does_not_call_fallback() -> None:
     targets = [_target(1, "Alpha", "Beta")]
-    primary = _TargetedProvider(
-        [_event("odds-api.io", "primary-1", "Alpha", "Beta")]
-    )
+    primary = _TargetedProvider([_event("odds-api.io", "primary-1", "Alpha", "Beta")])
     fallback = _TargetedProvider()
     provider = PrioritizedOddsProvider(primary=primary, fallback=fallback)  # type: ignore[arg-type]
 
@@ -223,9 +205,7 @@ async def test_provider_scoped_event_ids_are_not_collapsed() -> None:
     primary_event = _event("odds-api.io", "shared-id", "Alpha", "Beta")
     fallback_event = _event("the-odds-api", "shared-id", "Alpha", "Beta")
 
-    merged = PrioritizedOddsProvider._merge_provider_events(
-        [primary_event], [fallback_event]
-    )
+    merged = PrioritizedOddsProvider._merge_provider_events([primary_event], [fallback_event])
 
     assert [(event.source, event.provider_id) for event in merged] == [
         ("odds-api.io", "shared-id"),
