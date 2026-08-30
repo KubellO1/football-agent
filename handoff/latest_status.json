@@ -9,12 +9,17 @@
     "focused": "2 passed",
     "unit": "688 passed",
     "integration": "103 passed",
-    "quality": "Ruff, Black, task-scope MyPy and git diff --check passed"
+    "quality": "Ruff, Black, task-scope MyPy and git diff --check passed",
+    "github_required_checks": "Quality, Unit tests and Integration tests passed"
+  },
+  "pull_request": {
+    "number": 70,
+    "url": "https://github.com/KubellO1/football-agent/pull/70"
   },
   "production_database_writes": 0,
   "external_api_calls": 0,
   "production_jobs_run": 0,
   "windows_scheduled_task_changes": 0,
   "frozen_unchanged": true,
-  "next_action": "Wait for the pull request Quality, Unit tests and Integration tests checks, then request explicit Merge Approval."
+  "next_action": "Required checks passed. Wait for explicit Merge Approval; do not merge automatically."
 }
