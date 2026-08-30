@@ -20,6 +20,8 @@ dependencies = [
     "redis>=5.0",
     # --- External I/O ---
     "httpx>=0.27",
+    # --- Windows IANA timezone database ---
+    "tzdata>=2026.3,<2027; sys_platform == 'win32'",
     # --- Spreadsheet import (dev/ops tooling) ---
     "openpyxl>=3.1",
     # --- AI reasoning ---
