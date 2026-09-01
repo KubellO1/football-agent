@@ -1,25 +1,21 @@
 {
-  "task_id": "TASK-20260830-034",
-  "status": "merge_approval_gate",
-  "branch": "codex/TASK-20260830-034",
-  "implementation_commit": "5a7d00542f1bf491b559311d466adea67900fc28",
-  "summary": "Declared the conditional Windows tzdata runtime dependency and proved a clean Python 3.12.10 environment can load Europe/Paris and import the production scheduler and odds providers.",
+  "task_id": "TASK-20260901-041",
+  "status": "completed_local_approval_gate",
+  "branch": "codex/TASK-20260901-041",
+  "implementation_commit": "906dd96",
+  "summary": "Confirmed Home vs Away was caused by the Dashboard builder ignoring canonical team rows when decision predictions were absent; added reference-data labels and a configuration-driven EV threshold display.",
+  "root_cause": "C_db_builder_did_not_read_team_names",
   "verification": {
-    "clean_windows_venv": "PASS; tzdata 2026.3 installed as a football-agent dependency",
-    "focused": "2 passed",
-    "unit": "688 passed",
-    "integration": "103 passed",
-    "quality": "Ruff, Black, task-scope MyPy and git diff --check passed",
-    "github_required_checks": "Quality, Unit tests and Integration tests passed"
+    "production_db": "READ ONLY; both fixture FKs and all four team rows exist",
+    "focused": "9 passed",
+    "unit": "689 passed",
+    "task_scope_quality": "Ruff, Black, MyPy and git diff --check passed for the clean task-scoped modules; legacy renderer/types debt documented"
   },
-  "pull_request": {
-    "number": 70,
-    "url": "https://github.com/KubellO1/football-agent/pull/70"
-  },
+  "provider_health": "Separate producer/consumer contract mismatch; not fixed in this task.",
   "production_database_writes": 0,
   "external_api_calls": 0,
   "production_jobs_run": 0,
-  "windows_scheduled_task_changes": 0,
+  "scheduler_changes": 0,
   "frozen_unchanged": true,
-  "next_action": "Required checks passed. Wait for explicit Merge Approval; do not merge automatically."
+  "next_action": "Review the local commit. Keep Provider Health and legacy Dashboard quality cleanup in separate tasks before production deployment."
 }
