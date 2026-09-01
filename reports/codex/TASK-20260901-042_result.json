@@ -1,0 +1,147 @@
+{
+  "task_id": "TASK-20260901-042",
+  "title": "Dashboard Changed-File Ruff Debt Cleanup",
+  "status": "merge_approval_gate",
+  "branch": "codex/TASK-20260901-042",
+  "base_commit": "05af1859dab8564d02e401fb4bcc18aff8db0eea",
+  "implementation_commit": "2e0ac4e1096ad1478dfd3fc7a62ccb3aaa09b083",
+  "files_changed": [
+    "app/dashboard/renderer.py",
+    "app/dashboard/types.py",
+    "tasks/completed/TASK-20260901-042.md",
+    "reports/codex/TASK-20260901-042_result.json",
+    "reports/codex/TASK-20260901-042_result.md",
+    "handoff/latest_status.json"
+  ],
+  "ruff_baseline": {
+    "total": 46,
+    "rules": {
+      "I001": {
+        "count": 1,
+        "locations": ["app/dashboard/renderer.py:8"],
+        "message": "Import block is un-sorted or un-formatted"
+      },
+      "F401": {
+        "count": 10,
+        "locations": [
+          "app/dashboard/renderer.py:18",
+          "app/dashboard/renderer.py:23",
+          "app/dashboard/renderer.py:25",
+          "app/dashboard/renderer.py:30",
+          "app/dashboard/renderer.py:40",
+          "app/dashboard/renderer.py:47",
+          "app/dashboard/renderer.py:52",
+          "app/dashboard/renderer.py:54",
+          "app/dashboard/renderer.py:59",
+          "app/dashboard/renderer.py:61"
+        ],
+        "message": "Imported symbol is unused"
+      },
+      "F841": {
+        "count": 4,
+        "locations": [
+          "app/dashboard/renderer.py:410",
+          "app/dashboard/renderer.py:896",
+          "app/dashboard/renderer.py:2195",
+          "app/dashboard/renderer.py:2299"
+        ],
+        "message": "Local variable is assigned to but never used"
+      },
+      "SIM108": {
+        "count": 1,
+        "locations": ["app/dashboard/renderer.py:439"],
+        "message": "Use ternary operator instead of if-else block"
+      },
+      "B007": {
+        "count": 3,
+        "locations": [
+          "app/dashboard/renderer.py:465",
+          "app/dashboard/renderer.py:465",
+          "app/dashboard/renderer.py:2016"
+        ],
+        "message": "Loop control variable is not used within loop body"
+      },
+      "F541": {
+        "count": 26,
+        "locations": [
+          "app/dashboard/renderer.py:507",
+          "app/dashboard/renderer.py:509",
+          "app/dashboard/renderer.py:939",
+          "app/dashboard/renderer.py:940",
+          "app/dashboard/renderer.py:1209",
+          "app/dashboard/renderer.py:1210",
+          "app/dashboard/renderer.py:1229",
+          "app/dashboard/renderer.py:1538",
+          "app/dashboard/renderer.py:1583",
+          "app/dashboard/renderer.py:1740",
+          "app/dashboard/renderer.py:1775",
+          "app/dashboard/renderer.py:1780",
+          "app/dashboard/renderer.py:1790",
+          "app/dashboard/renderer.py:1812",
+          "app/dashboard/renderer.py:1817",
+          "app/dashboard/renderer.py:1830",
+          "app/dashboard/renderer.py:1937",
+          "app/dashboard/renderer.py:1938",
+          "app/dashboard/renderer.py:1939",
+          "app/dashboard/renderer.py:1969",
+          "app/dashboard/renderer.py:2099",
+          "app/dashboard/renderer.py:2104",
+          "app/dashboard/renderer.py:2105",
+          "app/dashboard/renderer.py:2164",
+          "app/dashboard/renderer.py:2240",
+          "app/dashboard/renderer.py:2435"
+        ],
+        "message": "f-string without any placeholders"
+      },
+      "TC003": {
+        "count": 1,
+        "locations": ["app/dashboard/types.py:10"],
+        "message": "Move standard-library import into a type-checking block"
+      }
+    },
+    "safe_fixes": 37,
+    "manual_fixes": 9,
+    "unsafe_fixes_used": false
+  },
+  "behavior_regression": {
+    "fixed_fixture_html_length_before": 33422,
+    "fixed_fixture_html_length_after": 33422,
+    "fixed_fixture_html_sha256_before": "d3f32a9667a702123f6cfe0276490326171962753196981ed8c3ed9d1a0ee510",
+    "fixed_fixture_html_sha256_after": "d3f32a9667a702123f6cfe0276490326171962753196981ed8c3ed9d1a0ee510",
+    "semantic_output": "UNCHANGED",
+    "dataclass_count_before": 58,
+    "dataclass_count_after": 58,
+    "normalized_dataclass_contract_sha256_before": "4e59ec51aa1f56cdc0fcd47575d7405b830bbd72e0a9b45d580a99386e31c673",
+    "normalized_dataclass_contract_sha256_after": "4e59ec51aa1f56cdc0fcd47575d7405b830bbd72e0a9b45d580a99386e31c673",
+    "types_contract": "UNCHANGED"
+  },
+  "tests": {
+    "dashboard_focused": "8 passed",
+    "unit": "688 passed",
+    "integration": "103 passed",
+    "isolated_alembic_upgrade": "PASS through 0021",
+    "isolated_alembic_check": "PASS; no new upgrade operations",
+    "ruff": "PASS; 0 violations",
+    "black": "PASS",
+    "mypy_task_scope": "PASS; no issues in 2 source files",
+    "git_diff_check": "PASS"
+  },
+  "pull_request": {
+    "number": 72,
+    "url": "https://github.com/KubellO1/football-agent/pull/72",
+    "mergeability": "mergeable; awaiting explicit Merge Approval"
+  },
+  "required_checks": {
+    "quality": "PASS",
+    "unit_tests": "PASS",
+    "integration_tests": "PASS"
+  },
+  "production_database_writes": 0,
+  "external_api_calls": 0,
+  "production_jobs_run": 0,
+  "windows_scheduled_task_changes": 0,
+  "production_impact": "None before explicit merge and deployment approval.",
+  "frozen_unchanged": true,
+  "blockers": [],
+  "next_action": "Wait for explicit Merge Approval; do not merge automatically."
+}
