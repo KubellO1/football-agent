@@ -10,55 +10,45 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from app.dashboard.types import (
-    AccumulatorSuggestion,
     AIQA,
-    AIQAItem,
+    AccumulatorSuggestion,
     AIReasoning,
     AvoidMatch,
     BestOpportunity,
     ConfidenceBreakdown,
-    ConfidenceComponent,
     ConfidenceRadar,
-    CounterfactualExplanation,
     DailyDashboardData,
-    DailyExecutiveSummary,
     DailyRiskProfile,
     DataQuality,
-    DataQualityItem,
     DecisionInfo,
     DecisionStep,
     DecisionTimelineEntry,
     DecisionTriggers,
+    ExecutiveSummary,
     FixtureInfo,
     FootballReasoning,
     GoalscorerInfo,
     InjuryDashboard,
     LineupDashboard,
-    MarketInfo,
     MarketMovement,
     MatchCentreDashboard,
     MatchDashboardData,
     ModelAvailability,
     ModelConsensusRow,
     ModelProbabilities,
-    NoBetCheckItem,
     NoBetChecks,
     OddsInfo,
     OddsTimelinePoint,
     OverUnderAnalysis,
-    RecentFormDashboard,
     RiskBreakdown,
-    RiskBreakdownItem,
     RiskItem,
     ScenarioInfo,
     ScorelineInfo,
     StandingsDashboard,
-    TopPick,
     TopRecommendation,
-    TriggerCondition,
     TVBroadcastDashboard,
     ValueInfo,
     ValueOpportunity,
@@ -143,11 +133,11 @@ class DashboardRenderer:
             self._todays_best_recommendations(data),
             # ── V3.1: 今日比赛 (可折叠卡片, 首选默认展开) ──
             '<div class="section">',
-            '<h2>今日比赛</h2>',
+            "<h2>今日比赛</h2>",
         ]
         for i, match in enumerate(data.matches):
             parts.append(self._render_match_card_v3(match, index=i + 1, total=len(data.matches)))
-        parts.append('</div>')
+        parts.append("</div>")
         # ── V3.1: 风险管理 (精简摘要条) ──
         if data.risk_profile:
             parts.append(self._risk_summary_bar(data.risk_profile))
@@ -167,59 +157,121 @@ class DashboardRenderer:
             '<div class="container">',
             self._match_hero(data),
             # ── V2 Section 1: AI 执行摘要 (最高优先级, 置于 decision_summary 之上) ──
-            self._section_no_divider("AI 执行摘要", self._executive_summary_display(data.executive_summary)) if data.executive_summary else "",
+            (
+                self._section_no_divider(
+                    "AI 执行摘要", self._executive_summary_display(data.executive_summary)
+                )
+                if data.executive_summary
+                else ""
+            ),
             self._decision_summary(data),
             # ── V3: NO-BET 检查清单 (WATCH/NO BET 时展示) ──
-            (self._section_no_divider("为什么不投注？", self._why_not_bet_display(data.nobet_checks))
-             if data.nobet_checks and (data.decision.classification or "").upper().strip() in ("NO BET", "WATCH") else ""),
+            (
+                self._section_no_divider(
+                    "为什么不投注？", self._why_not_bet_display(data.nobet_checks)
+                )
+                if data.nobet_checks
+                and (data.decision.classification or "").upper().strip() in ("NO BET", "WATCH")
+                else ""
+            ),
             # ── V3.1: 反事实解释 (为什么不是其他选项) ──
-            self._section_no_divider("为什么不是？", self._counterfactual_display(data)) if data.counterfactual else "",
+            (
+                self._section_no_divider("为什么不是？", self._counterfactual_display(data))
+                if data.counterfactual
+                else ""
+            ),
             self._ai_reasoning_section(data.ai_reasoning),
             # ── V2 Section 2: 足球分析 ──
-            self._section_no_divider("足球分析", self._football_reasoning_display(data.football_reasoning)) if data.football_reasoning else "",
+            (
+                self._section_no_divider(
+                    "足球分析", self._football_reasoning_display(data.football_reasoning)
+                )
+                if data.football_reasoning
+                else ""
+            ),
             # ── V3.1: 信心雷达 (替换旧置信度构成, 优先雷达) ──
-            self._section_no_divider("信心雷达", self._confidence_radar_display(data.confidence_radar)) if data.confidence_radar else "",
-            self._section("置信度构成", self._confidence_breakdown_enhanced(
-                data.confidence_breakdown, data.decision.confidence_score
-            )),
+            (
+                self._section_no_divider(
+                    "信心雷达", self._confidence_radar_display(data.confidence_radar)
+                )
+                if data.confidence_radar
+                else ""
+            ),
+            self._section(
+                "置信度构成",
+                self._confidence_breakdown_enhanced(
+                    data.confidence_breakdown, data.decision.confidence_score
+                ),
+            ),
             self._section("比赛信息", self._fixture_info_table(data.fixture)),
             # ── V2 Section 7: 市场动向 ──
-            self._section_no_divider("市场动向", self._market_movement_display(data.market_movement)) if data.market_movement else "",
+            (
+                self._section_no_divider(
+                    "市场动向", self._market_movement_display(data.market_movement)
+                )
+                if data.market_movement
+                else ""
+            ),
             self._section("赔率", self._odds_display(data.odds)),
             # ── V3.1: 赔率时间线 ──
-            self._section_no_divider("赔率变化时间轴", self._odds_timeline_display(data.odds_timeline)) if data.odds_timeline else "",
+            (
+                self._section_no_divider(
+                    "赔率变化时间轴", self._odds_timeline_display(data.odds_timeline)
+                )
+                if data.odds_timeline
+                else ""
+            ),
             self._section("模型概率", self._probabilities_display(data.probabilities)),
             self._section("价值评估", self._value_display(data.value)),
             self._section("决策引擎", self._decision_display(data.decision)),
             self._section("决策流程", self._decision_flow_display(data.decision_flow)),
             self._section("模型可用性", self._model_availability_display(data.model_availability)),
             # ── V2 Section 6: 模型共识投票面板 (替换旧表格) ──
-            self._section_no_divider("模型投票", self._model_consensus_voting(data.model_consensus, data.decision)),
+            self._section_no_divider(
+                "模型投票", self._model_consensus_voting(data.model_consensus, data.decision)
+            ),
             self._section("推荐市场", self._recommended_markets(data)),
             # ── V2 Section 3: 大小球分析 (插入在推荐市场与比分预测之间) ──
-            self._section_no_divider("大小球分析", self._over_under_display(data.over_under)) if data.over_under else "",
+            (
+                self._section_no_divider("大小球分析", self._over_under_display(data.over_under))
+                if data.over_under
+                else ""
+            ),
             # ── V2 Section 4: 比分可视化 (替换旧比分预测) ──
-            self._section_no_divider("比分预测", self._correct_scores_enhanced(data.correct_scores, data.model_availability)),
+            self._section_no_divider(
+                "比分预测",
+                self._correct_scores_enhanced(data.correct_scores, data.model_availability),
+            ),
             # ── V2 Section 5: 进球球员预测 (替换旧) ──
             self._section_no_divider("进球球员预测", self._goalscorers_enhanced(data.goalscorers)),
             # ── V2 Section 8: 风险评估面板 ──
-            self._section_no_divider("风险评估", self._risk_breakdown_display(data.risk_breakdown)) if data.risk_breakdown else "",
+            (
+                self._section_no_divider(
+                    "风险评估", self._risk_breakdown_display(data.risk_breakdown)
+                )
+                if data.risk_breakdown
+                else ""
+            ),
             self._section("风险摘要", self._risk_summary(data.risk_items)),
             self._section(
                 "决策时间线",
                 self._decision_timeline_display(
-                    data.decision_timeline,
-                    data.decision.classification or ""
-                )
+                    data.decision_timeline, data.decision.classification or ""
+                ),
             ),
-            self._section(
-                "升级/降级条件",
-                self._triggers_display(data.triggers)
-            ),
+            self._section("升级/降级条件", self._triggers_display(data.triggers)),
             # ── V2 Section 9: 数据质量 ──
-            self._section_no_divider("数据质量", self._data_quality_display(data.data_quality)) if data.data_quality else "",
+            (
+                self._section_no_divider("数据质量", self._data_quality_display(data.data_quality))
+                if data.data_quality
+                else ""
+            ),
             # ── V2 Section 10: AI 互动 Q&A (仅在有推荐时展示) ──
-            self._section_no_divider("AI 问答", self._ai_qa_display(data.ai_qa)) if (data.ai_qa and data.ai_qa.items) else "",
+            (
+                self._section_no_divider("AI 问答", self._ai_qa_display(data.ai_qa))
+                if (data.ai_qa and data.ai_qa.items)
+                else ""
+            ),
         ]
 
         if data.weather:
@@ -233,7 +285,9 @@ class DashboardRenderer:
 
         parts.append(self._section("近期状态", self._recent_form_display(data)))
 
-        parts.append(self._section("伤病 & 停赛", self._injury_dashboard_display(data.injury_dashboard)))
+        parts.append(
+            self._section("伤病 & 停赛", self._injury_dashboard_display(data.injury_dashboard))
+        )
 
         parts.append(self._section("阵容", self._lineup_display(data.lineup)))
 
@@ -248,7 +302,7 @@ class DashboardRenderer:
                 self._section(
                     "数据完整性",
                     f'<p class="info-text">{data.data_completeness:.1f}% '
-                    f'(证据：{_val(data.evidence_level)})</p>',
+                    f"(证据：{_val(data.evidence_level)})</p>",
                 )
             )
 
@@ -265,18 +319,13 @@ class DashboardRenderer:
         """V2: 无 divider 的 Section（用于独立样式 card 内嵌 section 框架）。"""
         if not body.strip():
             return ""
-        return (
-            f'<div class="section">\n'
-            f'  <h2>{title}</h2>\n'
-            f"  {body}\n"
-            f"</div>"
-        )
+        return f'<div class="section">\n' f"  <h2>{title}</h2>\n" f"  {body}\n" f"</div>"
 
     @staticmethod
     def _section(title: str, body: str) -> str:
         return (
             f'<div class="section">\n'
-            f'  <h2>{title}</h2>\n'
+            f"  <h2>{title}</h2>\n"
             f'  <div class="divider"></div>\n'
             f"  {body}\n"
             f"</div>"
@@ -297,12 +346,14 @@ class DashboardRenderer:
 
         providers = [
             ("api_football", "API-Football"),
-            ("odds_api", "The Odds API"), ("weather_api", "WeatherAPI"),
-            ("postgresql", "PostgreSQL"), ("redis", "Redis"),
+            ("odds_api", "The Odds API"),
+            ("weather_api", "WeatherAPI"),
+            ("postgresql", "PostgreSQL"),
+            ("redis", "Redis"),
             ("openai", "GPT / OpenAI"),
         ]
 
-        def _sparkline(history: list) -> str:
+        def _sparkline(history: list[dict[str, Any]]) -> str:
             """Build ASCII sparkline from uptime history. Max 30 chars wide."""
             if not history:
                 return ""
@@ -321,7 +372,7 @@ class DashboardRenderer:
                 result.append(f'<span style="color:{color};font-size:11px">{chars[idx]}</span>')
             return "".join(result)
 
-        def _resp_indicator(p: dict) -> str:
+        def _resp_indicator(p: dict[str, Any]) -> str:
             """Response time with baseline comparison and warning."""
             current = p.get("response_time_ms", 0)
             baseline = p.get("resp_baseline_avg_ms", 0)
@@ -335,7 +386,7 @@ class DashboardRenderer:
                 icon = '<span style="color:#238636">✓</span>'
             if baseline > 0 and rng[1] > 0:
                 return f'{icon} {current}ms <span style="font-size:10px;color:#8b949e">(avg:{baseline:.0f}ms range:{rng[0]}-{rng[1]}ms)</span>'
-            return f'{icon} {current}ms'
+            return f"{icon} {current}ms"
 
         rows: list[str] = []
         for key, label in providers:
@@ -362,32 +413,32 @@ class DashboardRenderer:
             resp_cell = _resp_indicator(p)
 
             rows.append(
-                f'<tr>'
+                f"<tr>"
                 f'<td style="font-weight:600;white-space:nowrap">{label}</td>'
                 f'<td style="white-space:nowrap"><span style="color:{color};font-weight:700">{uptime}%</span>'
                 f'<br><span style="font-size:10px">{spark}</span></td>'
                 f'<td style="white-space:nowrap;font-size:12px">{resp_cell}</td>'
-                f'<td>'
+                f"<td>"
                 f'<div style="background:#21262d;border-radius:4px;height:8px;width:100%">'
                 f'<div style="background:#58a6ff;border-radius:4px;height:8px;width:{quota_pct}%"></div>'
-                f'</div>'
+                f"</div>"
                 f'<span style="font-size:11px;color:#8b949e">{quota_rem} left</span>'
-                f'</td>'
+                f"</td>"
                 f'<td style="font-size:12px;color:#8b949e">今日:{calls_today} 月:{calls_month}</td>'
-                f'</tr>'
+                f"</tr>"
             )
 
         return (
             '<div class="section">\n'
-            '<h2>Provider Health</h2>\n'
+            "<h2>Provider Health</h2>\n"
             '<table style="width:100%;border-collapse:collapse;font-size:13px">\n'
             '<tr><th style="text-align:left;padding:6px 10px">Provider</th>'
             '<th style="text-align:left;padding:6px 10px">Uptime (30d)</th>'
             '<th style="text-align:left;padding:6px 10px">Response</th>'
             '<th style="text-align:left;padding:6px 10px">Quota</th>'
             '<th style="text-align:left;padding:6px 10px">Calls</th></tr>\n'
-            + "\n".join(rows) +
-            '\n</table>\n</div>'
+            + "\n".join(rows)
+            + "\n</table>\n</div>"
         )
 
     @staticmethod
@@ -405,9 +456,6 @@ class DashboardRenderer:
         if not entries:
             return ""
 
-        # Get today's entries only, last 20
-        from datetime import date as dt_date
-        today = dt_date.today().isoformat()
         # Timeline entries don't have date field, so take last 20
         recent = entries[-20:]
 
@@ -436,13 +484,14 @@ class DashboardRenderer:
             status = e.get("status", "")
             dur = e.get("duration_s", 0)
             details = e.get("details", "")
-            if isinstance(dur, (int, float)) and dur > 0:
-                dur_str = f"{dur:.1f}s"
-            else:
-                dur_str = ""
+            dur_str = f"{dur:.1f}s" if isinstance(dur, (int, float)) and dur > 0 else ""
             icon = status_icons.get(status, '<span style="color:#8b949e">?</span>')
             label = task_labels.get(task, task)
-            status_class = "pass" if status in ("success", "pass") else ("fail" if status == "failed" else "pending")
+            status_class = (
+                "pass"
+                if status in ("success", "pass")
+                else ("fail" if status == "failed" else "pending")
+            )
 
             row = (
                 f'<tr class="timeline-{status_class}">'
@@ -451,7 +500,7 @@ class DashboardRenderer:
                 f'<td style="font-weight:600;padding:3px 8px">{label}</td>'
                 f'<td style="color:#8b949e;font-size:12px;padding:3px 8px">{dur_str}</td>'
                 f'<td style="color:#8b949e;font-size:11px;padding:3px 8px">{details}</td>'
-                f'</tr>'
+                f"</tr>"
             )
             rows.append(row)
 
@@ -462,7 +511,7 @@ class DashboardRenderer:
             ("23:30", "DailyPerformanceReport", "&#x23F3; PENDING", ""),
         ]
         existing_times = {e.get("time", "") for e in entries}
-        for pt, pn, pi, pd in pending:
+        for pt, pn, _, _ in pending:
             if pt not in existing_times:
                 rows.append(
                     f'<tr class="timeline-pending">'
@@ -471,20 +520,20 @@ class DashboardRenderer:
                     f'<td style="font-weight:600;padding:3px 8px;color:#8b949e">{pn}</td>'
                     f'<td style="color:#8b949e;font-size:12px;padding:3px 8px"></td>'
                     f'<td style="color:#8b949e;font-size:11px;padding:3px 8px">PENDING</td>'
-                    f'</tr>'
+                    f"</tr>"
                 )
 
         return (
             '<div class="section">\n'
-            '<h2>Run Timeline</h2>\n'
+            "<h2>Run Timeline</h2>\n"
             '<table style="width:100%;border-collapse:collapse;font-size:13px">\n'
             '<tr><th style="text-align:left;padding:3px 8px">Time</th>'
             '<th style="text-align:left;padding:3px 8px"></th>'
             '<th style="text-align:left;padding:3px 8px">Task</th>'
             '<th style="text-align:right;padding:3px 8px">Dur</th>'
             '<th style="text-align:left;padding:3px 8px">Details</th></tr>\n'
-            + "\n".join(rows) +
-            '\n</table>\n</div>'
+            + "\n".join(rows)
+            + "\n</table>\n</div>"
         )
 
     @staticmethod
@@ -504,9 +553,9 @@ class DashboardRenderer:
 
         def _arrow(val: float, is_pct: bool = True) -> str:
             if val > 0:
-                return f'<span style="color:#10b981">&#x25B2;</span>'
+                return '<span style="color:#10b981">&#x25B2;</span>'
             elif val < 0:
-                return f'<span style="color:#ef4444">&#x25BC;</span>'
+                return '<span style="color:#ef4444">&#x25BC;</span>'
             return ""
 
         cards: list[str] = []
@@ -524,18 +573,18 @@ class DashboardRenderer:
             f'<div class="roi-label">Weekly ROI</div>'
             f'<div class="roi-value">{"+" if w_roi >= 0 else ""}{w_roi}% {_arrow(w_roi)}</div>'
             f'<div class="roi-sub">({w.get("won", 0)}/{w.get("bets", 0)} bets)</div>'
-            f'</div>'
+            f"</div>"
             f'<div class="roi-card">'
             f'<div class="roi-label">30-Day ROI</div>'
             f'<div class="roi-value">{"+" if m_roi >= 0 else ""}{m_roi}% {_arrow(m_roi)}</div>'
             f'<div class="roi-sub">({m.get("won", 0)}/{m.get("bets", 0)} bets)</div>'
-            f'</div>'
+            f"</div>"
             f'<div class="roi-card">'
             f'<div class="roi-label">CLV</div>'
             f'<div class="roi-value">{c.get("avg", 0):+.1%}</div>'
             f'<div class="roi-sub">{c.get("positive_pct", 0)}% positive</div>'
-            f'</div>'
-            f'</div>'
+            f"</div>"
+            f"</div>"
         )
 
         # Row 2: Brier | Kelly | Avg EV
@@ -548,18 +597,18 @@ class DashboardRenderer:
             f'<div class="roi-label">Brier Score</div>'
             f'<div class="roi-value">{b.get("score", "N/A")}</div>'
             f'<div class="roi-sub">lower is better</div>'
-            f'</div>'
+            f"</div>"
             f'<div class="roi-card">'
             f'<div class="roi-label">Kelly Fraction</div>'
             f'<div class="roi-value">{k.get("avg_fraction", 0):.2f}</div>'
             f'<div class="roi-sub">avg stake used</div>'
-            f'</div>'
+            f"</div>"
             f'<div class="roi-card">'
             f'<div class="roi-label">Avg EV</div>'
             f'<div class="roi-value">{e.get("avg_pct", 0)}%</div>'
             f'<div class="roi-sub">per recommendation</div>'
-            f'</div>'
-            f'</div>'
+            f"</div>"
+            f"</div>"
         )
 
         # Bottom row: Win Rate + Total P&L
@@ -570,16 +619,11 @@ class DashboardRenderer:
             f'<div class="roi-card roi-wide">'
             f'<span style="margin-right:24px"><b>Win Rate:</b> {wr.get("overall", 0)}%</span>'
             f'<span><b>Total P&L:</b> <span style="color:{"#10b981" if tp >= 0 else "#ef4444"};font-weight:700">{"+" if tp >= 0 else ""}{tp:.2f} units</span></span>'
-            f'</div>'
-            f'</div>'
+            f"</div>"
+            f"</div>"
         )
 
-        return (
-            '<div class="section">\n'
-            '<h2>ROI Dashboard</h2>\n'
-            + "\n".join(cards) +
-            '\n</div>'
-        )
+        return '<div class="section">\n' "<h2>ROI Dashboard</h2>\n" + "\n".join(cards) + "\n</div>"
 
     # ------------------------------------------------------------------
     # Hero banners
@@ -597,21 +641,23 @@ class DashboardRenderer:
     def _match_hero(self, data: MatchDashboardData) -> str:
         f = data.fixture
         cls = data.decision.classification
-        status_class = "live" if f.status == "live" else ("upcoming" if f.status != "closed" else "closed")
+        status_class = (
+            "live" if f.status == "live" else ("upcoming" if f.status != "closed" else "closed")
+        )
         badge_text = _status_cn(f.status)
         return (
             '<div class="hero">\n'
             f'  <div class="badge {status_class}">{badge_text}</div>\n'
-            f'  {_classification_badge(cls)}\n'
+            f"  {_classification_badge(cls)}\n"
             '  <div class="score-row">\n'
             f'    <div class="team"><div class="name">{_val(f.home_team)}</div></div>\n'
             f'    <div class="score">vs</div>\n'
             f'    <div class="team"><div class="name">{_val(f.away_team)}</div></div>\n'
             "  </div>\n"
             f'  <div class="meta">\n'
-            f'    <span>{_val(f.competition)}</span>\n'
-            f'    <span>{_val(f.venue)}</span>\n'
-            f'    <span>{self._fmt_time(f.start_time)}</span>\n'
+            f"    <span>{_val(f.competition)}</span>\n"
+            f"    <span>{_val(f.venue)}</span>\n"
+            f"    <span>{self._fmt_time(f.start_time)}</span>\n"
             "  </div>\n"
             "</div>"
         )
@@ -634,7 +680,9 @@ class DashboardRenderer:
         conf = d.confidence_score
         conf_display = f"{conf:.1f}%" if conf is not None else "暂无数据"
         conf_pct = max(0, min(100, conf or 0))
-        conf_fill = f'<div class="ds-bar"><div class="ds-bar-fill" style="width:{conf_pct}%"></div></div>'
+        conf_fill = (
+            f'<div class="ds-bar"><div class="ds-bar-fill" style="width:{conf_pct}%"></div></div>'
+        )
 
         # EV
         ev = v.expected_value if v else None
@@ -653,24 +701,24 @@ class DashboardRenderer:
             f'  <div class="ds-head">\n'
             f'    <span style="color:#64748b;font-size:.8em;letter-spacing:2px">决策摘要</span>\n'
             f'    <span class="ds-badge {badge_css}">{badge_label}</span>\n'
-            f'  </div>\n'
+            f"  </div>\n"
             f'  <div class="ds-grid">\n'
             f'    <div class="ds-metric">\n'
             f'      <div class="ds-label">置信度</div>\n'
             f'      <div class="ds-value">{conf_display}</div>\n'
-            f'      {conf_fill}\n'
-            f'    </div>\n'
+            f"      {conf_fill}\n"
+            f"    </div>\n"
             f'    <div class="ds-metric">\n'
             f'      <div class="ds-label">期望收益（EV）</div>\n'
             f'      <div class="ds-value {ev_class}">{ev_display}</div>\n'
-            f'    </div>\n'
+            f"    </div>\n"
             f'    <div class="ds-metric">\n'
             f'      <div class="ds-label">建议仓位</div>\n'
             f'      <div class="ds-value">{stake_display}</div>\n'
-            f'    </div>\n'
-            f'  </div>\n'
+            f"    </div>\n"
+            f"  </div>\n"
             f'  <div class="ds-oneliner">{oneliner}</div>\n'
-            f'</div>'
+            f"</div>"
         )
 
     def _decision_mini(self, data: MatchDashboardData) -> str:
@@ -687,14 +735,18 @@ class DashboardRenderer:
 
         ev = v.expected_value if v else None
         ev_str = f"{ev:+.1%}" if ev is not None else "--"
-        ev_color = "#10b981" if (ev is not None and ev > 0) else ("#ef4444" if ev is not None else "#94a3b8")
+        ev_color = (
+            "#10b981"
+            if (ev is not None and ev > 0)
+            else ("#ef4444" if ev is not None else "#94a3b8")
+        )
 
         return (
             f'<div class="ds-mini">\n'
             f'  <span class="ds-mini-badge {badge_css}">{badge_label}</span>\n'
             f'  <span class="ds-mini-stat">置信度 <b>{conf_str}</b></span>\n'
             f'  <span class="ds-mini-stat">EV <b style="color:{ev_color}">{ev_str}</b></span>\n'
-            f'</div>'
+            f"</div>"
         )
 
     @staticmethod
@@ -730,34 +782,34 @@ class DashboardRenderer:
                 '<div class="v31-cf-item">'
                 '<div class="v31-cf-q">为什么不推荐客胜？</div>'
                 f'<div class="v31-cf-a">{cf.why_not_away}</div>'
-                '</div>'
+                "</div>"
             )
         if cf.why_not_draw:
             blocks.append(
                 '<div class="v31-cf-item">'
                 '<div class="v31-cf-q">为什么不是平局？</div>'
                 f'<div class="v31-cf-a">{cf.why_not_draw}</div>'
-                '</div>'
+                "</div>"
             )
         if cf.why_not_opposite_ou:
             blocks.append(
                 '<div class="v31-cf-item">'
                 '<div class="v31-cf-q">为什么不推荐反向大小球？</div>'
                 f'<div class="v31-cf-a">{cf.why_not_opposite_ou}</div>'
-                '</div>'
+                "</div>"
             )
         if cf.why_still_watch and cls == "WATCH":
             blocks.append(
                 '<div class="v31-cf-item" style="border-left-color:#f59e0b">'
                 '<div class="v31-cf-q" style="color:#f59e0b">为什么仍是 WATCH？</div>'
                 f'<div class="v31-cf-a">{cf.why_still_watch}</div>'
-                '</div>'
+                "</div>"
             )
 
         if not blocks[1:]:
             return ""
 
-        blocks.append('</div>')
+        blocks.append("</div>")
         return "\n".join(blocks)
 
     # ------------------------------------------------------------------
@@ -786,18 +838,18 @@ class DashboardRenderer:
                 f'<span class="radar-label">{name}</span>'
                 f'<span class="radar-bar-wrap">'
                 f'<span class="radar-bar" style="width:{pct}%;background:{color}"></span>'
-                f'</span>'
+                f"</span>"
                 f'<span class="radar-val">{int(pct)}</span>'
-                f'</div>'
+                f"</div>"
             )
 
         label_html = f'<div class="radar-total-label">{radar.label}</div>' if radar.label else ""
         return (
             f'<div class="v31-radar">'
             f'<div class="radar-header">信心雷达</div>'
-            f'{bars}'
-            f'{label_html}'
-            f'</div>'
+            f"{bars}"
+            f"{label_html}"
+            f"</div>"
         )
 
     # ------------------------------------------------------------------
@@ -812,8 +864,14 @@ class DashboardRenderer:
             return f'<p class="info-text">{NA}</p>'
 
         COLORS = [
-            "#3b82f6", "#8b5cf6", "#10b981", "#f59e0b",
-            "#ef4444", "#06b6d4", "#ec4899", "#84cc16",
+            "#3b82f6",
+            "#8b5cf6",
+            "#10b981",
+            "#f59e0b",
+            "#ef4444",
+            "#06b6d4",
+            "#ec4899",
+            "#84cc16",
         ]
 
         max_contrib = max(abs(c.contribution) for c in cb.components)
@@ -827,12 +885,16 @@ class DashboardRenderer:
                 f'<span class="mb-name">{c.name}</span>'
                 f'<span class="mb-bar-wrap">'
                 f'<span class="mb-bar" style="width:{bar_pct}%;background:{color}"></span>'
-                f'</span>'
+                f"</span>"
                 f'<span class="mb-val" style="color:{color}">{sign}{c.contribution}</span>'
-                f'</div>'
+                f"</div>"
             )
 
-        total_str = f"<div class='mb-total'>总计 <span>{total:.0f}</span></div>" if total is not None else ""
+        total_str = (
+            f"<div class='mb-total'>总计 <span>{total:.0f}</span></div>"
+            if total is not None
+            else ""
+        )
         return "\n".join(bars) + total_str
 
     # ------------------------------------------------------------------
@@ -857,43 +919,54 @@ class DashboardRenderer:
                 f'<span class="ot-label">{pt.label}</span>'
                 f'<span class="ot-odds">{pt.odds:.2f}</span>'
                 f'<span class="ot-bar-wrap"><span class="ot-bar" style="width:{bar_pct}%"></span></span>'
-                f'{ts_display}'
-                f'</div>'
+                f"{ts_display}"
+                f"</div>"
             )
 
-        return (
-            '<div class="v31-odds-timeline">'
-            + "\n".join(rows)
-            + '</div>'
-        )
+        return '<div class="v31-odds-timeline">' + "\n".join(rows) + "</div>"
 
     # ------------------------------------------------------------------
     # V3.1 — 可折叠比赛卡片 (日概览)
     # ------------------------------------------------------------------
 
-    def _render_match_card_v3(self, data: MatchDashboardData, index: int = 1, total: int = 1) -> str:
+    def _render_match_card_v3(
+        self, data: MatchDashboardData, index: int = 1, total: int = 1
+    ) -> str:
         """V3.1: 可折叠比赛卡片 — 默认只展开首选, 其余收起。"""
         f = data.fixture
         home = f.home_team or "Home"
         away = f.away_team or "Away"
         cls = data.decision.classification or ""
         cls_upper = cls.upper().strip()
-        is_top = (index == 1)
+        is_top = index == 1
         open_attr = " open" if is_top else ""
 
-        badge_class = {"BET": "badge-bet", "WATCH": "badge-watch", "NO BET": "badge-nobet", "INSUFFICIENT DATA": "badge-insufficient"}.get(cls_upper, "badge-watch")
-        badge_text = {"BET": "BET", "WATCH": "WATCH", "NO BET": "NO BET", "INSUFFICIENT DATA": "INSUFFICIENT DATA"}.get(cls_upper, cls)
+        badge_class = {
+            "BET": "badge-bet",
+            "WATCH": "badge-watch",
+            "NO BET": "badge-nobet",
+            "INSUFFICIENT DATA": "badge-insufficient",
+        }.get(cls_upper, "badge-watch")
+        badge_text = {
+            "BET": "BET",
+            "WATCH": "WATCH",
+            "NO BET": "NO BET",
+            "INSUFFICIENT DATA": "INSUFFICIENT DATA",
+        }.get(cls_upper, cls)
 
         ev = data.value.expected_value
         conf = data.decision.confidence_score
         kelly_stake = data.value.kelly_stake
         ev_str = f"EV {ev:+.1%}" if ev is not None else "EV --"
-        ev_color = "#10b981" if (ev is not None and ev > 0) else ("#ef4444" if ev is not None else "#94a3b8")
+        ev_color = (
+            "#10b981"
+            if (ev is not None and ev > 0)
+            else ("#ef4444" if ev is not None else "#94a3b8")
+        )
         conf_str = f"Conf {conf:.0f}" if conf is not None else "Conf --"
         kelly_str = f"€{kelly_stake:,.2f}" if kelly_stake is not None else "Kelly --"
 
         stars = self._compute_stars(ev)
-        summary = f"{home} vs {away}"
         venue = f.venue or ""
         comp = f.competition or ""
         start = self._fmt_time(f.start_time)
@@ -907,14 +980,20 @@ class DashboardRenderer:
         if data.counterfactual:
             body_parts.append(self._counterfactual_display(data))
         if data.confidence_radar:
-            body_parts.append(f'<div class="section"><h2>信心雷达</h2>{self._confidence_radar_display(data.confidence_radar)}</div>')
+            body_parts.append(
+                f'<div class="section"><h2>信心雷达</h2>{self._confidence_radar_display(data.confidence_radar)}</div>'
+            )
         if data.odds_timeline:
-            body_parts.append(f'<div class="section"><h2>赔率变化时间轴</h2>{self._odds_timeline_display(data.odds_timeline)}</div>')
+            body_parts.append(
+                f'<div class="section"><h2>赔率变化时间轴</h2>{self._odds_timeline_display(data.odds_timeline)}</div>'
+            )
         if data.market_movement:
             body_parts.append(self._market_movement_display(data.market_movement))
         if data.over_under:
             body_parts.append(self._over_under_display(data.over_under))
-        body_parts.append(self._correct_scores_enhanced(data.correct_scores, data.model_availability))
+        body_parts.append(
+            self._correct_scores_enhanced(data.correct_scores, data.model_availability)
+        )
         if data.risk_breakdown:
             body_parts.append(self._risk_breakdown_display(data.risk_breakdown))
         if data.nobet_checks and cls_upper in ("NO BET", "WATCH"):
@@ -932,12 +1011,10 @@ class DashboardRenderer:
             f'<span class="v31-mc-ev" style="color:{ev_color}">{ev_str}</span>'
             f'<span class="v31-mc-conf">{conf_str}</span>'
             f'<span class="v31-mc-kelly">{kelly_str}</span>'
-            f'</span>'
-            f'</summary>'
-            f'<div class="v31-mc-body">'
-            + "\n".join(body_parts)
-            + f'</div>'
-            f'</details>'
+            f"</span>"
+            f"</summary>"
+            f'<div class="v31-mc-body">' + "\n".join(body_parts) + "</div>"
+            "</details>"
         )
 
     # ------------------------------------------------------------------
@@ -956,7 +1033,7 @@ class DashboardRenderer:
             f'<div class="v31-risk-item"><span class="v31-risk-label">最大敞口</span><span class="v31-risk-val" style="color:{exp_color}">{exposure:.1f}%</span></div>'
             f'<div class="v31-risk-item"><span class="v31-risk-label">建议总仓位</span><span class="v31-risk-val">{stake:.1f}%</span></div>'
             f'<div class="v31-risk-item"><span class="v31-risk-label">建议交易数</span><span class="v31-risk-val">{trades}</span></div>'
-            '</div></div>'
+            "</div></div>"
         )
 
     # ------------------------------------------------------------------
@@ -965,13 +1042,21 @@ class DashboardRenderer:
 
     def _detailed_analysis_section(self, data: DailyDashboardData) -> str:
         """V3.1: 可折叠的详细分析区。"""
-        parts = ['<details class="v31-detail-section">',
-                 '<summary class="v31-ds-summary">详细分析</summary>',
-                 '<div class="v31-ds-body">']
-        parts.append(self._section("建议回避", self._avoid_matches_display_v3(data.avoid_matches, data.matches)))
-        parts.append(self._section("模拟串关建议", self._accumulator_display(data.accumulator_suggestions)))
+        parts = [
+            '<details class="v31-detail-section">',
+            '<summary class="v31-ds-summary">详细分析</summary>',
+            '<div class="v31-ds-body">',
+        ]
+        parts.append(
+            self._section(
+                "建议回避", self._avoid_matches_display_v3(data.avoid_matches, data.matches)
+            )
+        )
+        parts.append(
+            self._section("模拟串关建议", self._accumulator_display(data.accumulator_suggestions))
+        )
         parts.append(self._section("每日风险管理", self._daily_risk_display(data.risk_profile)))
-        parts.append('</div></details>')
+        parts.append("</div></details>")
         return "\n".join(parts)
 
     # ------------------------------------------------------------------
@@ -986,15 +1071,20 @@ class DashboardRenderer:
         # Build fallback from top_recommendations if ai_final_recommendation is empty
         if not text:
             lines: list[str] = []
-            top_win = None      # first 胜平负
-            top_ou = None       # first 大小球
-            top_score = None    # first with score-like selection
+            top_win = None  # first 胜平负
+            top_ou = None  # first 大小球
+            top_score = None  # first with score-like selection
             for r in recs:
                 if top_win is None and "胜平负" in r.market:
                     top_win = r
                 if top_ou is None and "大小球" in r.market:
                     top_ou = r
-                if top_score is None and r.selection and "-" in r.selection and len(r.selection) == 3:
+                if (
+                    top_score is None
+                    and r.selection
+                    and "-" in r.selection
+                    and len(r.selection) == 3
+                ):
                     top_score = r
             if top_win:
                 lines.append(f"推荐市场: {top_win.market} — {top_win.selection}")
@@ -1003,8 +1093,14 @@ class DashboardRenderer:
             if top_score:
                 lines.append(f"推荐比分: {top_score.selection}")
             if recs:
-                lines.append(f"建议仓位: {recs[0].stake * 100:.1f}%" if recs[0].stake else "建议仓位: 待定")
-                lines.append(f"一句话: {recs[0].reason}" if recs[0].reason else "一句话: 今日重点关注主胜机会。")
+                lines.append(
+                    f"建议仓位: {recs[0].stake * 100:.1f}%" if recs[0].stake else "建议仓位: 待定"
+                )
+                lines.append(
+                    f"一句话: {recs[0].reason}"
+                    if recs[0].reason
+                    else "一句话: 今日重点关注主胜机会。"
+                )
             if not lines:
                 return ""
             text = "\n".join(lines)
@@ -1013,13 +1109,13 @@ class DashboardRenderer:
             '<div class="v3-final-rec">\n'
             '  <div class="v3fr-header">\n'
             '    <span class="v3fr-icon">&#9670;</span>\n'
-            '    <div>\n'
+            "    <div>\n"
             '      <div class="v3fr-title">AI 最终推荐</div>\n'
             '      <div class="v3fr-subtitle">FINAL RECOMMENDATION</div>\n'
-            '    </div>\n'
-            '  </div>\n'
+            "    </div>\n"
+            "  </div>\n"
             f'  <div class="v3fr-body">{text.replace(chr(10), "<br>")}</div>\n'
-            '</div>'
+            "</div>"
         )
 
     # ------------------------------------------------------------------
@@ -1055,34 +1151,60 @@ class DashboardRenderer:
 
         # Fallback: build from top_picks + best_opportunities + value_opportunities
         if not recs:
-            merged: list[dict] = []
+            merged: list[dict[str, Any]] = []
             # from top_picks
             for p in data.top_picks:
-                merged.append({
-                    "match_label": p.match_label, "market": p.market, "selection": p.market,
-                    "odds": p.odds, "model_prob": p.model_prob, "ev": p.ev,
-                    "confidence": p.confidence, "stake": p.stake, "reason": p.reason,
-                    "category": "精选", "risk_level": "",
-                })
+                merged.append(
+                    {
+                        "match_label": p.match_label,
+                        "market": p.market,
+                        "selection": p.market,
+                        "odds": p.odds,
+                        "model_prob": p.model_prob,
+                        "ev": p.ev,
+                        "confidence": p.confidence,
+                        "stake": p.stake,
+                        "reason": p.reason,
+                        "category": "精选",
+                        "risk_level": "",
+                    }
+                )
             # from best_opportunities
             for bo in data.best_opportunities:
                 if not bo.has_qualifier:
                     continue
-                merged.append({
-                    "match_label": bo.match_label, "market": bo.market or bo.category,
-                    "selection": bo.selection,
-                    "odds": bo.odds, "model_prob": bo.model_prob, "ev": bo.ev,
-                    "confidence": bo.confidence, "stake": bo.stake, "reason": bo.explanation,
-                    "category": bo.category, "risk_level": bo.risk_level,
-                })
+                merged.append(
+                    {
+                        "match_label": bo.match_label,
+                        "market": bo.market or bo.category,
+                        "selection": bo.selection,
+                        "odds": bo.odds,
+                        "model_prob": bo.model_prob,
+                        "ev": bo.ev,
+                        "confidence": bo.confidence,
+                        "stake": bo.stake,
+                        "reason": bo.explanation,
+                        "category": bo.category,
+                        "risk_level": bo.risk_level,
+                    }
+                )
             # from value_opportunities
             for vo in data.value_opportunities:
-                merged.append({
-                    "match_label": vo.match_label, "market": vo.market, "selection": "",
-                    "odds": vo.odds, "model_prob": vo.model_prob, "ev": vo.ev,
-                    "confidence": vo.confidence, "stake": None, "reason": vo.explanation or "",
-                    "category": "价值机会", "risk_level": "",
-                })
+                merged.append(
+                    {
+                        "match_label": vo.match_label,
+                        "market": vo.market,
+                        "selection": "",
+                        "odds": vo.odds,
+                        "model_prob": vo.model_prob,
+                        "ev": vo.ev,
+                        "confidence": vo.confidence,
+                        "stake": None,
+                        "reason": vo.explanation or "",
+                        "category": "价值机会",
+                        "risk_level": "",
+                    }
+                )
             # dedup by (match_label, market)
             seen = set()
             deduped = []
@@ -1108,15 +1230,15 @@ class DashboardRenderer:
                 '<div class="v3-today-best v3-tb-empty">\n'
                 '  <div class="v3tb-header">\n'
                 '    <span class="v3tb-icon">&#9733;</span>\n'
-                '    <div>\n'
+                "    <div>\n"
                 '      <div class="v3tb-title">今日最佳推荐</div>\n'
                 '      <div class="v3tb-subtitle">TODAY\'S TOP RECOMMENDATIONS</div>\n'
-                '    </div>\n'
-                '  </div>\n'
+                "    </div>\n"
+                "  </div>\n"
                 '  <div class="v3tb-empty">今日暂无符合条件的推荐</div>\n'
                 '  <div class="v3tb-threshold">筛选条件：期望收益 EV &ge; '
-                f'{data.recommendations_min_ev * 100:g}%</div>\n'
-                '</div>'
+                f"{data.recommendations_min_ev * 100:g}%</div>\n"
+                "</div>"
             )
 
         # Sort by stars descending then EV descending
@@ -1129,7 +1251,11 @@ class DashboardRenderer:
             stake_str = f"{r.stake:.1%}" if r.stake is not None else NA
             odds_str = f"{r.odds:.2f}" if r.odds is not None else NA
             stars = r.stars
-            ev_color = "#10b981" if (r.ev is not None and r.ev > 0) else ("#ef4444" if r.ev is not None else "#94a3b8")
+            ev_color = (
+                "#10b981"
+                if (r.ev is not None and r.ev > 0)
+                else ("#ef4444" if r.ev is not None else "#94a3b8")
+            )
 
             cards.append(
                 f'<div class="v3tb-card">\n'
@@ -1137,44 +1263,42 @@ class DashboardRenderer:
                 f'  <div class="v3tb-main">\n'
                 f'    <span class="v3tb-match">{r.match_label}</span>\n'
                 f'    <span class="v3tb-selection">{r.selection or r.market}</span>\n'
-                f'  </div>\n'
+                f"  </div>\n"
                 f'  <div class="v3tb-grid">\n'
                 f'    <div class="v3tb-metric">\n'
                 f'      <div class="v3tb-label">EV</div>\n'
                 f'      <div class="v3tb-value" style="color:{ev_color}">{ev_str}</div>\n'
-                f'    </div>\n'
+                f"    </div>\n"
                 f'    <div class="v3tb-metric">\n'
                 f'      <div class="v3tb-label">置信度</div>\n'
                 f'      <div class="v3tb-value">{conf_str}</div>\n'
-                f'    </div>\n'
+                f"    </div>\n"
                 f'    <div class="v3tb-metric">\n'
                 f'      <div class="v3tb-label">Kelly</div>\n'
                 f'      <div class="v3tb-value">{stake_str}</div>\n'
-                f'    </div>\n'
+                f"    </div>\n"
                 f'    <div class="v3tb-metric">\n'
                 f'      <div class="v3tb-label">市场</div>\n'
                 f'      <div class="v3tb-value v3tb-market">{r.market}</div>\n'
-                f'    </div>\n'
+                f"    </div>\n"
                 f'    <div class="v3tb-metric">\n'
                 f'      <div class="v3tb-label">赔率</div>\n'
                 f'      <div class="v3tb-value">{odds_str}</div>\n'
-                f'    </div>\n'
-                f'  </div>\n'
+                f"    </div>\n"
+                f"  </div>\n"
                 f'  <div class="v3tb-reason">{r.reason or "暂无说明"}</div>\n'
-                f'</div>'
+                f"</div>"
             )
 
         return (
             '<div class="v3-today-best">\n'
             '  <div class="v3tb-header">\n'
             '    <span class="v3tb-icon">&#9733;</span>\n'
-            '    <div>\n'
+            "    <div>\n"
             '      <div class="v3tb-title">今日最佳推荐</div>\n'
             '      <div class="v3tb-subtitle">TODAY\'S TOP RECOMMENDATIONS</div>\n'
-            '    </div>\n'
-            '  </div>\n'
-            + "\n".join(cards)
-            + "\n</div>"
+            "    </div>\n"
+            "  </div>\n" + "\n".join(cards) + "\n</div>"
         )
 
     # ------------------------------------------------------------------
@@ -1198,36 +1322,34 @@ class DashboardRenderer:
                 f'<span class="cs-score">{s.scoreline}</span>'
                 f'<span class="cs-bar-wrap"><span class="{bar_cls}" style="width:{bar_pct}%"></span></span>'
                 f'<span class="cs-pct">{pct}</span>'
-                f'</div>'
+                f"</div>"
             )
         return (
             f'<div class="section">\n'
-            f'  <h2>首选比分预测 — {match_label}</h2>\n'
+            f"  <h2>首选比分预测 — {match_label}</h2>\n"
             f'  <div class="divider"></div>\n'
             f'  <div class="cs-section">\n'
-            f'    <div class="cs-header">Poisson 模型预测</div>\n'
-            + "\n".join(bars) + "\n"
-            f'  </div>\n'
-            f'</div>'
+            f'    <div class="cs-header">Poisson 模型预测</div>\n' + "\n".join(bars) + "\n"
+            "  </div>\n"
+            "</div>"
         )
 
     # ------------------------------------------------------------------
     # V3 — 建议回避增强版 (含 WHY-NOT 清单)
     # ------------------------------------------------------------------
 
-    def _avoid_matches_display_v3(self, avoids: list[AvoidMatch], matches: list[MatchDashboardData]) -> str:
+    def _avoid_matches_display_v3(
+        self, avoids: list[AvoidMatch], matches: list[MatchDashboardData]
+    ) -> str:
         """V3: 建议回避 — 结构化 WHY-NOT 清单。"""
         if not avoids:
             # Check if ANY match has actual prediction data (not all NULL/generic)
             any_data = any(
-                m.data_completeness is not None and m.data_completeness > 0
-                for m in matches
+                m.data_completeness is not None and m.data_completeness > 0 for m in matches
             )
             if not any_data:
-                return (
-                    '<p class="info-text">历史数据不足，无法完成模型评估，今日无正式推荐。</p>'
-                )
-            return f'<p class="info-text">所有比赛已完成评估，无需要回避的比赛。</p>'
+                return '<p class="info-text">历史数据不足，无法完成模型评估，今日无正式推荐。</p>'
+            return '<p class="info-text">所有比赛已完成评估，无需要回避的比赛。</p>'
 
         decision_badges = {
             "NO BET": '<span class="badge no-bet" style="font-size:.75em">不建议投注</span>',
@@ -1244,8 +1366,10 @@ class DashboardRenderer:
         head = "<tr><th>比赛</th><th>回避原因</th><th>决策</th></tr>"
         rows: list[str] = []
         for a in avoids:
-            badge = decision_badges.get(a.decision.upper().strip(),
-                                        f'<span class="badge watch" style="font-size:.75em">{a.decision}</span>')
+            badge = decision_badges.get(
+                a.decision.upper().strip(),
+                f'<span class="badge watch" style="font-size:.75em">{a.decision}</span>',
+            )
             md = match_map.get(a.match_label)
 
             # Build checklist if match data with nobet_checks exists
@@ -1263,7 +1387,9 @@ class DashboardRenderer:
                     check_items.append(
                         f'<span class="v3-nb-item" style="color:#f59e0b">&#9888; {md.nobet_checks.catch_all}</span>'
                     )
-                checklist_html = '<div class="v3-nb-checklist">' + "<br>".join(check_items) + '</div>'
+                checklist_html = (
+                    '<div class="v3-nb-checklist">' + "<br>".join(check_items) + "</div>"
+                )
 
             reason_cell = f"{a.reason}{checklist_html}" if checklist_html else a.reason
             rows.append(
@@ -1291,20 +1417,22 @@ class DashboardRenderer:
             icon = "&#10003;" if c.passed else "&#10007;"
             color = "#10b981" if c.passed else "#ef4444"
             detail = f" ({c.detail})" if c.detail else ""
-            items.append(f'<div class="v3-wnb-item" style="color:{color}">{icon} {c.label}{detail}</div>')
+            items.append(
+                f'<div class="v3-wnb-item" style="color:{color}">{icon} {c.label}{detail}</div>'
+            )
             if not c.passed:
                 all_pass = False
 
         if all_pass and checks.catch_all:
-            items.append(f'<div class="v3-wnb-item" style="color:#f59e0b">&#9888; {checks.catch_all}</div>')
+            items.append(
+                f'<div class="v3-wnb-item" style="color:#f59e0b">&#9888; {checks.catch_all}</div>'
+            )
 
         return (
             '<div class="v3-why-not-bet">\n'
-            '  <div class="v3-wnb-title">为什么不能下注？</div>\n'
-            + "\n".join(items) + "\n"
-            '</div>'
+            '  <div class="v3-wnb-title">为什么不能下注？</div>\n' + "\n".join(items) + "\n"
+            "</div>"
         )
-
 
     def _best_opportunities_display(self, opportunities: list[BestOpportunity]) -> str:
         """今日最佳机会 — 6 大类市场的最佳单笔推荐。"""
@@ -1313,11 +1441,11 @@ class DashboardRenderer:
                 '<div class="best-opps">\n'
                 '  <div class="best-opps-header">\n'
                 '    <span class="best-opps-icon">&#9889;</span>\n'
-                '    <div>\n'
+                "    <div>\n"
                 '      <div class="best-opps-title">今日最佳机会</div>\n'
                 '      <div class="best-opps-subtitle">TODAY\'S BEST OPPORTUNITIES</div>\n'
-                '    </div>\n'
-                '  </div>\n'
+                "    </div>\n"
+                "  </div>\n"
                 '  <div class="best-opps-empty">今日暂无最佳机会数据</div>\n'
                 "</div>"
             )
@@ -1331,7 +1459,7 @@ class DashboardRenderer:
                     f'<div class="bo-card bo-no-qualifier">\n'
                     f'  <div class="bo-category">{op.category}</div>\n'
                     f'  <div class="bo-no-data">暂无符合条件的推荐</div>\n'
-                    f'</div>'
+                    f"</div>"
                 )
                 continue
 
@@ -1340,7 +1468,8 @@ class DashboardRenderer:
             market_pct = _pct(op.market_prob)
             ev_str = f"{op.ev:+.1%}" if op.ev is not None else NA
             ev_color = (
-                "#10b981" if (op.ev is not None and op.ev > 0)
+                "#10b981"
+                if (op.ev is not None and op.ev > 0)
                 else ("#ef4444" if op.ev is not None else "#94a3b8")
             )
             conf_str = f"{op.confidence:.1f}%" if op.confidence is not None else NA
@@ -1353,53 +1482,51 @@ class DashboardRenderer:
                 f'    <div class="bo-category">{op.category}</div>\n'
                 f'    <div class="bo-match">{op.match_label}'
                 f' &mdash; <span style="color:#ffc400">{op.selection}</span></div>\n'
-                f'  </div>\n'
+                f"  </div>\n"
                 f'  <div class="bo-grid">\n'
                 f'    <div class="bo-metric">\n'
                 f'      <div class="bo-label">赔率</div>\n'
                 f'      <div class="bo-value">{odds_str}</div>\n'
-                f'    </div>\n'
+                f"    </div>\n"
                 f'    <div class="bo-metric">\n'
                 f'      <div class="bo-label">模型概率</div>\n'
                 f'      <div class="bo-value">{model_pct}</div>\n'
-                f'    </div>\n'
+                f"    </div>\n"
                 f'    <div class="bo-metric">\n'
                 f'      <div class="bo-label">市场概率</div>\n'
                 f'      <div class="bo-value">{market_pct}</div>\n'
-                f'    </div>\n'
+                f"    </div>\n"
                 f'    <div class="bo-metric">\n'
                 f'      <div class="bo-label">期望收益 EV</div>\n'
                 f'      <div class="bo-value" style="color:{ev_color}">{ev_str}</div>\n'
-                f'    </div>\n'
+                f"    </div>\n"
                 f'    <div class="bo-metric">\n'
                 f'      <div class="bo-label">置信度</div>\n'
                 f'      <div class="bo-value">{conf_str}</div>\n'
-                f'    </div>\n'
+                f"    </div>\n"
                 f'    <div class="bo-metric">\n'
                 f'      <div class="bo-label">建议仓位</div>\n'
                 f'      <div class="bo-value">{stake_str}</div>\n'
-                f'    </div>\n'
+                f"    </div>\n"
                 f'    <div class="bo-metric">\n'
                 f'      <div class="bo-label">风险等级</div>\n'
                 f'      <div class="bo-value" style="color:{risk_color}">{op.risk_level}</div>\n'
-                f'    </div>\n'
-                f'  </div>\n'
+                f"    </div>\n"
+                f"  </div>\n"
                 f'  <div class="bo-explanation">{op.explanation}</div>\n'
                 f'  {self._ai_reasoning_block(op.reasoning_bullets, "")}\n'
-                f'</div>'
+                f"</div>"
             )
 
         return (
             '<div class="best-opps">\n'
             '  <div class="best-opps-header">\n'
             '    <span class="best-opps-icon">&#9889;</span>\n'
-            '    <div>\n'
+            "    <div>\n"
             '      <div class="best-opps-title">今日最佳机会</div>\n'
             '      <div class="best-opps-subtitle">TODAY\'S BEST OPPORTUNITIES</div>\n'
-            '    </div>\n'
-            '  </div>\n'
-            + "\n".join(cards)
-            + "\n</div>"
+            "    </div>\n"
+            "  </div>\n" + "\n".join(cards) + "\n</div>"
         )
 
     # ------------------------------------------------------------------
@@ -1410,7 +1537,9 @@ class DashboardRenderer:
     def _ai_reasoning_block(bullets: list[str], conclusion: str) -> str:
         """AI 推理块 — 证据驱动推荐理由。无数据时显示 '暂无足够数据生成推理'。"""
         if not bullets:
-            return '<div class="ai-reasoning"><div class="ai-r-empty">暂无足够数据生成推理</div></div>'
+            return (
+                '<div class="ai-reasoning"><div class="ai-r-empty">暂无足够数据生成推理</div></div>'
+            )
 
         bullet_html = "\n".join(f"<li>{b}</li>" for b in bullets)
         concl_html = f'<div class="ai-r-conclusion">{conclusion}</div>' if conclusion else ""
@@ -1420,15 +1549,15 @@ class DashboardRenderer:
             '  <div class="ai-r-header">\n'
             '    <span class="ai-r-icon">&#128269;</span>\n'
             '    <span class="ai-r-title">AI 推理</span>\n'
-            '  </div>\n'
+            "  </div>\n"
             f'  <div class="ai-r-body">\n'
             f'    <div class="ai-r-question">为什么推荐？</div>\n'
             f'    <ul class="ai-r-bullets">\n'
-            f'      {bullet_html}\n'
-            f'    </ul>\n'
-            f'    {concl_html}\n'
-            f'  </div>\n'
-            f'</div>'
+            f"      {bullet_html}\n"
+            f"    </ul>\n"
+            f"    {concl_html}\n"
+            f"  </div>\n"
+            f"</div>"
         )
 
     def _ai_reasoning_section(self, reasoning: AIReasoning | None) -> str:
@@ -1450,13 +1579,14 @@ class DashboardRenderer:
         if breakdown is None or not breakdown.components:
             fallback_html = (
                 f"置信度：{fallback_score:.1f}%（无细项数据）"
-                if fallback_score is not None else "暂无数据"
+                if fallback_score is not None
+                else "暂无数据"
             )
             return (
                 '<div class="conf-breakdown">\n'
                 f'  <div class="cb-header">置信度构成</div>\n'
                 f'  <div class="cb-fallback">{fallback_html}</div>\n'
-                f'</div>'
+                f"</div>"
             )
 
         max_abs = max(abs(c.contribution) for c in breakdown.components)
@@ -1473,10 +1603,10 @@ class DashboardRenderer:
                 f'  <div class="cb-bar-wrap">\n'
                 f'    <div class="cb-bar" style="width:{bar_width:.0f}%;'
                 f'background:{color}"></div>\n'
-                f'  </div>\n'
+                f"  </div>\n"
                 f'  <div class="cb-score" style="color:{color}">'
-                f'{sign}{c.contribution:.0f}</div>\n'
-                f'</div>'
+                f"{sign}{c.contribution:.0f}</div>\n"
+                f"</div>"
             )
 
         total_color = "#10b981" if breakdown.total >= 0 else "#ef4444"
@@ -1491,8 +1621,8 @@ class DashboardRenderer:
             f'    <div class="cb-bar-wrap"></div>\n'
             f'    <div class="cb-score" style="color:{total_color};'
             f'font-weight:900;font-size:1.1em">{breakdown.total:.0f}</div>\n'
-            f'  </div>\n'
-            f'</div>'
+            f"  </div>\n"
+            f"</div>"
         )
 
     # ------------------------------------------------------------------
@@ -1506,52 +1636,52 @@ class DashboardRenderer:
         """决策时间线 — 推荐在一天中的变化历程。"""
         if not timeline:
             decision_labels = {
-                "BET": "建议投注", "WATCH": "持续观察", "NO BET": "不建议投注",
+                "BET": "建议投注",
+                "WATCH": "持续观察",
+                "NO BET": "不建议投注",
             }
-            label = decision_labels.get(
-                current_decision.upper().strip(), current_decision
-            )
+            label = decision_labels.get(current_decision.upper().strip(), current_decision)
             return (
                 '<div class="decision-timeline">\n'
                 '  <div class="dt-header">决策时间线</div>\n'
                 f'  <div class="dt-unchanged">'
-                f'今日推荐未发生变化 — 自首次分析起维持 <b>{label}</b></div>\n'
-                f'</div>'
+                f"今日推荐未发生变化 — 自首次分析起维持 <b>{label}</b></div>\n"
+                f"</div>"
             )
 
         decision_colors = {"BET": "#10b981", "WATCH": "#f59e0b", "NO BET": "#ef4444"}
         decision_labels = {
-            "BET": "建议投注", "WATCH": "持续观察", "NO BET": "不建议投注",
+            "BET": "建议投注",
+            "WATCH": "持续观察",
+            "NO BET": "不建议投注",
         }
 
         entries: list[str] = []
         for i, entry in enumerate(timeline):
             color = decision_colors.get(entry.decision.upper().strip(), "#94a3b8")
-            label = decision_labels.get(
-                entry.decision.upper().strip(), entry.decision
-            )
+            label = decision_labels.get(entry.decision.upper().strip(), entry.decision)
 
-            is_last = (i == len(timeline) - 1)
+            is_last = i == len(timeline) - 1
             dot_html = (
                 f'<div class="dt-dot-wrap">\n'
                 f'  <div class="dt-dot" style="background:{color}"></div>\n'
                 + ("" if is_last else '  <div class="dt-line"></div>\n')
-                + f'</div>'
+                + "</div>"
             )
 
             entries.append(
                 f'<div class="dt-entry">\n'
-                f'  {dot_html}\n'
+                f"  {dot_html}\n"
                 f'  <div class="dt-content">\n'
                 f'    <div class="dt-time">{entry.timestamp}</div>\n'
                 f'    <div class="dt-decision">\n'
                 f'      <span class="dt-badge" style="background:{color};color:#000;'
                 f'padding:1px 8px;border-radius:4px;font-size:.78em;margin-right:8px">'
-                f'{label}</span>\n'
-                f'      {entry.reason}\n'
-                f'    </div>\n'
-                f'  </div>\n'
-                f'</div>'
+                f"{label}</span>\n"
+                f"      {entry.reason}\n"
+                f"    </div>\n"
+                f"  </div>\n"
+                f"</div>"
             )
 
             if entry.trigger_event and not is_last:
@@ -1559,15 +1689,13 @@ class DashboardRenderer:
                     f'<div class="dt-trigger">\n'
                     f'  <div class="dt-trigger-line"></div>\n'
                     f'  <div class="dt-trigger-label">'
-                    f'&darr; {entry.trigger_event}</div>\n'
-                    f'</div>'
+                    f"&darr; {entry.trigger_event}</div>\n"
+                    f"</div>"
                 )
 
         return (
             '<div class="decision-timeline">\n'
-            '  <div class="dt-header">决策时间线</div>\n'
-            + "\n".join(entries)
-            + "\n</div>"
+            '  <div class="dt-header">决策时间线</div>\n' + "\n".join(entries) + "\n</div>"
         )
 
     # ------------------------------------------------------------------
@@ -1581,41 +1709,41 @@ class DashboardRenderer:
             return (
                 '<div class="triggers-section">\n'
                 '  <div class="tr-content">暂无数据 — 升级和降级条件未配置</div>\n'
-                f'</div>'
+                "</div>"
             )
 
         parts: list[str] = ['<div class="triggers-section">']
 
         if triggers.upgrade:
             bullets = "\n".join(
-                f"<li>{t.condition}"
-                + (f"（{t.threshold}）" if t.threshold else "")
-                + "</li>"
+                f"<li>{t.condition}" + (f"（{t.threshold}）" if t.threshold else "") + "</li>"
                 for t in triggers.upgrade
             )
-            parts.extend([
-                '<div class="tr-block tr-upgrade">',
-                '  <div class="tr-label">升级条件</div>',
-                f'  <ul class="tr-list">{bullets}</ul>',
-                '</div>',
-            ])
+            parts.extend(
+                [
+                    '<div class="tr-block tr-upgrade">',
+                    '  <div class="tr-label">升级条件</div>',
+                    f'  <ul class="tr-list">{bullets}</ul>',
+                    "</div>",
+                ]
+            )
 
         if triggers.downgrade:
             bullets = "\n".join(
-                f"<li>{t.condition}"
-                + (f"（{t.threshold}）" if t.threshold else "")
-                + "</li>"
+                f"<li>{t.condition}" + (f"（{t.threshold}）" if t.threshold else "") + "</li>"
                 for t in triggers.downgrade
             )
-            parts.extend([
-                '<div class="tr-block tr-downgrade">',
-                '  <div class="tr-label">降级条件</div>',
-                f'  <ul class="tr-list">{bullets}</ul>',
-                '</div>',
-            ])
+            parts.extend(
+                [
+                    '<div class="tr-block tr-downgrade">',
+                    '  <div class="tr-label">降级条件</div>',
+                    f'  <ul class="tr-list">{bullets}</ul>',
+                    "</div>",
+                ]
+            )
 
-        parts.append('</div>')
-        return '\n'.join(parts)
+        parts.append("</div>")
+        return "\n".join(parts)
 
     # ------------------------------------------------------------------
     # Match card (used in daily overview)
@@ -1627,9 +1755,9 @@ class DashboardRenderer:
         away = _val(f.away_team)
         return (
             f'<div class="section">\n'
-            f'  <h2>比赛 {index}/{total}: {home} vs {away}</h2>\n'
+            f"  <h2>比赛 {index}/{total}: {home} vs {away}</h2>\n"
             f'  <div class="divider"></div>\n'
-            f'  {self._decision_mini(data)}\n'
+            f"  {self._decision_mini(data)}\n"
             f'  <div class="cards-2">\n'
             f'    <div class="card">{self._fixture_info_compact(data)}</div>\n'
             f'    <div class="card">{self._odds_display(data.odds)}</div>\n'
@@ -1654,7 +1782,10 @@ class DashboardRenderer:
             ("比赛场地", _val(f.venue)),
             ("开球时间", self._fmt_time(f.start_time)),
             ("状态", _status_cn(f.status)),
-            ("比分", f"{f.home_score or 0} - {f.away_score or 0}" if f.home_score is not None else NA),
+            (
+                "比分",
+                f"{f.home_score or 0} - {f.away_score or 0}" if f.home_score is not None else NA,
+            ),
         ]
         tbody = "\n".join(f"<tr><td>{k}</td><td>{v}</td></tr>" for k, v in rows)
         return f'<table class="info-table"><tbody>{tbody}</tbody></table>'
@@ -1711,11 +1842,13 @@ class DashboardRenderer:
         if d.confidence_score is not None:
             parts.append(f'<p class="info-text">置信度：{d.confidence_score:.1f}%</p>')
         if d.why_not_bet:
-            parts.append(f'<p class="info-text"><strong>不建议投注原因：</strong> {d.why_not_bet}</p>')
+            parts.append(
+                f'<p class="info-text"><strong>不建议投注原因：</strong> {d.why_not_bet}</p>'
+            )
         if d.confidence_killer:
             parts.append(
                 f'<p class="info-text" style="color:#ef4444">'
-                f'<strong>最大风险因素：</strong> {d.confidence_killer}</p>'
+                f"<strong>最大风险因素：</strong> {d.confidence_killer}</p>"
             )
         if not d.confidence_score and not d.why_not_bet and not d.confidence_killer:
             parts.append(f'<p class="info-text">{NA}</p>')
@@ -1729,16 +1862,14 @@ class DashboardRenderer:
             ("Monte Carlo", "可用" if ma.monte_carlo else "不可用"),
             ("Kelly", "可用" if ma.kelly else "不可用"),
         ]
-        tbody = "\n".join(
-            f"<tr><td>{name}</td><td>{status}</td></tr>" for name, status in rows
-        )
+        tbody = "\n".join(f"<tr><td>{name}</td><td>{status}</td></tr>" for name, status in rows)
         return f"<h3>数据源状态</h3><table class='info-table'><tbody>{tbody}</tbody></table>"
 
     # ── Sportmonks Phase 3: Enhancement Display Methods ──
 
     def _standings_display(self, s: StandingsDashboard | None) -> str:
         if not s or not s.available or not s.rows:
-            return f'<p class="info-text">Unavailable</p>'
+            return '<p class="info-text">Unavailable</p>'
         head = "<tr><th>#</th><th>球队</th><th>赛</th><th>胜</th><th>平</th><th>负</th><th>GF</th><th>GA</th><th>GD</th><th>分</th></tr>"
         rows = []
         for r in s.rows:
@@ -1756,9 +1887,11 @@ class DashboardRenderer:
         for side, rf in [("主场", data.recent_form_home), ("客场", data.recent_form_away)]:
             if not rf or not rf.available:
                 continue
-            badge_map = {"W": '<span class="badge badge-bet">W</span>',
-                         "D": '<span class="badge badge-watch">D</span>',
-                         "L": '<span class="badge badge-nobet">L</span>'}
+            badge_map = {
+                "W": '<span class="badge badge-bet">W</span>',
+                "D": '<span class="badge badge-watch">D</span>',
+                "L": '<span class="badge badge-nobet">L</span>',
+            }
             form_badges = " ".join(badge_map.get(m.result, m.result) for m in rf.matches)
             trend_icon = rf.trend
             parts.append(
@@ -1773,12 +1906,12 @@ class DashboardRenderer:
                 + "</tbody></table>"
             )
         if not parts:
-            return f'<p class="info-text">Unavailable</p>'
+            return '<p class="info-text">Unavailable</p>'
         return "".join(parts)
 
     def _injury_dashboard_display(self, inj: InjuryDashboard | None) -> str:
         if not inj or not inj.available or not inj.players:
-            return f'<p class="info-text">Unavailable</p>'
+            return '<p class="info-text">Unavailable</p>'
         head = "<tr><th>球员</th><th>类型</th><th>详情</th><th>预计归期</th></tr>"
         rows = "\n".join(
             f"<tr><td>{p.player_name}</td><td>{p.type}</td><td>{p.description}</td><td>{p.expected_return or '未知'}</td></tr>"
@@ -1788,7 +1921,7 @@ class DashboardRenderer:
 
     def _lineup_display(self, lu: LineupDashboard | None) -> str:
         if not lu or not lu.available:
-            return f'<p class="info-text">Unavailable</p>'
+            return '<p class="info-text">Unavailable</p>'
         parts = []
         for side_label, tl in [("主场", lu.home_lineup), ("客场", lu.away_lineup)]:
             if not tl:
@@ -1810,12 +1943,12 @@ class DashboardRenderer:
                 f"<table class='info-table'><thead><tr><th>#</th><th>球员</th></tr></thead><tbody>{subs}</tbody></table>"
             )
         if not parts:
-            return f'<p class="info-text">Unavailable</p>'
+            return '<p class="info-text">Unavailable</p>'
         return "".join(parts)
 
     def _match_centre_display(self, mc: MatchCentreDashboard | None) -> str:
         if not mc or not mc.available or not mc.timeline:
-            return f'<p class="info-text">Unavailable</p>'
+            return '<p class="info-text">Unavailable</p>'
         items = []
         for ev in sorted(mc.timeline, key=lambda x: x.minute):
             em = f"+{ev.extra_minute}" if ev.extra_minute else ""
@@ -1828,7 +1961,7 @@ class DashboardRenderer:
 
     def _tv_broadcast_display(self, tv: TVBroadcastDashboard | None) -> str:
         if not tv or not tv.available or not tv.stations:
-            return f'<p class="info-text">Unavailable</p>'
+            return '<p class="info-text">Unavailable</p>'
         rows = "\n".join(
             f"<tr><td>{s.name}</td><td>{s.url or 'N/A'}</td></tr>" for s in tv.stations
         )
@@ -1867,7 +2000,8 @@ class DashboardRenderer:
             market_pct = _pct(m.market_prob)
             ev_str = f"{m.ev:+.1%}" if m.ev is not None else NA
             ev_color = (
-                "#10b981" if (m.ev is not None and m.ev > 0)
+                "#10b981"
+                if (m.ev is not None and m.ev > 0)
                 else ("#ef4444" if m.ev is not None else "")
             )
             conf_str = f"{m.confidence:.1f}%" if m.confidence is not None else NA
@@ -1887,9 +2021,7 @@ class DashboardRenderer:
         tbody = "\n".join(rows)
         return f"<table class='info-table'><thead>{head}</thead><tbody>{tbody}</tbody></table>"
 
-    def _correct_scores_display(
-        self, scores: list[ScorelineInfo], ma: ModelAvailability
-    ) -> str:
+    def _correct_scores_display(self, scores: list[ScorelineInfo], ma: ModelAvailability) -> str:
         if not scores:
             if not ma.poisson:
                 return f'<p class="info-text">{NA} — Poisson 模型未启用</p>'
@@ -1930,14 +2062,12 @@ class DashboardRenderer:
         tbody = "\n".join(rows)
         return f"<table class='info-table'><thead>{head}</thead><tbody>{tbody}</tbody></table>"
 
-    def _value_opportunities_display(
-        self, opportunities: list[ValueOpportunity]
-    ) -> str:
+    def _value_opportunities_display(self, opportunities: list[ValueOpportunity]) -> str:
         if not opportunities:
             return (
-                f'<p class="info-text">今日无符合条件的价值机会</p>'
-                f'<p class="info-text" style="font-size:.75em;color:#64748b">'
-                f'筛选条件：期望收益 EV ≥ 3%</p>'
+                '<p class="info-text">今日无符合条件的价值机会</p>'
+                '<p class="info-text" style="font-size:.75em;color:#64748b">'
+                "筛选条件：期望收益 EV ≥ 3%</p>"
             )
 
         head = (
@@ -1967,11 +2097,11 @@ class DashboardRenderer:
 
     def _ai_trade_summary_display(self, summary: str) -> str:
         if not summary.strip():
-            return f'<p class="info-text">今日暂无符合条件的交易机会。</p>'
+            return '<p class="info-text">今日暂无符合条件的交易机会。</p>'
         return (
             f'<div style="background:#0d1525;border-radius:8px;padding:18px;'
             f'border-left:3px solid #ffc400;line-height:1.8;font-size:.95em">'
-            f'{summary}</div>'
+            f"{summary}</div>"
         )
 
     def _risk_summary(self, risks: list[RiskItem]) -> str:
@@ -2007,22 +2137,22 @@ class DashboardRenderer:
             return f'<p class="info-text">{NA} — 决策流程数据未注入</p>'
 
         status_icons = {
-            "passed":   ("&#10003;", "#10b981", "passed"),
-            "partial":  ("&#9888;", "#f59e0b", "partial"),
-            "failed":   ("&#10007;", "#ef4444", "failed"),
-            "nodata":   ("&#8854;", "#64748b", "nodata"),
+            "passed": ("&#10003;", "#10b981", "passed"),
+            "partial": ("&#9888;", "#f59e0b", "partial"),
+            "failed": ("&#10007;", "#ef4444", "failed"),
+            "nodata": ("&#8854;", "#64748b", "nodata"),
         }
 
         step_cards: list[str] = []
-        for i, s in enumerate(steps):
+        for s in steps:
             icon, color, css_class = status_icons.get(s.status, ("&#8854;", "#64748b", "nodata"))
-            note_style = f'color:{color}' if s.status == "failed" else ""
+            note_style = f"color:{color}" if s.status == "failed" else ""
             step_cards.append(
                 f'<div class="df-step df-step-{css_class}">\n'
                 f'  <div class="df-status" style="color:{color}">{icon}</div>\n'
                 f'  <div class="df-name">{s.step_name}</div>\n'
                 f'  <div class="df-note" style="{note_style}">{s.note or "—"}</div>\n'
-                f'</div>'
+                f"</div>"
             )
 
         # Interleave cards with arrows
@@ -2032,11 +2162,7 @@ class DashboardRenderer:
             pipeline.append(arrows)
             pipeline.append(card)
 
-        return (
-            '<div class="df-pipeline">\n'
-            + '\n'.join(pipeline)
-            + '\n</div>'
-        )
+        return '<div class="df-pipeline">\n' + "\n".join(pipeline) + "\n</div>"
 
     def _model_consensus_display(
         self, rows: list[ModelConsensusRow], decision: DecisionInfo
@@ -2070,7 +2196,8 @@ class DashboardRenderer:
             draw_pct = _pct(r.draw_prob)
             away_pct = _pct(r.away_prob)
             agree_icon = (
-                '<span style="color:#10b981;font-size:1.2em">&#10003;</span>' if r.agrees
+                '<span style="color:#10b981;font-size:1.2em">&#10003;</span>'
+                if r.agrees
                 else '<span style="color:#ef4444;font-size:1.2em">&#10007;</span>'
             )
             row_class = "" if r.agrees else "consensus-warn"
@@ -2089,33 +2216,32 @@ class DashboardRenderer:
         return (
             f'<p class="info-text" style="margin-bottom:12px">'
             f'最终推荐：<span class="badge {_classification_css_class(final_cls)}">{final_label}</span>'
-            f'</p>\n'
+            f"</p>\n"
             f'<table class="info-table consensus-table"><thead>{head}</thead><tbody>{tbody}</tbody></table>'
         )
 
     def _daily_risk_display(self, rp: DailyRiskProfile | None) -> str:
         """每日风险管理 — 敞口可视化 + 仓位汇总。"""
         if rp is None:
-            return (
-                f'<p class="info-text">风险敞口数据未注入，请运行完整流水线。</p>'
-            )
+            return '<p class="info-text">风险敞口数据未注入，请运行完整流水线。</p>'
 
         if rp.recommended_trade_count == 0:
             return (
-                f'<p class="info-text" style="color:#10b981;font-size:.95em">'
-                f'今日无推荐交易，风险敞口为零。</p>'
+                '<p class="info-text" style="color:#10b981;font-size:.95em">'
+                "今日无推荐交易，风险敞口为零。</p>"
             )
 
         max_exp = rp.max_exposure_pct
         total_stake = rp.total_suggested_stake
 
         # Gauge bar — total stake vs max exposure
-        gauge_used_pct = 0
+        gauge_used_pct: float = 0
         if max_exp and max_exp > 0 and total_stake is not None:
             gauge_used_pct = min(100, (total_stake / max_exp) * 100)
 
         gauge_color = (
-            "#10b981" if gauge_used_pct <= 60
+            "#10b981"
+            if gauge_used_pct <= 60
             else ("#f59e0b" if gauge_used_pct <= 80 else "#ef4444")
         )
 
@@ -2125,23 +2251,23 @@ class DashboardRenderer:
         gauge_html = (
             f'<div class="risk-gauge">\n'
             f'  <div class="risk-gauge-labels">\n'
-            f'    <div>\n'
+            f"    <div>\n"
             f'      <span class="rg-label">建议最大敞口</span>\n'
             f'      <span class="rg-value">{max_exp_str}</span>\n'
-            f'    </div>\n'
+            f"    </div>\n"
             f'    <div style="text-align:right">\n'
             f'      <span class="rg-label">当前总仓位</span>\n'
             f'      <span class="rg-value" style="color:{gauge_color}">{total_stake_str}</span>\n'
-            f'    </div>\n'
-            f'  </div>\n'
+            f"    </div>\n"
+            f"  </div>\n"
             f'  <div class="risk-gauge-track">\n'
             f'    <div class="risk-gauge-fill" style="width:{gauge_used_pct:.0f}%;'
             f'background:{gauge_color}"></div>\n'
-            f'  </div>\n'
+            f"  </div>\n"
             f'  <div class="risk-gauge-trade-count">'
             f'今日推荐交易数：<b style="color:#fff">{rp.recommended_trade_count}</b> 笔'
-            f'</div>\n'
-            f'</div>'
+            f"</div>\n"
+            f"</div>"
         )
 
         # Kelly breakdown table
@@ -2149,7 +2275,9 @@ class DashboardRenderer:
         if rp.kelly_breakdown:
             kelly_head = "<tr><th>#</th><th>比赛 / 市场</th><th>凯利仓位</th></tr>"
             for i, item in enumerate(rp.kelly_breakdown, 1):
-                match_label = item[0] if isinstance(item, (list, tuple)) and len(item) >= 1 else str(item)
+                match_label = (
+                    item[0] if isinstance(item, (list, tuple)) and len(item) >= 1 else str(item)
+                )
                 kelly_pct = item[1] if isinstance(item, (list, tuple)) and len(item) >= 2 else None
                 kelly_str = f"{kelly_pct:.1%}" if kelly_pct is not None else NA
                 kelly_rows.append(
@@ -2158,12 +2286,10 @@ class DashboardRenderer:
             kelly_tbody = "\n".join(kelly_rows)
             kelly_table = (
                 f'<table class="info-table" style="margin-top:16px">'
-                f'<thead>{kelly_head}</thead><tbody>{kelly_tbody}</tbody></table>'
+                f"<thead>{kelly_head}</thead><tbody>{kelly_tbody}</tbody></table>"
             )
         else:
-            kelly_table = (
-                f'<p class="info-text" style="margin-top:16px">凯利仓位明细未提供。</p>'
-            )
+            kelly_table = '<p class="info-text" style="margin-top:16px">凯利仓位明细未提供。</p>'
 
         return gauge_html + "\n" + kelly_table
 
@@ -2179,11 +2305,11 @@ class DashboardRenderer:
                 '<div class="top-picks">\n'
                 '  <div class="top-picks-header">\n'
                 '    <span class="top-picks-icon">&#9733;</span>\n'
-                '    <div>\n'
+                "    <div>\n"
                 '      <div class="top-picks-title">今日精选</div>\n'
                 '      <div class="top-picks-subtitle">TODAY\'S TOP PICKS</div>\n'
-                '    </div>\n'
-                '  </div>\n'
+                "    </div>\n"
+                "  </div>\n"
                 '  <div class="top-picks-empty">今日暂无精选推荐</div>\n'
                 "</div>"
             )
@@ -2193,7 +2319,6 @@ class DashboardRenderer:
             odds_str = _val(p.odds, fmt=".2f")
             prob_str = _pct(p.model_prob)
             ev_str = f"{p.ev:+.1%}" if p.ev is not None else NA
-            conf_str = f"{p.confidence:.1f}%" if p.confidence is not None else NA
             stake_str = f"{p.stake:.1%}" if p.stake is not None else NA
             cards.append(
                 f'<div class="top-pick-card">\n'
@@ -2204,20 +2329,20 @@ class DashboardRenderer:
                 f'    <div class="tp-metric">\n'
                 f'      <div class="tp-label">赔率</div>\n'
                 f'      <div class="tp-value">{odds_str}</div>\n'
-                f'    </div>\n'
+                f"    </div>\n"
                 f'    <div class="tp-metric">\n'
                 f'      <div class="tp-label">模型概率</div>\n'
                 f'      <div class="tp-value">{prob_str}</div>\n'
-                f'    </div>\n'
+                f"    </div>\n"
                 f'    <div class="tp-metric">\n'
                 f'      <div class="tp-label">期望收益 EV</div>\n'
                 f'      <div class="tp-value" style="color:#10b981">{ev_str}</div>\n'
-                f'    </div>\n'
+                f"    </div>\n"
                 f'    <div class="tp-metric">\n'
                 f'      <div class="tp-label">建议仓位</div>\n'
                 f'      <div class="tp-value">{stake_str}</div>\n'
-                f'    </div>\n'
-                f'  </div>\n'
+                f"    </div>\n"
+                f"  </div>\n"
                 f'  <div class="tp-reason">{p.reason}</div>\n'
                 f"</div>"
             )
@@ -2226,19 +2351,17 @@ class DashboardRenderer:
             '<div class="top-picks">\n'
             '  <div class="top-picks-header">\n'
             '    <span class="top-picks-icon">&#9733;</span>\n'
-            '    <div>\n'
+            "    <div>\n"
             '      <div class="top-picks-title">今日精选</div>\n'
             '      <div class="top-picks-subtitle">TODAY\'S TOP PICKS &mdash; '
-            f'{len(picks)} 个精选推荐</div>\n'
-            '    </div>\n'
-            '  </div>\n'
-            + "\n".join(cards)
-            + "\n</div>"
+            f"{len(picks)} 个精选推荐</div>\n"
+            "    </div>\n"
+            "  </div>\n" + "\n".join(cards) + "\n</div>"
         )
 
     def _avoid_matches_display(self, avoids: list[AvoidMatch]) -> str:
         if not avoids:
-            return f'<p class="info-text">今日所有比赛均通过筛选，无需要回避的比赛。</p>'
+            return '<p class="info-text">今日所有比赛均通过筛选，无需要回避的比赛。</p>'
 
         decision_badges = {
             "NO BET": '<span class="badge no-bet" style="font-size:.75em">不建议投注</span>',
@@ -2247,8 +2370,10 @@ class DashboardRenderer:
         head = "<tr><th>比赛</th><th>回避原因</th><th>决策</th></tr>"
         rows: list[str] = []
         for a in avoids:
-            badge = decision_badges.get(a.decision.upper().strip(),
-                                        f'<span class="badge watch" style="font-size:.75em">{a.decision}</span>')
+            badge = decision_badges.get(
+                a.decision.upper().strip(),
+                f'<span class="badge watch" style="font-size:.75em">{a.decision}</span>',
+            )
             rows.append(
                 f"<tr>"
                 f"<td style='font-weight:700'>{a.match_label}</td>"
@@ -2265,7 +2390,7 @@ class DashboardRenderer:
 
         cards: list[str] = [
             '<p style="color:#997a00;font-size:.78em;margin-bottom:16px;letter-spacing:1px">'
-            '&#9888; 模拟交易，非实际投注建议</p>'
+            "&#9888; 模拟交易，非实际投注建议</p>"
         ]
         for a in accs:
             odds_str = _val(a.combined_odds, fmt=".2f")
@@ -2278,12 +2403,12 @@ class DashboardRenderer:
                 f'    <div class="tp-metric">\n'
                 f'      <div class="tp-label">组合赔率</div>\n'
                 f'      <div class="tp-value">{odds_str}</div>\n'
-                f'    </div>\n'
+                f"    </div>\n"
                 f'    <div class="tp-metric">\n'
                 f'      <div class="tp-label">预估命中率</div>\n'
                 f'      <div class="tp-value">{hit_str}</div>\n'
-                f'    </div>\n'
-                f'  </div>\n'
+                f"    </div>\n"
+                f"  </div>\n"
                 f"</div>"
             )
         return "\n".join(cards)
@@ -2294,16 +2419,17 @@ class DashboardRenderer:
 
     # ── S1: AI 执行摘要 ──
 
-    def _executive_summary_display(self, es: DailyExecutiveSummary | None) -> str:
+    def _executive_summary_display(self, es: ExecutiveSummary | None) -> str:
         if es is None:
             return ""
-        badge_cls = _classification_css_class(es.final_decision)
         badge_map = {
             "BET": ("AA", "bet", "#10b981"),
             "WATCH": ("A", "watch", "#f59e0b"),
             "NO BET": ("BB", "no-bet", "#ef4444"),
         }
-        label, bcls, bcolor = badge_map.get(es.final_decision.upper().strip(), (es.final_decision or NA, "watch", "#f59e0b"))
+        label, bcls, bcolor = badge_map.get(
+            es.final_decision.upper().strip(), (es.final_decision or NA, "watch", "#f59e0b")
+        )
         ev_str = f"{es.ev:+.1%}" if es.ev is not None else NA
         ev_color = "#10b981" if (es.ev or 0) >= 0 else "#ef4444"
         conf_str = f"{es.confidence:.0f}" if es.confidence is not None else NA
@@ -2313,14 +2439,14 @@ class DashboardRenderer:
             '  <div class="es-badge-wrap">\n'
             f'    <span class="es-badge {bcls}">{label}</span>\n'
             f'    <span class="es-market">{_val(es.recommended_market)}</span>\n'
-            '  </div>\n'
+            "  </div>\n"
             '  <div class="es-grid">\n'
             f'    <div class="es-item"><span class="es-label">置信度</span><span class="es-value">{conf_str}</span></div>\n'
             f'    <div class="es-item"><span class="es-label">期望收益 EV</span><span class="es-value ev" style="color:{ev_color}">{ev_str}</span></div>\n'
             f'    <div class="es-item"><span class="es-label">建议仓位</span><span class="es-value">{stake_str}</span></div>\n'
-            '  </div>\n'
+            "  </div>\n"
             f'  <div class="es-oneliner">{_val(es.one_liner)}</div>\n'
-            '</div>'
+            "</div>"
         )
 
     # ── S2: 足球分析 ──
@@ -2348,16 +2474,12 @@ class DashboardRenderer:
                 f'<div class="fr-row">\n'
                 f'  <span class="fr-label">{label}</span>\n'
                 f'  <span class="fr-text">{text}</span>\n'
-                f'</div>'
+                f"</div>"
             )
         if not rows:
             return f'<p class="info-text">{NA} — 缺少足球分析数据</p>'
         body = "\n".join(rows)
-        return (
-            '<div class="football-reasoning">\n'
-            f'  {body}\n'
-            '</div>'
-        )
+        return '<div class="football-reasoning">\n' f"  {body}\n" "</div>"
 
     # ── S3: 大小球分析 ──
 
@@ -2377,23 +2499,23 @@ class DashboardRenderer:
             f'    <div class="ou-item"><span class="ou-label">市场概率</span><span class="ou-value">{mkp_str}</span></div>',
             f'    <div class="ou-item"><span class="ou-label">期望收益 EV</span><span class="ou-value" style="color:{ev_color}">{ev_str}</span></div>',
             f'    <div class="ou-item"><span class="ou-label">置信度</span><span class="ou-value">{conf_str}</span></div>',
-            '  </div>',
+            "  </div>",
         ]
         if ou.explanation_bullets:
-            blist = "\n".join(
-                f'    <li>{b}</li>' for b in ou.explanation_bullets
-            )
+            blist = "\n".join(f"    <li>{b}</li>" for b in ou.explanation_bullets)
             # Determine title based on over/under
             is_over = "大" in ou.recommended_line if ou.recommended_line else True
             title = "为什么推荐大球？" if is_over else "为什么推荐小球？"
             blocks.append(f'  <div class="ou-explain"><strong>{title}</strong></div>')
             blocks.append(f'  <ul class="ou-bullets">\n{blist}\n  </ul>')
-        blocks.append('</div>')
+        blocks.append("</div>")
         return "\n".join(blocks)
 
     # ── S4: 比分可视化 ──
 
-    def _correct_scores_enhanced(self, scores: list[ScorelineInfo], availability: ModelAvailability | None) -> str:
+    def _correct_scores_enhanced(
+        self, scores: list[ScorelineInfo], availability: ModelAvailability | None
+    ) -> str:
         poisson_ok = availability is not None and availability.poisson
         if not scores:
             return f'<p class="info-text">{NA} — 比分数据未提供</p>'
@@ -2417,7 +2539,7 @@ class DashboardRenderer:
                 f'<span class="cs-score">{s.scoreline}</span>'
                 f'<span class="cs-bar-wrap"><span class="{bar_cls}" style="width:{bar_pct}%"></span></span>'
                 f'<span class="cs-pct">{pct}{marker}</span>'
-                f'</div>'
+                f"</div>"
             )
 
         # Compute realistic range (top-k that accumulate to ~60%)
@@ -2427,16 +2549,15 @@ class DashboardRenderer:
             if range_cum >= 0.6:
                 break
             range_scores.append(s.scoreline)
-            range_cum += (s.probability or 0)
+            range_cum += s.probability or 0
         range_label = f"{range_scores[0] if range_scores else '—'} 至 {range_scores[-1] if range_scores else '—'}"
         range_pct = f"{range_cum * 100:.1f}%"
 
         return (
             '<div class="cs-section">\n'
-            f'  <div class="cs-header">比分预测 (Poisson 模型)</div>\n'
-            + "\n".join(bars) + "\n"
+            '  <div class="cs-header">比分预测 (Poisson 模型)</div>\n' + "\n".join(bars) + "\n"
             f'  <div class="cs-range">最可能区间: {range_label}（累计概率 {range_pct}）</div>\n'
-            '</div>'
+            "</div>"
         )
 
     # ── S5: 进球球员预测 ──
@@ -2455,9 +2576,9 @@ class DashboardRenderer:
                 f'<span class="gs-player">{g.player}</span>'
                 f'<span class="gs-bar-wrap"><span class="gs-bar" style="width:{bar_pct}%"></span></span>'
                 f'<span class="gs-pct">{pct}</span>'
-                f'</div>'
+                f"</div>"
             )
-        return '\n'.join(bars)
+        return "\n".join(bars)
 
     # ── S6: 模型共识投票面板 ──
 
@@ -2478,7 +2599,7 @@ class DashboardRenderer:
                     f'<span class="mv-model">{row.model_name}</span>'
                     f'<span class="mv-vote" style="color:#64748b">— {reason}</span>'
                     f'<span class="mv-agree" style="color:#64748b">—</span>'
-                    f'</div>'
+                    f"</div>"
                 )
                 continue
 
@@ -2498,22 +2619,23 @@ class DashboardRenderer:
                 f'<span class="mv-model">{model_name}</span>'
                 f'<span class="mv-vote">{icon} {prediction}</span>'
                 f'<span class="mv-agree">{agree_mark}</span>'
-                f'</div>'
+                f"</div>"
             )
 
         if total_models == 0:
             return '<div class="model-voting">\n</div>'
 
         consensus_text = f"{agree_count}/{total_models} 模型支持推荐决策"
-        conf_str = f"{decision.confidence_score:.0f}%" if decision.confidence_score is not None else NA
+        conf_str = (
+            f"{decision.confidence_score:.0f}%" if decision.confidence_score is not None else NA
+        )
 
         return (
-            '<div class="model-voting">\n'
-            + "\n".join(vote_rows) + "\n"
+            '<div class="model-voting">\n' + "\n".join(vote_rows) + "\n"
             '  <div class="mv-divider"></div>\n'
             f'  <div class="mv-consensus">共识: {consensus_text}</div>\n'
             f'  <div class="mv-conf">置信度加权: {conf_str}</div>\n'
-            '</div>'
+            "</div>"
         )
 
     # ── S7: 市场动向 ──
@@ -2532,25 +2654,39 @@ class DashboardRenderer:
 
         # Build the odds range bar
         has_range = mm.high_odds is not None and mm.low_odds is not None
-        min_val = mm.low_odds if has_range else min(filter(None, [mm.opening_odds, mm.current_odds]))
-        max_val = mm.high_odds if has_range else max(filter(None, [mm.opening_odds, mm.current_odds]))
+        min_val = cast(
+            "float",
+            mm.low_odds if has_range else min(filter(None, [mm.opening_odds, mm.current_odds])),
+        )
+        max_val = cast(
+            "float",
+            mm.high_odds if has_range else max(filter(None, [mm.opening_odds, mm.current_odds])),
+        )
         span = max_val - min_val if max_val != min_val else 1
-        curr_pos = int((mm.current_odds - min_val) / span * 100) if mm.current_odds is not None else 50
-        open_pos = int((mm.opening_odds - min_val) / span * 100) if mm.opening_odds is not None else 0
+        curr_pos = (
+            int((mm.current_odds - min_val) / span * 100) if mm.current_odds is not None else 50
+        )
+        open_pos = (
+            int((mm.opening_odds - min_val) / span * 100) if mm.opening_odds is not None else 0
+        )
         curr_pos = max(0, min(100, curr_pos))
         open_pos = max(0, min(100, open_pos))
 
         range_bar = (
-            f'<div class="mm-range">'
-            f'  <div class="mm-range-labels"><span class="mm-range-low">{low_str}</span>'
-            f'  <span class="mm-range-high">{high_str}</span></div>'
-            f'  <div class="mm-range-track">'
-            f'    <div class="mm-range-zone" style="left:{min(open_pos, curr_pos)}%;width:{abs(curr_pos - open_pos)}%"></div>'
-            f'    <div class="mm-range-dot mm-dot-open" style="left:{open_pos}%" title="开盘 {open_str}"></div>'
-            f'    <div class="mm-range-dot mm-dot-curr" style="left:{curr_pos}%" title="当前 {curr_str}"></div>'
-            f'  </div>'
-            f'</div>'
-        ) if has_range else ""
+            (
+                f'<div class="mm-range">'
+                f'  <div class="mm-range-labels"><span class="mm-range-low">{low_str}</span>'
+                f'  <span class="mm-range-high">{high_str}</span></div>'
+                f'  <div class="mm-range-track">'
+                f'    <div class="mm-range-zone" style="left:{min(open_pos, curr_pos)}%;width:{abs(curr_pos - open_pos)}%"></div>'
+                f'    <div class="mm-range-dot mm-dot-open" style="left:{open_pos}%" title="开盘 {open_str}"></div>'
+                f'    <div class="mm-range-dot mm-dot-curr" style="left:{curr_pos}%" title="当前 {curr_str}"></div>'
+                f"  </div>"
+                f"</div>"
+            )
+            if has_range
+            else ""
+        )
 
         blocks = [
             '<div class="mkt-move">',
@@ -2563,14 +2699,14 @@ class DashboardRenderer:
             f'    <div class="mm-step"><span class="mm-label">最低</span><span class="mm-val">{low_str}</span></div>',
             '    <div class="mm-arrow">&#8594;</div>',
             f'    <div class="mm-step"><span class="mm-label">当前</span><span class="mm-val">{curr_str}</span></div>',
-            '  </div>',
+            "  </div>",
             f'  <div class="mm-direction">{arrow} {direction} ({chg_str})</div>',
         ]
         if has_range:
             blocks.append(range_bar)
         if mm.explanation:
             blocks.append(f'  <div class="mm-explain">{mm.explanation}</div>')
-        blocks.append('</div>')
+        blocks.append("</div>")
         return "\n".join(blocks)
 
     # ── S8: 风险评估面板 ──
@@ -2588,7 +2724,7 @@ class DashboardRenderer:
                 f'<span class="rk-factor">{item.factor}</span>'
                 f'<span class="rk-bar-wrap"><span class="rk-bar" style="width:{bw * 20}%;background:{color}"></span></span>'
                 f'<span class="rk-sev" style="color:{color}">{item.severity}</span>'
-                f'</div>'
+                f"</div>"
             )
         score = rb.overall_score
         label = rb.overall_label
@@ -2597,9 +2733,9 @@ class DashboardRenderer:
             f'<div class="rk-divider"></div>'
             f'<div class="rk-overall"><span>综合风险评分</span>'
             f'<span class="rk-score" style="color:{score_color}">{score}/100</span>'
-            f'<span>（{label}）</span></div>'
+            f"<span>（{label}）</span></div>"
         )
-        return '<div class="risk-breakdown">\n' + "\n".join(bars) + '\n</div>'
+        return '<div class="risk-breakdown">\n' + "\n".join(bars) + "\n</div>"
 
     # ── S9: 数据质量指标 ──
 
@@ -2614,14 +2750,14 @@ class DashboardRenderer:
                 f'<div class="dq-row">'
                 f'<span class="dq-source">{item.source}</span>'
                 f'<span class="dq-stars">{stars_html}{note_suffix}</span>'
-                f'</div>'
+                f"</div>"
             )
         rows.append(
             f'<div class="dq-divider"></div>'
             f'<div class="dq-overall"><span>综合可靠度</span>'
             f'<span class="dq-score">{dq.overall_score:.0f}%</span></div>'
         )
-        return '<div class="data-quality">\n' + "\n".join(rows) + '\n</div>'
+        return '<div class="data-quality">\n' + "\n".join(rows) + "\n</div>"
 
     # ── S10: AI 互动 Q&A ──
 
@@ -2634,16 +2770,12 @@ class DashboardRenderer:
             qa_items.append(
                 f'<div class="aq-item">'
                 f'<div class="aq-question" onclick="var e=document.getElementById(\'{qid}\');'
-                f'e.style.display=e.style.display===\'none\'?\'block\':\'none\'">'
+                f"e.style.display=e.style.display==='none'?'block':'none'\">"
                 f'<span class="aq-arrow">▸</span> {item.question}</div>'
                 f'<div class="aq-answer" id="{qid}" style="display:none">{item.answer}</div>'
-                f'</div>'
+                f"</div>"
             )
-        return (
-            '<div class="ai-qa">\n'
-            + "\n".join(qa_items) + "\n"
-            '</div>'
-        )
+        return '<div class="ai-qa">\n' + "\n".join(qa_items) + "\n" "</div>"
 
     # ------------------------------------------------------------------
     # HTML head / footer
@@ -3055,9 +3187,7 @@ class DashboardRenderer:
         ts = now.strftime("%Y-%m-%d %H:%M:%S")
         ver = f" | Pipeline: {version}" if version else ""
         return (
-            f'<div class="footer">\n'
-            f'  生成时间：{ts}{ver} | Marvis AI | 非投资建议\n'
-            f"</div>"
+            f'<div class="footer">\n' f"  生成时间：{ts}{ver} | Marvis AI | 非投资建议\n" f"</div>"
         )
 
     @staticmethod
