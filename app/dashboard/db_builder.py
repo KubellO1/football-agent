@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
 
+from app.config.settings import get_settings
 from app.dashboard.types import (
     DailyDashboardData,
     DailyExecutiveSummary,
@@ -40,6 +41,7 @@ from app.repositories.sqlalchemy.models import (
     PerformanceSnapshotORM,
     PredictionORM,
     SettlementORM,
+    TeamORM,
     ValueBetORM,
 )
 
@@ -54,6 +56,7 @@ async def build_daily_dashboard(
     on_date: date,
     *,
     pipeline_version: str | None = None,
+    recommendations_min_ev: float | None = None,
 ) -> DailyDashboardData:
     """Query DB for on_date and build the complete DailyDashboardData."""
 
@@ -83,6 +86,7 @@ async def build_daily_dashboard(
     whitelist = get_whitelist()
     comp_repo = SqlAlchemyCompetitionRepository(session)
     accepted_fixtures: list[FixtureORM] = []
+    competition_names_by_fixture: dict[str, str] = {}
     skipped_whitelist = 0
     for f in fixture_rows:
         try:
@@ -100,6 +104,7 @@ async def build_daily_dashboard(
             country = None
         if whitelist.is_allowed(comp_name, league_id=league_id, country=country):
             accepted_fixtures.append(f)
+            competition_names_by_fixture[str(f.id)] = comp_name
         else:
             skipped_whitelist += 1
 
@@ -110,6 +115,16 @@ async def build_daily_dashboard(
         skipped_whitelist,
     )
     fixture_rows = accepted_fixtures
+
+    # Reference-data names are authoritative even when no decision prediction exists.
+    team_ids = {team_id for f in fixture_rows for team_id in (f.home_team_id, f.away_team_id)}
+    team_names_by_id: dict[str, str] = {}
+    if team_ids:
+        team_rows = (
+            (await session.execute(select(TeamORM).where(TeamORM.id.in_(team_ids)))).scalars().all()
+        )
+        team_names_by_id = {str(team.id): team.name for team in team_rows}
+
     # ── Predictions for today's fixtures ─────────────────────────────────
     fixture_ids = [f.id for f in fixture_rows]
     predictions: list[PredictionORM] = []
@@ -261,15 +276,19 @@ async def build_daily_dashboard(
     for fix in fixture_rows:
         fid = str(fix.id)
         preds = preds_by_fixture.get(fid, [])
+        prediction = preds[0] if preds else None
 
         # Build fixture info
         fixture_info = FixtureInfo(
-            home_team=(preds[0].home_team or "") if preds else "",
-            away_team=(preds[0].away_team or "") if preds else "",
+            home_team=team_names_by_id.get(str(fix.home_team_id))
+            or ((prediction.home_team or "") if prediction else ""),
+            away_team=team_names_by_id.get(str(fix.away_team_id))
+            or ((prediction.away_team or "") if prediction else ""),
             home_score=fix.score_home,
             away_score=fix.score_away,
             start_time=fix.kickoff,
-            competition=(preds[0].competition or "") if preds else "",
+            competition=competition_names_by_fixture.get(fid)
+            or ((prediction.competition or "") if prediction else ""),
             status=fix.status,
         )
 
@@ -411,8 +430,14 @@ async def build_daily_dashboard(
             .all()
         )
 
-        # Build fixture_id → (home_team, away_team) lookup from predictions
+        # Build fixture_id → (home_team, away_team) lookup from reference data,
+        # retaining prediction labels as a compatibility fallback.
         team_lookup: dict[str, tuple[str, str]] = {}
+        for fixture in fixture_rows:
+            home_name = team_names_by_id.get(str(fixture.home_team_id))
+            away_name = team_names_by_id.get(str(fixture.away_team_id))
+            if home_name and away_name:
+                team_lookup[str(fixture.id)] = (home_name, away_name)
         for p in predictions:
             fid = str(p.fixture_id)
             if fid not in team_lookup and p.home_team and p.away_team:
@@ -468,4 +493,9 @@ async def build_daily_dashboard(
         top_recommendations=top_recommendations,
         generated_at=datetime.now(UTC),
         pipeline_version=pipeline_version,
+        recommendations_min_ev=(
+            get_settings().recommendations_min_ev
+            if recommendations_min_ev is None
+            else recommendations_min_ev
+        ),
     )

@@ -17,6 +17,7 @@ from app.repositories.sqlalchemy.models import (
     PREDICTION_RECORD_DECISION,
     FixtureORM,
     PredictionORM,
+    TeamORM,
     ValueBetORM,
 )
 
@@ -85,6 +86,7 @@ def _patch_comp_repo():
 def _setup_session(
     *,
     fixtures=None,
+    teams=None,
     predictions=None,
     value_bets=None,
     odds_count=0,
@@ -105,6 +107,10 @@ def _setup_session(
         if "fixtures" in stmt_str and "FROM fixtures" in stmt_str:
             result = MagicMock()
             result.scalars.return_value.all.return_value = fixtures or []
+            return result
+        elif "teams" in stmt_str and "FROM teams" in stmt_str:
+            result = MagicMock()
+            result.scalars.return_value.all.return_value = teams or []
             return result
         elif "predictions" in stmt_str and "FROM predictions" in stmt_str:
             result = MagicMock()
@@ -265,6 +271,40 @@ def test_fixture_ids_empty_when_no_fixtures() -> None:
 
         assert data.top_picks == []
         assert data.top_recommendations == []
+
+    asyncio.run(_run())
+
+
+@pytest.mark.unit
+def test_fixture_reference_team_names_render_without_predictions() -> None:
+    """Fixture reference rows provide labels even before a decision prediction exists."""
+
+    async def _run() -> None:
+        fix = _make_fixture()
+        home = TeamORM(id=fix.home_team_id, name="Instituto Cordoba")
+        away = TeamORM(id=fix.away_team_id, name="San Lorenzo")
+        competition = MagicMock()
+        competition.name = "Liga Profesional Argentina"
+        competition.country = "Argentina"
+        competition.external_id = "128"
+        comp_repo = MagicMock()
+        comp_repo.get = AsyncMock(return_value=competition)
+        session = _setup_session(fixtures=[fix], teams=[home, away], predictions=[])
+
+        with (
+            _patch_whitelist(),
+            patch(
+                "app.repositories.sqlalchemy.reference_repositories."
+                "SqlAlchemyCompetitionRepository",
+                return_value=comp_repo,
+            ),
+        ):
+            data = await build_daily_dashboard(session, date(2026, 7, 16))
+
+        assert len(data.matches) == 1
+        assert data.matches[0].fixture.home_team == "Instituto Cordoba"
+        assert data.matches[0].fixture.away_team == "San Lorenzo"
+        assert data.matches[0].fixture.competition == "Liga Profesional Argentina"
 
     asyncio.run(_run())
 
@@ -474,3 +514,13 @@ def test_renderer_shows_cards_when_top_picks_exist() -> None:
     empty_data = DailyDashboardData(date="2026-07-16", top_picks=[])
     empty_html = renderer._todays_best_recommendations(empty_data)
     assert "今日暂无符合条件的推荐" in empty_html
+    assert "EV &ge; 5%" in empty_html
+    assert "EV &gt; 0" not in empty_html
+
+    configured_data = DailyDashboardData(
+        date="2026-07-16",
+        top_picks=[],
+        recommendations_min_ev=0.075,
+    )
+    configured_html = renderer._todays_best_recommendations(configured_data)
+    assert "EV &ge; 7.5%" in configured_html

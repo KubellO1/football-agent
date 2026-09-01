@@ -1114,7 +1114,8 @@ class DashboardRenderer:
                 '    </div>\n'
                 '  </div>\n'
                 '  <div class="v3tb-empty">今日暂无符合条件的推荐</div>\n'
-                '  <div class="v3tb-threshold">筛选条件：期望收益 EV &gt; 0</div>\n'
+                '  <div class="v3tb-threshold">筛选条件：期望收益 EV &ge; '
+                f'{data.recommendations_min_ev * 100:g}%</div>\n'
                 '</div>'
             )
 
