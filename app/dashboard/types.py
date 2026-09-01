@@ -697,6 +697,7 @@ class DailyDashboardData:
     data_quality: DataQuality | None = None
     generated_at: datetime | None = None
     pipeline_version: str | None = None
+    recommendations_min_ev: float = 0.05
 
 
 # Legacy alias for backward compatibility

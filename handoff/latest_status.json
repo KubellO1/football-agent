@@ -1,27 +1,21 @@
 {
-  "task_id": "TASK-20260901-042",
-  "status": "merge_approval_gate",
-  "branch": "codex/TASK-20260901-042",
-  "implementation_commit": "2e0ac4e1096ad1478dfd3fc7a62ccb3aaa09b083",
-  "summary": "Cleared 46 existing Ruff violations in the two Dashboard changed files while preserving deterministic HTML output and all 58 dataclass contracts.",
+  "task_id": "TASK-20260901-041",
+  "status": "completed_local_approval_gate",
+  "branch": "codex/TASK-20260901-041",
+  "implementation_commit": "906dd96",
+  "summary": "Confirmed Home vs Away was caused by the Dashboard builder ignoring canonical team rows when decision predictions were absent; added reference-data labels and a configuration-driven EV threshold display.",
+  "root_cause": "C_db_builder_did_not_read_team_names",
   "verification": {
-    "ruff": "PASS; 0 violations",
-    "black": "PASS",
-    "mypy": "PASS; 2 source files",
-    "dashboard_focused": "8 passed",
-    "unit": "688 passed",
-    "integration": "103 passed",
-    "behavior": "Fixed-input HTML SHA-256 and normalized dataclass contract SHA-256 unchanged",
-    "github_required_checks": "Quality, Unit tests and Integration tests passed"
+    "production_db": "READ ONLY; both fixture FKs and all four team rows exist",
+    "focused": "9 passed",
+    "unit": "689 passed",
+    "task_scope_quality": "Ruff, Black, MyPy and git diff --check passed for the clean task-scoped modules; legacy renderer/types debt documented"
   },
-  "pull_request": {
-    "number": 72,
-    "url": "https://github.com/KubellO1/football-agent/pull/72"
-  },
+  "provider_health": "Separate producer/consumer contract mismatch; not fixed in this task.",
   "production_database_writes": 0,
   "external_api_calls": 0,
   "production_jobs_run": 0,
-  "windows_scheduled_task_changes": 0,
+  "scheduler_changes": 0,
   "frozen_unchanged": true,
-  "next_action": "Wait for explicit Merge Approval; do not merge automatically."
+  "next_action": "Review the local commit. Keep Provider Health and legacy Dashboard quality cleanup in separate tasks before production deployment."
 }

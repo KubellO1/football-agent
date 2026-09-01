@@ -1,0 +1,136 @@
+{
+  "task_id": "TASK-20260901-041",
+  "title": "Dashboard data-chain audit and display correction",
+  "status": "completed_local_approval_gate",
+  "branch": "codex/TASK-20260901-041",
+  "base_commit": "05af1859dab8564d02e401fb4bcc18aff8db0eea",
+  "implementation_commit": "906dd96",
+  "dashboard_artifact": "C:/Users/ruowa/Projects/football-agent-release-pr70-05af1859/output/dashboard_2026-09-01.html",
+  "root_cause": {
+    "classification": "C",
+    "A_team_rows_missing": false,
+    "B_fixture_team_mapping_missing": false,
+    "C_db_builder_did_not_read_team_names": true,
+    "D_renderer_fallback_error": false,
+    "explanation": "The builder sourced labels only from decision prediction text. Both fixtures had valid team foreign keys and team rows but zero decision predictions, so empty labels reached the renderer and its intended Home/Away fallback became visible."
+  },
+  "fixtures": [
+    {
+      "fixture_id": "a6e34328-7d91-44cc-8b86-a8a541b8f706",
+      "home_team_id": "eb09451e-a586-4cf0-b3a7-cc369eb0697f",
+      "away_team_id": "d487836d-fe5e-449b-8e1d-d91f2706320c",
+      "home_team_row": {
+        "id": "eb09451e-a586-4cf0-b3a7-cc369eb0697f",
+        "name": "Instituto Cordoba",
+        "short_name": null,
+        "country": null,
+        "external_source": "api-football",
+        "external_id": "478",
+        "elo": null
+      },
+      "away_team_row": {
+        "id": "d487836d-fe5e-449b-8e1d-d91f2706320c",
+        "name": "San Lorenzo",
+        "short_name": null,
+        "country": null,
+        "external_source": "api-football",
+        "external_id": "460",
+        "elo": null
+      },
+      "competition": {
+        "id": "4e9bdf27-bb15-47a4-ae7f-5ef90b7da66a",
+        "name": "Liga Profesional Argentina",
+        "country": "Argentina",
+        "external_source": "api-football",
+        "external_id": "128"
+      },
+      "kickoff": "2026-09-01T00:15:00+00:00",
+      "provider_fixture_id": "1493102",
+      "fixture_external_source": "api-football",
+      "decision_prediction_count": 0
+    },
+    {
+      "fixture_id": "c413657d-6cd5-4689-b2ed-dbeb2a39683e",
+      "home_team_id": "cec39caa-7df1-4896-b084-60e46c6697eb",
+      "away_team_id": "05809edc-dd7a-4537-8e3d-0599e3bcab9c",
+      "home_team_row": {
+        "id": "cec39caa-7df1-4896-b084-60e46c6697eb",
+        "name": "Tigre",
+        "short_name": null,
+        "country": null,
+        "external_source": "api-football",
+        "external_id": "452",
+        "elo": null
+      },
+      "away_team_row": {
+        "id": "05809edc-dd7a-4537-8e3d-0599e3bcab9c",
+        "name": "Barracas Central",
+        "short_name": null,
+        "country": null,
+        "external_source": "api-football",
+        "external_id": "2432",
+        "elo": null
+      },
+      "competition": {
+        "id": "4e9bdf27-bb15-47a4-ae7f-5ef90b7da66a",
+        "name": "Liga Profesional Argentina",
+        "country": "Argentina",
+        "external_source": "api-football",
+        "external_id": "128"
+      },
+      "kickoff": "2026-09-01T00:15:00+00:00",
+      "provider_fixture_id": "1493105",
+      "fixture_external_source": "api-football",
+      "decision_prediction_count": 0
+    }
+  ],
+  "threshold_display": {
+    "production_recommendations_min_ev": 0.05,
+    "before": "筛选条件：期望收益 EV > 0",
+    "after": "筛选条件：期望收益 EV ≥ 5%",
+    "source": "Settings.recommendations_min_ev"
+  },
+  "provider_health_audit": {
+    "display_file": "data/provider_health.json",
+    "file_present_in_release_runtime": false,
+    "timeline_observation": "provider_health reports PG=OK providers=0/0",
+    "root_cause": "The canonical workers provider_health command only reads provider_health.json and does not probe providers. The scheduled topology invokes that reader, while the legacy producer and scripts/health_check.py use different output contracts.",
+    "classification": "producer_consumer_contract_mismatch",
+    "display_only_bug": false,
+    "fixed_in_this_task": false
+  },
+  "files_changed": [
+    "app/dashboard/db_builder.py",
+    "app/dashboard/renderer.py",
+    "app/dashboard/types.py",
+    "tests/unit/test_db_builder.py",
+    "tasks/completed/TASK-20260901-041.md",
+    "reports/codex/TASK-20260901-041_result.json",
+    "reports/codex/TASK-20260901-041_result.md",
+    "handoff/latest_status.json"
+  ],
+  "tests": {
+    "focused": "9 passed",
+    "full_unit": "689 passed",
+    "ruff_task_scope": "PASS for db_builder and focused test",
+    "black_task_scope": "PASS for db_builder and focused test",
+    "mypy_db_builder": "PASS",
+    "git_diff_check": "PASS",
+    "legacy_dashboard_quality_diagnostic": "renderer.py and types.py already fail whole-file changed-file quality checks on base master; no unrelated whole-file formatting or typing cleanup was included"
+  },
+  "production_database": {
+    "access": "read-only transaction",
+    "transaction_read_only": true,
+    "writes": 0
+  },
+  "external_api_calls": 0,
+  "production_jobs_run": 0,
+  "scheduler_changes": 0,
+  "production_data_changes": 0,
+  "frozen_unchanged": true,
+  "blockers": [
+    "Provider Health producer/consumer contract requires a separate task.",
+    "Legacy renderer.py/types.py whole-file formatting and typing debt would need an isolated quality task before a normal changed-file CI gate can pass."
+  ],
+  "next_action": "Review the local commit; create separate tasks for Provider Health telemetry and legacy Dashboard quality cleanup before requesting a production Dashboard deployment."
+}
