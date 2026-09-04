@@ -1,0 +1,136 @@
+{
+  "task_id": "TASK-20260904-053",
+  "title": "Marvis Zero-Cost Mode Architecture",
+  "status": "completed_stopped_at_approval_gate",
+  "branch": "codex/TASK-20260904-053",
+  "architecture_commit": "ed83983",
+  "base_commit": "6cc6c8f03bcf4f537db8ab49711402e71155de70",
+  "new_paid_provider_budget_eur": 0,
+  "outcomes": {
+    "zero_cost_mode_feasible": "YES_WITH_REDUCED_AUTOMATION",
+    "research_mode_feasible": "YES",
+    "live_preliminary_mode_feasible": "YES",
+    "formal_bet_mode_without_manual_odds": "NO",
+    "manual_odds_mode_feasible": "YES_CONDITIONAL",
+    "monthly_external_data_cost_eur": 0
+  },
+  "current_asset_inventory": {
+    "live_database_status": "UNVERIFIED_DATABASE_OFFLINE",
+    "production_postgresql_queried": false,
+    "tracked_repository_datasets_found": 0,
+    "local_task_051_common_sample_fixtures": 10,
+    "local_task_051_raw_sample_bytes": 56677239,
+    "last_verified_counts_are_not_current_live_counts": true
+  },
+  "zero_cost_sources": {
+    "accepted_for_research": [
+      "StatsBomb Open Data",
+      "Wyscout public event dataset",
+      "openfootball football.json",
+      "OpenLigaDB",
+      "football-data.org free plan",
+      "Football-Data.co.uk",
+      "Metrica Sports sample data"
+    ],
+    "approved_public_web_automation_sources": [],
+    "unsafe_rejected_automated_sources": [
+      "FBref",
+      "Sofascore",
+      "FotMob",
+      "Understat"
+    ],
+    "production_note": "A free or public source is not production-admissible unless its license, provenance, quality and temporal behavior are suitable. Research-only data cannot increase production live completeness."
+  },
+  "design_artifacts": [
+    "docs/marvis_zero_cost_asset_inventory.json",
+    "docs/marvis_zero_cost_feature_set_v1.json",
+    "docs/marvis_zero_cost_experiment_spec.json",
+    "docs/marvis_manual_input_contract.json",
+    "docs/marvis_zero_cost_mode_architecture.md"
+  ],
+  "feature_policy": {
+    "stable_required": [
+      "goals_for_against",
+      "home_away",
+      "recent_form",
+      "rest_days",
+      "league_baseline"
+    ],
+    "optional_with_verified_provenance": [
+      "xg_xga",
+      "shots_and_shots_on_target",
+      "possession",
+      "goalkeeper_saves",
+      "conversion_rate"
+    ],
+    "research_only_not_production_required": [
+      "ppda",
+      "big_chances",
+      "set_piece_shots",
+      "headed_shots"
+    ]
+  },
+  "experimental_model": {
+    "name": "MARVIS_ZERO_COST_V1",
+    "status": "DESIGN_ONLY",
+    "production_model_modified": false,
+    "variants": ["A", "B", "C", "D", "E_RESEARCH_ONLY"],
+    "evaluation": [
+      "Brier Score",
+      "Log Loss",
+      "calibration/ECE",
+      "accuracy as secondary diagnostic",
+      "OOS ROI where contemporaneous odds rights permit",
+      "Max Drawdown",
+      "sample size/confidence interval",
+      "league stability"
+    ],
+    "value_conclusion": "POTENTIALLY_VALUABLE_BUT_NOT_YET_PROVEN"
+  },
+  "live_mode": {
+    "states": [
+      "INSUFFICIENT_DATA",
+      "WAITING_FOR_LINEUP",
+      "PRELIMINARY_ANALYSIS",
+      "EXISTING_GATE_EVALUATION"
+    ],
+    "no_reliable_odds": {
+      "expected_value": "UNAVAILABLE",
+      "kelly": "UNAVAILABLE",
+      "bet": "PROHIBITED"
+    }
+  },
+  "validation": {
+    "json_contracts": "PASS",
+    "budget_invariant": "PASS",
+    "research_production_isolation": "PASS",
+    "no_odds_no_bet_invariant": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "files_changed": [
+    "docs/marvis_manual_input_contract.json",
+    "docs/marvis_zero_cost_asset_inventory.json",
+    "docs/marvis_zero_cost_experiment_spec.json",
+    "docs/marvis_zero_cost_feature_set_v1.json",
+    "docs/marvis_zero_cost_mode_architecture.md",
+    "tasks/completed/TASK-20260904-053.md",
+    "reports/codex/TASK-20260904-053_result.json",
+    "reports/codex/TASK-20260904-053_result.md",
+    "handoff/latest_status.json"
+  ],
+  "production": {
+    "database_reads": 0,
+    "database_writes": 0,
+    "external_football_api_calls": 0,
+    "production_jobs_run": 0,
+    "scheduler_changes": 0,
+    "deployment_changes": 0
+  },
+  "frozen_unchanged": true,
+  "blockers": [
+    "Local PostgreSQL and Redis were unavailable, so live production row counts could not be refreshed.",
+    "No validated rights-cleared settled OOS dataset currently supports a positive-ROI claim.",
+    "Continuous formal betting is not possible without reliable contemporaneous odds or validated manual odds."
+  ],
+  "recommended_next_task": "Zero-Cost Research Dataset Manifest + Baseline Experiment Runner"
+}

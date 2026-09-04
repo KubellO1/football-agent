@@ -1,21 +1,31 @@
 {
-  "task_id": "TASK-20260901-041",
-  "status": "completed_local_approval_gate",
-  "branch": "codex/TASK-20260901-041",
-  "implementation_commit": "906dd96",
-  "summary": "Confirmed Home vs Away was caused by the Dashboard builder ignoring canonical team rows when decision predictions were absent; added reference-data labels and a configuration-driven EV threshold display.",
-  "root_cause": "C_db_builder_did_not_read_team_names",
-  "verification": {
-    "production_db": "READ ONLY; both fixture FKs and all four team rows exist",
-    "focused": "9 passed",
-    "unit": "689 passed",
-    "task_scope_quality": "Ruff, Black, MyPy and git diff --check passed for the clean task-scoped modules; legacy renderer/types debt documented"
+  "task_id": "TASK-20260904-053",
+  "title": "Marvis Zero-Cost Mode Architecture",
+  "status": "completed_stopped_at_approval_gate",
+  "branch": "codex/TASK-20260904-053",
+  "architecture_commit": "ed83983",
+  "recommendation": "REVIEW_ARCHITECTURE_BEFORE_EXPERIMENT_IMPLEMENTATION",
+  "summary": "Zero-cost research and preliminary analysis are feasible with reduced automation. Formal betting without reliable manual or existing licensed odds remains prohibited.",
+  "outcomes": {
+    "zero_cost_mode_feasible": "YES_WITH_REDUCED_AUTOMATION",
+    "research_mode_feasible": "YES",
+    "live_preliminary_mode_feasible": "YES",
+    "formal_bet_mode_without_manual_odds": "NO",
+    "manual_odds_mode_feasible": "YES_CONDITIONAL"
   },
-  "provider_health": "Separate producer/consumer contract mismatch; not fixed in this task.",
-  "production_database_writes": 0,
-  "external_api_calls": 0,
-  "production_jobs_run": 0,
-  "scheduler_changes": 0,
+  "production_impact": {
+    "database_reads": 0,
+    "database_writes": 0,
+    "external_api_calls": 0,
+    "production_jobs": 0,
+    "scheduler_changes": 0,
+    "deployments": 0
+  },
   "frozen_unchanged": true,
-  "next_action": "Review the local commit. Keep Provider Health and legacy Dashboard quality cleanup in separate tasks before production deployment."
+  "blockers": [
+    "No rights-cleared settled OOS dataset currently proves positive ROI.",
+    "Zero-cost sources do not guarantee continuous live five-league odds, lineup or advanced-event coverage.",
+    "Production database was offline during this audit, so current row counts remain unverified."
+  ],
+  "next_action": "Create a separately approved isolated task: Zero-Cost Research Dataset Manifest + Baseline Experiment Runner."
 }
