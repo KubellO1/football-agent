@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0",
+  "name": "MARVIS_MANUAL_INPUT_V1",
+  "status": "DESIGN_ONLY",
+  "inputs": {
+    "odds": {
+      "required_fields": ["fixture_id", "bookmaker", "market", "home_price", "draw_price", "away_price", "captured_at", "source_url_or_user_attestation"],
+      "validation": [
+        "fixture exists and kickoff is in the future",
+        "canonical market is h2h",
+        "all three prices are finite decimal odds greater than 1.0",
+        "captured_at is timezone-aware, not future-dated and satisfies existing freshness policy",
+        "bookmaker identity is canonicalized without counting one brand twice",
+        "natural key is idempotent"
+      ]
+    },
+    "injuries": {
+      "required_fields": ["fixture_id", "team_id", "player_id_or_name", "status", "observed_at", "evidence_source"],
+      "validation": ["status is explicit", "evidence timestamp precedes decision time", "unknown remains unknown"]
+    },
+    "confirmed_lineup": {
+      "required_fields": ["fixture_id", "team_id", "players", "confirmed_at", "evidence_source"],
+      "validation": ["exactly one team per record", "player identities are mapped or rejected", "confirmation timestamp precedes decision time"]
+    }
+  },
+  "workflow": [
+    "validate input and provenance",
+    "persist only after a separately approved implementation defines audit storage",
+    "recompute existing model inputs",
+    "calculate EV only when valid fresh odds exist",
+    "calculate Kelly only after EV exists",
+    "run the unchanged Recommendation Gate",
+    "emit no BET unless all existing production rules pass"
+  ],
+  "live_states": [
+    {"condition": "history/core data insufficient", "state": "INSUFFICIENT_DATA", "bet": "PROHIBITED"},
+    {"condition": "history sufficient but lineup unavailable", "state": "WAITING_FOR_LINEUP", "bet": "PROHIBITED"},
+    {"condition": "history/current information sufficient but reliable odds unavailable", "state": "PRELIMINARY_ANALYSIS", "ev": "UNAVAILABLE", "kelly": "UNAVAILABLE", "bet": "PROHIBITED"},
+    {"condition": "validated manual odds and all required live inputs available", "state": "EXISTING_GATE_EVALUATION", "bet": "ONLY_IF_EXISTING_GATE_PASSES"}
+  ],
+  "security": [
+    "Never collect account passwords, API keys or payment details.",
+    "Never scrape a prohibited source on the user's behalf.",
+    "Display manual provenance distinctly from provider data.",
+    "Manual entry is not independent corroboration by itself."
+  ]
+}

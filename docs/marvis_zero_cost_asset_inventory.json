@@ -1,0 +1,216 @@
+{
+  "schema_version": "1.0",
+  "task_id": "TASK-20260904-053",
+  "generated_at": "2026-09-04",
+  "new_paid_provider_budget_eur": 0,
+  "live_inventory_status": "UNVERIFIED_DATABASE_OFFLINE",
+  "inventory_note": "Docker PostgreSQL and Redis were not running during this audit. Database values below are dated, last-verified snapshots and are not represented as current live counts.",
+  "assets": [
+    {
+      "source": "Production PostgreSQL",
+      "data_type": "mixed relational production data",
+      "date_range": "unknown live range; last audited 2026-08-31",
+      "league_coverage": "mixed; includes production whitelist and five-league fixture subset",
+      "rows": "not currently queryable",
+      "last_verified": {
+        "fixtures_total": 5391,
+        "fixtures_total_as_of": "2026-08-28",
+        "five_league_future_fixtures": 95,
+        "five_league_future_fixtures_as_of": "2026-08-31",
+        "predictions": 576,
+        "predictions_as_of": "2026-08-31",
+        "odds_snapshots": 0,
+        "odds_snapshots_as_of": "2026-08-31",
+        "bookmakers": 1,
+        "bookmakers_as_of": "2026-08-31"
+      },
+      "license_mode": "MIXED_PROVIDER_CONTRACTS_AND_INTERNAL_DERIVATIVES",
+      "can_use_for_research": "CONDITIONAL_ON_SOURCE_PROVENANCE_AND_RETENTION_RIGHTS",
+      "can_use_for_production": "YES_FOR_EXISTING_APPROVED_PIPELINES_ONLY",
+      "research_only": false
+    },
+    {
+      "source": "Locally retained TASK-20260904-051 sample artifacts",
+      "data_type": "StatsBomb Open Data events plus API-Football fixture cross-check artifacts",
+      "date_range": "2016-05-15 through 2021-05-16",
+      "league_coverage": "Premier League and La Liga sample only",
+      "rows": "10 common fixtures; 20 accepted raw sample records; 56,677,239 raw bytes",
+      "license_mode": "SOURCE_SPECIFIC_OPEN_DATA_TERMS_AND_EXISTING_API_ENTITLEMENT",
+      "can_use_for_research": "YES_WITH_ATTRIBUTION_AND_SOURCE_SEPARATION",
+      "can_use_for_production": "NO_FOR_STATSBOMB_SAMPLE; API-FOOTBALL ONLY UNDER EXISTING CONTRACT",
+      "research_only": true
+    },
+    {
+      "source": "Production fixtures",
+      "data_type": "fixture identity, teams, competition, kickoff, status and provider IDs",
+      "date_range": "mixed historical/current; live range unverified",
+      "league_coverage": "mixed; five-league future subset last verified at 95 fixtures",
+      "rows": "5391 last verified total on 2026-08-28",
+      "license_mode": "EXISTING_PROVIDER_AND_INTERNAL_DATABASE_PROVENANCE",
+      "can_use_for_research": "YES_IF_PROVENANCE/RETENTION_PERMITS",
+      "can_use_for_production": "YES_IN_EXISTING_APPROVED_PIPELINE",
+      "research_only": false
+    },
+    {
+      "source": "Production predictions",
+      "data_type": "model outputs and state records",
+      "date_range": "mixed; last count verified 2026-08-31",
+      "league_coverage": "mixed production scope",
+      "rows": 576,
+      "license_mode": "INTERNAL_DERIVED_DATA_WITH_UPSTREAM_DEPENDENCIES",
+      "can_use_for_research": "YES_WITH_TEMPORAL_AND_PROVENANCE CONTROLS",
+      "can_use_for_production": "YES",
+      "research_only": false
+    },
+    {
+      "source": "Production odds snapshots",
+      "data_type": "bookmaker market prices and provider provenance",
+      "date_range": "none in last verified snapshot",
+      "league_coverage": "none in last verified snapshot",
+      "rows": 0,
+      "license_mode": "EXISTING_ODDS_PROVIDER_CONTRACTS",
+      "can_use_for_research": "YES_WHEN PRESENT AND RETENTION PERMITS",
+      "can_use_for_production": "YES_ONLY THROUGH EXISTING APPROVED PROVIDERS",
+      "research_only": false
+    },
+    {
+      "source": "Team and competition mappings",
+      "data_type": "canonical entities and provider-scoped IDs",
+      "date_range": "current database state unavailable",
+      "league_coverage": "production whitelist; five-league mapping was sufficient for 95 of 97 returned fixtures in TASK-20260831-037",
+      "rows": "not currently queryable",
+      "license_mode": "INTERNAL_REFERENCE_DATA_WITH_PROVIDER-SOURCED IDENTIFIERS",
+      "can_use_for_research": "YES",
+      "can_use_for_production": "YES",
+      "research_only": false
+    },
+    {
+      "source": "Existing provider-acquired persisted data",
+      "data_type": "fixtures, mappings and any retained statistics",
+      "date_range": "source dependent",
+      "league_coverage": "source dependent",
+      "rows": "not separable while database is offline",
+      "license_mode": "RETENTION_RIGHTS_NOT_PROVEN AS PERMANENT BY THIS AUDIT",
+      "can_use_for_research": "CONDITIONAL",
+      "can_use_for_production": "CONDITIONAL; DO NOT ASSUME PERPETUAL RIGHTS",
+      "research_only": false
+    },
+    {
+      "source": "Repository historical experiment data",
+      "data_type": "tracked dataset files",
+      "date_range": "none found",
+      "league_coverage": "none",
+      "rows": 0,
+      "license_mode": "NOT_APPLICABLE",
+      "can_use_for_research": "NO_DATA_FOUND",
+      "can_use_for_production": "NO_DATA_FOUND",
+      "research_only": true
+    },
+    {
+      "source": "Repository backtest datasets",
+      "data_type": "tracked CSV/JSONL/Parquet/database datasets",
+      "date_range": "none found",
+      "league_coverage": "none",
+      "rows": 0,
+      "license_mode": "NOT_APPLICABLE",
+      "can_use_for_research": "NO_DATA_FOUND",
+      "can_use_for_production": "NO_DATA_FOUND",
+      "research_only": true
+    },
+    {
+      "source": "StatsBomb Open Data",
+      "data_type": "selected historical competitions, matches, events, lineups and selected 360 frames",
+      "date_range": "selective by published competition-season",
+      "league_coverage": "selective historical coverage; not a complete current five-league feed",
+      "rows": "upstream dataset not vendored; local common sample contains 10 fixtures",
+      "license_mode": "OFFICIAL_OPEN_DATA_TERMS_WITH_ATTRIBUTION",
+      "can_use_for_research": "YES_WITH_REQUIRED_ATTRIBUTION",
+      "can_use_for_production": "NO_UNDER_CURRENT EVIDENCE; COMMERCIAL/LIVE RIGHTS NOT ESTABLISHED",
+      "research_only": true
+    }
+  ],
+  "source_candidates": [
+    {
+      "source": "StatsBomb Open Data",
+      "classification": ["A_OPEN_DATA", "E_RESEARCH_ONLY"],
+      "cost_eur_month": 0,
+      "access": "official versioned JSON download without access-control bypass",
+      "usable_scope": "historical feature research, PPDA/set-piece/header derivation validation and calibration experiments",
+      "production_admissible": false,
+      "reason": "selective historical coverage and no verified commercial live-production rights"
+    },
+    {
+      "source": "Wyscout public event dataset on Figshare",
+      "classification": ["A_OPEN_DATA", "E_RESEARCH_ONLY"],
+      "cost_eur_month": 0,
+      "access": "public static research download",
+      "usable_scope": "historical event-method research across one season of the five leagues",
+      "production_admissible": false,
+      "reason": "static historical research dataset without live feed or production SLA"
+    },
+    {
+      "source": "openfootball football.json",
+      "classification": ["A_OPEN_DATA", "C_FREE_PUBLIC_DOWNLOAD"],
+      "cost_eur_month": 0,
+      "access": "public CC0 repository",
+      "usable_scope": "fixture/result cross-check and low-risk research",
+      "production_admissible": "CONDITIONAL",
+      "reason": "license is permissive, but community accuracy and no SLA prevent use as sole authoritative formal input"
+    },
+    {
+      "source": "OpenLigaDB",
+      "classification": ["B_FREE_OFFICIAL_API"],
+      "cost_eur_month": 0,
+      "access": "unauthenticated JSON API; ODbL data",
+      "usable_scope": "community fixture/result cross-check where league coverage exists",
+      "production_admissible": "CONDITIONAL_ON_ODBL_COMPLIANCE_AND_QUALITY_VALIDATION",
+      "reason": "community-maintained, incomplete five-league guarantee and no SLA"
+    },
+    {
+      "source": "football-data.org free plan",
+      "classification": ["B_FREE_OFFICIAL_API"],
+      "cost_eur_month": 0,
+      "access": "ordinary free registration/token; no bypass",
+      "usable_scope": "delayed fixtures, schedules, results and tables cross-check",
+      "production_admissible": "CONDITIONAL_ON_TERMS_AND_REGISTRATION_APPROVAL",
+      "reason": "free plan has limited competitions/rate and does not supply required advanced metrics"
+    },
+    {
+      "source": "Football-Data.co.uk",
+      "classification": ["C_FREE_PUBLIC_DOWNLOAD", "E_RESEARCH_ONLY"],
+      "cost_eur_month": 0,
+      "access": "public CSV/Excel downloads",
+      "usable_scope": "historical results, match statistics and odds backtesting",
+      "production_admissible": false,
+      "reason": "secondary compilation, no live SLA, and commercial redistribution/production rights not established"
+    },
+    {
+      "source": "Metrica Sports sample data",
+      "classification": ["E_RESEARCH_ONLY"],
+      "cost_eur_month": 0,
+      "access": "official static sample repository",
+      "usable_scope": "parser and event/tracking research only",
+      "production_admissible": false,
+      "reason": "small anonymous sample and no five-league live coverage"
+    },
+    {
+      "source": "FBref / Sofascore / FotMob / Understat automated scraping",
+      "classification": ["F_UNSAFE_REJECT"],
+      "cost_eur_month": 0,
+      "access": "no audited explicit automation and commercial-use grant for this pipeline",
+      "usable_scope": "none for automated ingestion",
+      "production_admissible": false,
+      "reason": "a publicly viewable page is not permission for systematic automation"
+    }
+  ],
+  "approved_public_web_automation_sources": [],
+  "references": [
+    "https://github.com/hudl/open-data/blob/master/README.md",
+    "https://figshare.com/collections/Soccer_match_event_dataset/4415000/2",
+    "https://github.com/openfootball/football.json/blob/master/LICENSE.md",
+    "https://openligadb.de/",
+    "https://www.football-data.org/pricing",
+    "https://www.football-data.org/coverage",
+    "https://www.football-data.co.uk/data.php"
+  ]
+}

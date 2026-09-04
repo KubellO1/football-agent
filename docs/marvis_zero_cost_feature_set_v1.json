@@ -1,0 +1,90 @@
+{
+  "schema_version": "1.0",
+  "name": "ZERO_COST_FEATURE_SET_V1",
+  "status": "DESIGN_ONLY_NOT_PRODUCTION",
+  "new_paid_provider_budget_eur": 0,
+  "required_features": [
+    {
+      "name": "goals_for_against",
+      "source": "licensed retained completed fixtures",
+      "requirements": "completed-only, as-of decision time, home/away aware"
+    },
+    {
+      "name": "home_away",
+      "source": "fixture identity",
+      "requirements": "canonical team mapping and venue orientation"
+    },
+    {
+      "name": "recent_form",
+      "source": "licensed retained completed fixtures",
+      "requirements": "rolling window ending strictly before target kickoff"
+    },
+    {
+      "name": "rest_days",
+      "source": "completed fixture kickoff timestamps",
+      "requirements": "timezone-aware and computed without future leakage"
+    },
+    {
+      "name": "league_baseline",
+      "source": "completed fixtures available before target kickoff",
+      "requirements": "competition/season scoped, minimum sample policy declared"
+    }
+  ],
+  "optional_features": [
+    {
+      "name": "xg_xga",
+      "use_when": "real provider values with explicit provenance are available",
+      "missing_behavior": "NULL; never substitute goals"
+    },
+    {
+      "name": "shots_and_shots_on_target",
+      "use_when": "source and timestamp are verified",
+      "missing_behavior": "NULL and model variant fallback"
+    },
+    {
+      "name": "possession",
+      "use_when": "source definition is stable",
+      "missing_behavior": "NULL and model variant fallback"
+    },
+    {
+      "name": "goalkeeper_saves",
+      "use_when": "source definition is stable",
+      "missing_behavior": "NULL and model variant fallback"
+    },
+    {
+      "name": "conversion_rate",
+      "use_when": "computed only from observed goals and shots under one declared window",
+      "missing_behavior": "NULL when denominator is unavailable"
+    }
+  ],
+  "research_only_features": [
+    {
+      "name": "ppda",
+      "source": "open event datasets where the frozen event contract is derivable",
+      "production_required": false
+    },
+    {
+      "name": "big_chances",
+      "source": "provider-defined field only",
+      "production_required": false,
+      "status": "UNAVAILABLE_IN_APPROVED_ZERO_COST_LIVE_SOURCES"
+    },
+    {
+      "name": "set_piece_shots",
+      "source": "open event datasets with deterministic play-pattern/origin fields",
+      "production_required": false
+    },
+    {
+      "name": "headed_shots",
+      "source": "open event datasets with explicit shot body part",
+      "production_required": false
+    }
+  ],
+  "invariants": [
+    "Missing data remains NULL/UNKNOWN.",
+    "No proxy metric may masquerade as a frozen production metric.",
+    "Research-only fields never increase production live completeness.",
+    "The existing production completeness formula and 90% threshold are unchanged.",
+    "A zero-cost experiment cannot emit a formal production BET by itself."
+  ]
+}

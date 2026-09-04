@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "name": "MARVIS_ZERO_COST_V1",
+  "status": "EXPERIMENT_DESIGN_ONLY",
+  "production_model_modified": false,
+  "objective": "Measure whether legally reusable zero-cost features add out-of-sample probability and decision value without changing production rules.",
+  "variants": [
+    {"id": "A", "features": ["goals", "goals_conceded", "recent_form", "home_away", "rest_days", "league_baseline"]},
+    {"id": "B", "features": ["A", "xg", "xga"]},
+    {"id": "C", "features": ["B", "shots", "shots_on_target"]},
+    {"id": "D", "features": ["C", "possession", "goalkeeper_saves", "conversion_rate"]},
+    {"id": "E", "features": ["D", "research_only_open_event_features"], "research_only": true}
+  ],
+  "dataset_policy": {
+    "research_only_column": "RESEARCH_ONLY",
+    "source_provenance_required": true,
+    "license_mode_required": true,
+    "captured_at_required": true,
+    "as_of_cutoff_required": true,
+    "future_leakage": "PROHIBITED",
+    "split": "rolling-origin temporal validation by league and season",
+    "calibration_fit": "training folds only",
+    "variant_e_comparison": "paired fixtures only to avoid coverage-selection bias"
+  },
+  "metrics": [
+    "Brier Score",
+    "Log Loss",
+    "calibration curve and expected calibration error",
+    "accuracy as secondary diagnostic",
+    "out-of-sample ROI only where retained historical odds rights and coverage are valid",
+    "maximum drawdown",
+    "sample size and confidence interval",
+    "league-by-league stability"
+  ],
+  "decision_rules": [
+    "Do not claim value from in-sample accuracy.",
+    "Compare each variant against A on identical out-of-sample fixtures.",
+    "Report bootstrap confidence intervals and league dispersion.",
+    "ROI is unavailable when contemporaneous odds are unavailable.",
+    "No experiment result changes production without a separate approval task."
+  ],
+  "current_conclusion": "POTENTIALLY_VALUABLE_BUT_NOT_YET_PROVEN",
+  "reason": "Goals/form/xG/shots models are empirically testable at zero incremental data cost, but the repository currently lacks a validated, settled, rights-cleared OOS dataset sufficient to claim positive ROI."
+}
