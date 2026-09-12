@@ -1,38 +1,47 @@
 {
-  "task_id": "TASK-20260904-054",
-  "title": "Zero-Cost Research Dataset Manifest + Baseline Experiment Runner",
-  "status": "completed_stopped_at_approval_gate",
-  "approval_gate": "ZERO_COST_MODEL_FEASIBILITY_APPROVAL_GATE",
-  "branch": "codex/TASK-20260904-054",
-  "implementation_commit": "fe032d98980c02509e91068a1f8e22d27eaf7ae5",
-  "summary": "Research-only manifest, temporal dataset contract and deterministic A-F baseline runner are complete. Existing verified assets do not contain sufficient rolling team history, so no model-quality or ROI claim is made.",
+  "task_id": "TASK-20260912-055",
+  "title": "Zero-Cost Longitudinal Dataset Acquisition & Model Validation",
+  "status": "completed_stopped_at_merge_approval_gate",
+  "approval_gate": "MERGE_APPROVAL_GATE",
+  "branch": "codex/TASK-20260912-055",
+  "commits": [
+    "06c00fd359dc1ca6deae4c0bf51ccc52a81fcbd2",
+    "bd33acda3d21dccf78da65140cc4ca85fe97a0b8"
+  ],
+  "summary": "A compliant research-only five-league longitudinal dataset was built from 15 cached official CSVs: 5,256 completed fixtures, three seasons and zero duplicates. The unchanged TASK-054 baseline and a separate no-xG ablation were validated. Longitudinal sample sufficiency is resolved, but the best holdout result has negative ROI and unstable league/season behavior, so it is not a production candidate.",
   "decision": {
-    "zero_cost_model_feasible": "no_on_current_evidence",
-    "five_league_generalization": "insufficient_data",
-    "betting_simulation": "INSUFFICIENT_ODDS_DATA",
-    "live_odds_required_for_formal_bet": "yes"
+    "zero_cost_model_feasible": "RESEARCH_FEASIBLE_ONLY",
+    "research_feasible": true,
+    "live_production_feasible": false,
+    "production_candidate": false,
+    "best_feature_set": "C_WINDOW_20",
+    "oos_brier": 0.6195309914406985,
+    "oos_log_loss": 1.0323687040304372,
+    "oos_roi": -0.12455950540958269
   },
   "validation": {
-    "focused_tests": "9 passed",
-    "full_unit_tests": "698 passed",
+    "focused_tests": "10 passed",
+    "full_unit_tests": "708 passed",
+    "integration_tests": "103 passed",
     "ruff": "PASS",
     "black": "PASS",
     "mypy": "PASS",
-    "git_diff_check": "PASS"
+    "git_diff_check": "PASS",
+    "task_054_baseline_unchanged": true
   },
   "production_impact": {
     "database_reads": 0,
     "database_writes": 0,
-    "external_api_calls": 0,
+    "external_paid_api_calls": 0,
     "production_jobs": 0,
     "scheduler_changes": 0,
     "deployments": 0
   },
   "frozen_unchanged": true,
   "blockers": [
-    "No rights-cleared longitudinal five-league dataset is normalized yet.",
-    "Production database inventory was unavailable while Docker was offline.",
-    "No valid contemporaneous historical odds dataset is available."
+    "Commercial production rights remain unconfirmed.",
+    "The research source cannot satisfy the frozen production 90% completeness contract.",
+    "The best no-xG model has negative OOS ROI and insufficient league/season stability."
   ],
-  "next_action": "Acquire and normalize a materially larger compliant zero-cost historical dataset, then rerun the experiment without changing production or Frozen rules."
+  "next_action": "Review the research-only PR. Keep production unchanged and continue separate zero-cost calibration and benchmark research."
 }

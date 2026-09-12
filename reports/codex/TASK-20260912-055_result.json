@@ -1,0 +1,187 @@
+{
+  "task_id": "TASK-20260912-055",
+  "title": "Zero-Cost Longitudinal Dataset Acquisition & Model Validation",
+  "status": "completed_stopped_at_merge_approval_gate",
+  "branch": "codex/TASK-20260912-055",
+  "base_commit": "d947eea6dae5b8bf233ebd97b0cd8ceaf3d7f2b3",
+  "implementation_commits": [
+    "06c00fd359dc1ca6deae4c0bf51ccc52a81fcbd2",
+    "bd33acda3d21dccf78da65140cc4ca85fe97a0b8"
+  ],
+  "new_paid_provider_budget_eur": 0,
+  "source_audit": {
+    "selected": {
+      "source": "Football-Data.co.uk official CSV downloads",
+      "classification": "FREE_PUBLIC_DOWNLOAD_RESEARCH_ONLY",
+      "robots": "User-agent: * with no Disallow rules",
+      "commercial_production_rights": "UNCONFIRMED",
+      "reason": "Provides continuous five-league results, match statistics and historical odds across multiple seasons without login or scraping bypass."
+    },
+    "evaluated_alternatives": [
+      {
+        "source": "openfootball football.json",
+        "result": "INSUFFICIENT_FOR_THIS_EXPERIMENT",
+        "reason": "Results and schedules are available, but shots, shots on target and comparable historical odds are absent."
+      },
+      {
+        "source": "StatsBomb Open Data",
+        "result": "INSUFFICIENT_LONGITUDINAL_COVERAGE",
+        "reason": "Rich event data but no continuous multi-season coverage for all five target leagues."
+      },
+      {
+        "source": "football-data.org free API",
+        "result": "INSUFFICIENT_FOR_THIS_EXPERIMENT",
+        "reason": "Free coverage does not provide the same longitudinal statistics and historical odds breadth."
+      }
+    ]
+  },
+  "dataset": {
+    "leagues": [
+      "Premier League",
+      "La Liga",
+      "Serie A",
+      "Bundesliga",
+      "Ligue 1"
+    ],
+    "seasons": [
+      "2023/2024",
+      "2024/2025",
+      "2025/2026"
+    ],
+    "completed_fixtures": 5256,
+    "duplicate_fixtures": 0,
+    "rejected_rows": 0,
+    "team_season_identities": 288,
+    "rolling_history_ready": {
+      "last_5": 288,
+      "last_10": 288,
+      "last_20": 288
+    },
+    "league_season_counts": {
+      "Premier League": [380, 380, 380],
+      "La Liga": [380, 380, 380],
+      "Serie A": [380, 380, 380],
+      "Bundesliga": [306, 306, 306],
+      "Ligue 1": [306, 306, 306]
+    },
+    "metric_coverage": {
+      "observation_denominator": 10512,
+      "xg": {"count": 0, "rate": 0.0},
+      "shots": {"count": 10510, "rate": 0.9998097412480974},
+      "shots_on_target": {"count": 10510, "rate": 0.9998097412480974},
+      "possession": {"count": 0, "rate": 0.0},
+      "goalkeeper_saves": {"count": 0, "rate": 0.0},
+      "conversion": {"count": 10507, "rate": 0.9995243531202436}
+    },
+    "historical_odds": {
+      "quotes": 29832,
+      "fixtures_with_preferred_closing_odds": 5256,
+      "pre_closing_quotes": 14918,
+      "closing_quotes": 14914,
+      "usage": "ODDS_AS_TARGET_EVALUATION_DATA",
+      "model_feature_allowed": false,
+      "temporal_leakage_protection": true
+    }
+  },
+  "acquisition": {
+    "official_csv_requests_first_run": 15,
+    "official_csv_requests_repeat_run": 0,
+    "repeat_run_cache_hits": 15,
+    "total_download_bytes": 2586735,
+    "login_required": false,
+    "captcha_bypass": false,
+    "proxy_used": false,
+    "checksums_recorded": true,
+    "parser_version_recorded": true,
+    "provenance_recorded": true
+  },
+  "artifacts": {
+    "root": "C:/Users/ruowa/Projects/football-agent-task-artifacts/TASK-20260912-055/output",
+    "source_provenance_sha256": "fc70a8e843ac4f6f56f585951f6bb961a37c7f2dcd290ff2605e50bf31d1f3e7",
+    "normalized_fixtures_sha256": "e36bd7280ef93b962e2d44bef4f5cd248f821701cbd621fb9db3bb07db65e563",
+    "experiment_report_sha256": "19ae8b4f1e82c98625ee4f8e07a1ae236ae2eabc1763967f6708f5e96a0b8040"
+  },
+  "experiment": {
+    "task_054_baseline_runner_modified": false,
+    "selection_season": "2024/2025",
+    "holdout_season": "2025/2026",
+    "best_task_054_baseline": "A_WINDOW_20",
+    "best_no_xg_feature_set": "C_WINDOW_20",
+    "best_no_xg_features": [
+      "goals",
+      "recent_form",
+      "shots",
+      "shots_on_target"
+    ],
+    "oos": {
+      "sample_size": 790,
+      "brier": 0.6195309914406985,
+      "log_loss": 1.0323687040304372,
+      "accuracy": 0.4810126582278481,
+      "expected_calibration_error": 0.014000347277229194,
+      "odds_match_count": 790,
+      "research_signal_count": 647,
+      "unit_stake_roi": -0.12455950540958269,
+      "max_drawdown_units": 95.33
+    },
+    "selection_rule": "Best feature set selected strictly on 2024/2025 Brier score and applied unchanged to 2025/2026.",
+    "market_evaluation_scope": "Research-only closing-price target evaluation; not a production Gate, recommendation or bet.",
+    "calibration_status": "NUMERICALLY_GOOD_BUT_NOT_SUFFICIENT_FOR_PRODUCTION",
+    "league_stability": "UNSTABLE",
+    "season_stability": "UNSTABLE",
+    "zero_cost_model_feasible": "RESEARCH_ONLY",
+    "research_feasible": true,
+    "live_production_feasible": false,
+    "production_candidate": false
+  },
+  "tests": {
+    "focused": "10 passed",
+    "full_unit": "708 passed",
+    "integration": "103 passed",
+    "ruff_changed_scope": "PASS",
+    "black_changed_scope": "PASS",
+    "mypy_changed_scope": "PASS",
+    "baseline_runner_unchanged": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "files_changed": [
+    "app/research/__init__.py",
+    "app/research/football_data.py",
+    "app/research/longitudinal.py",
+    "scripts/run_longitudinal_research.py",
+    "tests/unit/test_football_data_research.py",
+    "reports/codex/TASK-20260912-055_result.json",
+    "reports/codex/TASK-20260912-055_result.md",
+    "tasks/completed/TASK-20260912-055.md",
+    "handoff/latest_status.json"
+  ],
+  "production_impact": {
+    "database_reads": 0,
+    "database_writes": 0,
+    "production_jobs_run": 0,
+    "scheduler_changes": 0,
+    "deployments": 0,
+    "paid_api_calls": 0
+  },
+  "frozen_unchanged": true,
+  "blockers": [
+    "The selected source has no xG, possession or goalkeeper-save fields; these values remain NULL.",
+    "Commercial production and redistribution rights are not explicitly confirmed.",
+    "Best no-xG model has negative OOS ROI and material league/season variation.",
+    "The existing production 90% completeness contract remains unmet and unchanged."
+  ],
+  "decision": {
+    "ZERO_COST_MODEL_FEASIBLE": "RESEARCH_FEASIBLE_ONLY",
+    "HISTORICAL_MATCH_COUNT": 5256,
+    "LEAGUES_COVERED": 5,
+    "SEASONS_COVERED": 3,
+    "ODDS_MATCH_COUNT": 5256,
+    "OOS_BRIER": 0.6195309914406985,
+    "OOS_LOGLOSS": 1.0323687040304372,
+    "OOS_ROI": -0.12455950540958269,
+    "CALIBRATION_STATUS": "GOOD_ECE_BUT_INSUFFICIENT_PRODUCTION_EVIDENCE",
+    "BEST_FEATURE_SET": "C_WINDOW_20",
+    "PRODUCTION_CANDIDATE": "no"
+  },
+  "recommended_next_action": "Keep production unchanged. Continue research with stronger zero-cost probability benchmarks and calibration/selection validation; separately obtain explicit production-use rights before any deployment proposal."
+}
