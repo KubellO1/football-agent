@@ -129,6 +129,7 @@ def test_longitudinal_wrapper_does_not_modify_baseline_contract() -> None:
 
     assert result["baseline_runner_modified"] is False
     assert result["production_candidate"] is False
+    assert result["no_xg_ablation"]["xg_required"] is False
 
 
 def test_dataset_summary_exposes_rolling_metric_and_odds_coverage() -> None:
@@ -187,3 +188,44 @@ def test_model_selection_uses_previous_season_not_holdout() -> None:
     assert result["selection_season"] == "2024/2025"
     assert result["status"] == "PASS"
     assert result["selected_holdout_evaluation"]["sample_size"] > 0
+
+
+def test_no_xg_ablation_evaluates_shots_and_sot_without_xg() -> None:
+    fixture = parse_csv(CSV, spec=SPEC, season="2024/2025").fixtures[0]
+    fixtures = tuple(
+        replace(
+            fixture,
+            fixture_id=f"selection-{index}",
+            kickoff=fixture.kickoff.replace(day=min(index + 1, 28)),
+            home_team="Alpha FC" if index % 2 == 0 else "Beta FC",
+            away_team="Beta FC" if index % 2 == 0 else "Alpha FC",
+        )
+        for index in range(28)
+    ) + tuple(
+        replace(
+            fixture,
+            fixture_id=f"holdout-{index}",
+            season="2025/2026",
+            kickoff=fixture.kickoff.replace(year=2026, day=min(index + 1, 28)),
+            home_team="Alpha FC" if index % 2 == 0 else "Beta FC",
+            away_team="Beta FC" if index % 2 == 0 else "Alpha FC",
+        )
+        for index in range(28)
+    )
+
+    result = run_longitudinal_validation(
+        fixtures,
+        (),
+        holdout_season="2025/2026",
+        windows=(5,),
+    )
+
+    ablation = result["no_xg_ablation"]
+    assert ablation["status"] == "PASS"
+    assert ablation["selection_season"] == "2024/2025"
+    assert ablation["holdout_season"] == "2025/2026"
+    assert ablation["F"]["evaluation"]["sample_size"] > 0
+    for variant in ("A", "B", "C", "D", "E"):
+        evaluation = ablation["variants"]["5"]["variants"][variant]
+        assert evaluation["selection_evaluation"]["sample_size"] > 0
+        assert evaluation["holdout_evaluation"]["sample_size"] > 0

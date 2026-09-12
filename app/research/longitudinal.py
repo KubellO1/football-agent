@@ -9,6 +9,8 @@ from app.research.zero_cost import (
     VARIANT_FEATURES,
     Prediction,
     ResearchFixture,
+    TeamHistoryRow,
+    TemporalSample,
     ZeroCostExperimentRunner,
     build_temporal_samples,
     evaluate,
@@ -31,6 +33,28 @@ class MarketBacktest:
     unit_stake_roi: float | None
     max_drawdown_units: float | None
     note: str
+
+
+LONGITUDINAL_ABLATION_FEATURES: dict[str, tuple[str, ...]] = {
+    "A": ("goals", "recent_form"),
+    "B": ("goals", "recent_form", "shots"),
+    "C": ("goals", "recent_form", "shots", "shots_on_target"),
+    "D": (
+        "goals",
+        "recent_form",
+        "shots",
+        "shots_on_target",
+        "conversion",
+    ),
+    "E": (
+        "goals",
+        "recent_form",
+        "shots",
+        "shots_on_target",
+        "conversion",
+        "home_away",
+    ),
+}
 
 
 def run_longitudinal_validation(
@@ -92,6 +116,15 @@ def run_longitudinal_validation(
             "variants": selection_variants,
         }
     quote_index = _preferred_closing_quotes(odds)
+    no_xg_ablation = _run_no_xg_ablation(
+        ordered,
+        quote_index,
+        seasons=seasons,
+        leagues=leagues,
+        selection_season=selection_season,
+        holdout_season=holdout_season,
+        windows=windows,
+    )
     if best is None:
         backtest = MarketBacktest(
             "INSUFFICIENT_LONGITUDINAL_SAMPLE",
@@ -153,6 +186,7 @@ def run_longitudinal_validation(
         "selected_holdout_by_league": selected_by_league,
         "season_stability": season_stability,
         "market_backtest": asdict(backtest),
+        "no_xg_ablation": no_xg_ablation,
         "fixture_count": len(ordered),
         "odds_match_count": len(quote_index),
         "leagues": leagues,
@@ -163,6 +197,236 @@ def run_longitudinal_validation(
             "production rights and the frozen 90% completeness contract are not satisfied."
         ),
     }
+
+
+def _run_no_xg_ablation(
+    fixtures: Sequence[ResearchFixture],
+    quote_index: dict[str, HistoricalOddsQuote],
+    *,
+    seasons: Sequence[str],
+    leagues: Sequence[str],
+    selection_season: str | None,
+    holdout_season: str,
+    windows: Sequence[int],
+) -> dict[str, Any]:
+    """Evaluate stable longitudinal features without requiring xG.
+
+    Variants A-E are fixed before observing the held-out season. Variant F is the
+    selection-season winner and is evaluated unchanged on the held-out season.
+    """
+
+    results: dict[str, Any] = {}
+    best: tuple[float, str, int] | None = None
+    for window in windows:
+        samples = build_temporal_samples(fixtures, window)
+        selection_samples = tuple(
+            sample for sample in samples if sample.fixture.season == selection_season
+        )
+        holdout_samples = tuple(
+            sample for sample in samples if sample.fixture.season == holdout_season
+        )
+        variants: dict[str, Any] = {}
+        for variant, features in LONGITUDINAL_ABLATION_FEATURES.items():
+            selection_predictions = _no_xg_predictions(selection_samples, variant)
+            holdout_predictions = _no_xg_predictions(holdout_samples, variant)
+            selection_evaluation = evaluate(selection_predictions)
+            variants[variant] = {
+                "features": features,
+                "selection_evaluation": asdict(selection_evaluation),
+                "holdout_evaluation": asdict(evaluate(holdout_predictions)),
+                "holdout_market_backtest": asdict(
+                    evaluate_market_targets(holdout_predictions, quote_index)
+                ),
+            }
+            if selection_evaluation.brier is not None and (
+                best is None or selection_evaluation.brier < best[0]
+            ):
+                best = (selection_evaluation.brier, variant, window)
+        results[str(window)] = {
+            "selection_sample_count": len(selection_samples),
+            "holdout_sample_count": len(holdout_samples),
+            "variants": variants,
+        }
+
+    if best is None:
+        return {
+            "status": "INSUFFICIENT_LONGITUDINAL_SAMPLE",
+            "xg_required": False,
+            "variants": results,
+            "best_feature_set": "UNAVAILABLE",
+            "F": None,
+        }
+
+    _, selected_variant, selected_window = best
+    selected_samples = tuple(
+        sample
+        for sample in build_temporal_samples(fixtures, selected_window)
+        if sample.fixture.season == holdout_season
+    )
+    selected_predictions = _no_xg_predictions(selected_samples, selected_variant)
+    return {
+        "status": "PASS",
+        "xg_required": False,
+        "selection_season": selection_season,
+        "holdout_season": holdout_season,
+        "variants": results,
+        "best_feature_set": f"{selected_variant}_WINDOW_{selected_window}",
+        "F": {
+            "selected_variant": selected_variant,
+            "features": LONGITUDINAL_ABLATION_FEATURES[selected_variant],
+            "window": selected_window,
+            "evaluation": asdict(evaluate(selected_predictions)),
+            "market_backtest": asdict(evaluate_market_targets(selected_predictions, quote_index)),
+            "by_league": {
+                league: {
+                    "evaluation": asdict(
+                        evaluate(
+                            tuple(
+                                prediction
+                                for prediction in selected_predictions
+                                if prediction.competition == league
+                            )
+                        )
+                    ),
+                    "market_backtest": asdict(
+                        evaluate_market_targets(
+                            tuple(
+                                prediction
+                                for prediction in selected_predictions
+                                if prediction.competition == league
+                            ),
+                            quote_index,
+                        )
+                    ),
+                }
+                for league in leagues
+            },
+            "by_season": _no_xg_season_stability(
+                fixtures,
+                quote_index,
+                seasons=seasons,
+                window=selected_window,
+                variant=selected_variant,
+            ),
+        },
+    }
+
+
+def _no_xg_season_stability(
+    fixtures: Sequence[ResearchFixture],
+    quote_index: dict[str, HistoricalOddsQuote],
+    *,
+    seasons: Sequence[str],
+    window: int,
+    variant: str,
+) -> dict[str, Any]:
+    samples = build_temporal_samples(fixtures, window)
+    return {
+        season: {
+            "evaluation": asdict(
+                evaluate(
+                    _no_xg_predictions(
+                        tuple(sample for sample in samples if sample.fixture.season == season),
+                        variant,
+                    )
+                )
+            ),
+            "market_backtest": asdict(
+                evaluate_market_targets(
+                    _no_xg_predictions(
+                        tuple(sample for sample in samples if sample.fixture.season == season),
+                        variant,
+                    ),
+                    quote_index,
+                )
+            ),
+        }
+        for season in seasons
+    }
+
+
+def _no_xg_predictions(
+    samples: Sequence[TemporalSample],
+    variant: str,
+) -> tuple[Prediction, ...]:
+    return tuple(
+        _predict_without_xg(sample, variant)
+        for sample in samples
+        if _no_xg_variant_available(sample, variant)
+    )
+
+
+def _no_xg_variant_available(sample: TemporalSample, variant: str) -> bool:
+    if variant not in LONGITUDINAL_ABLATION_FEATURES:
+        raise ValueError(f"unknown longitudinal variant: {variant}")
+    required: tuple[str, ...]
+    if variant == "A":
+        required = ()
+    elif variant == "B":
+        required = ("shots",)
+    elif variant == "C":
+        required = ("shots", "shots_on_target")
+    else:
+        required = ("shots", "shots_on_target", "conversion")
+    return all(
+        _history_has_metrics(history, required)
+        for history in (sample.home_history, sample.away_history)
+    )
+
+
+def _history_has_metrics(
+    history: Sequence[TeamHistoryRow],
+    fields: Sequence[str],
+) -> bool:
+    return all(getattr(row.metrics_for, field) is not None for row in history for field in fields)
+
+
+def _metric_average(history: Sequence[TeamHistoryRow], field: str) -> float:
+    values = [getattr(row.metrics_for, field) for row in history]
+    if any(value is None for value in values):
+        raise ValueError(f"missing longitudinal field: {field}")
+    return sum(float(value) for value in values if value is not None) / len(values)
+
+
+def _predict_without_xg(sample: TemporalSample, variant: str) -> Prediction:
+    if not _no_xg_variant_available(sample, variant):
+        raise ValueError(f"variant {variant} unavailable for {sample.fixture.fixture_id}")
+    base_variant = "B" if variant == "E" else "A"
+    base = predict_sample(sample, base_variant)
+    adjustment = 1.0
+    if variant in {"B", "C", "D", "E"}:
+        shots_edge = _metric_average(sample.home_history, "shots") - _metric_average(
+            sample.away_history, "shots"
+        )
+        adjustment *= max(0.9, min(1.1, 1 + shots_edge / 200))
+    if variant in {"C", "D", "E"}:
+        target_edge = _metric_average(sample.home_history, "shots_on_target") - _metric_average(
+            sample.away_history, "shots_on_target"
+        )
+        adjustment *= max(0.9, min(1.1, 1 + target_edge / 100))
+    if variant in {"D", "E"}:
+        conversion_edge = _metric_average(sample.home_history, "conversion") - _metric_average(
+            sample.away_history, "conversion"
+        )
+        adjustment *= max(0.9, min(1.1, 1 + conversion_edge / 5))
+    adjustment = max(0.85, min(1.15, adjustment))
+    weighted = (
+        base.home * adjustment,
+        base.draw,
+        base.away * (2 - adjustment),
+    )
+    total = sum(weighted)
+    return Prediction(
+        fixture_id=base.fixture_id,
+        competition=base.competition,
+        kickoff=base.kickoff,
+        variant=f"LONGITUDINAL_{variant}",
+        window=base.window,
+        home=weighted[0] / total,
+        draw=weighted[1] / total,
+        away=weighted[2] / total,
+        actual=base.actual,
+    )
 
 
 def _selection_season(seasons: Sequence[str], holdout_season: str) -> str | None:
