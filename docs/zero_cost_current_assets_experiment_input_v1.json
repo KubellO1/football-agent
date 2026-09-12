@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "name": "ZERO_COST_CURRENT_ASSETS_EXPERIMENT_INPUT_V1",
+  "status": "RESEARCH_ONLY",
+  "fixtures": [],
+  "exclusions": [
+    {
+      "dataset_id": "task051_statsbomb_common_sample",
+      "fixture_count": 10,
+      "reason": "EVENT_CONTRACT_VALIDATION_ONLY_NO_ROLLING_TEAM_HISTORY"
+    },
+    {
+      "dataset_id": "task051_api_football_crosscheck",
+      "fixture_count": 10,
+      "reason": "IDENTITY_CROSSCHECK_ONLY_NO_NORMALIZED_FEATURE_HISTORY"
+    },
+    {
+      "dataset_id": "production_postgresql_history",
+      "fixture_count": null,
+      "reason": "NOT_READ_DATABASE_OFFLINE"
+    }
+  ],
+  "note": "Empty input is intentional: no inventoried asset satisfies the temporal rolling-history contract without fabrication."
+}

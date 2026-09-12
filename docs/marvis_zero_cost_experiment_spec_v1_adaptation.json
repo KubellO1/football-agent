@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "status": "RESEARCH_ONLY",
+  "production_impact": false,
+  "source_contract": "MARVIS_ZERO_COST_V1 from TASK-20260904-053",
+  "reason": "TASK-20260904-054 explicitly requests staged A-F data-value ablation.",
+  "variant_mapping": {
+    "A": ["goals", "recent_form"],
+    "B": ["A", "home_away"],
+    "C": ["B", "xg", "xga"],
+    "D": ["C", "shots", "shots_on_target"],
+    "E": ["D", "possession", "goalkeeper_saves", "conversion"],
+    "F": ["E", "research_only_event_features"]
+  },
+  "unchanged_invariants": [
+    "chronological out-of-sample evaluation",
+    "no random split",
+    "no future or cross-season leakage",
+    "market odds remain a separate MARKET_REFERENCE",
+    "production model and Frozen decision rules remain unchanged"
+  ]
+}

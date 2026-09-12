@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "name": "ZERO_COST_NORMALIZED_RESEARCH_SCHEMA_V1",
+  "status": "RESEARCH_ONLY",
+  "fixture_required": ["fixture_id", "source", "research_only", "competition", "season", "kickoff", "home_team", "away_team", "home.goals", "away.goals"],
+  "team_metric_fields": {
+    "goals": "non-negative integer; observed final score only",
+    "xg": "nullable non-negative float; real source value only",
+    "shots": "nullable non-negative integer",
+    "shots_on_target": "nullable non-negative integer",
+    "possession": "nullable percentage [0,100]",
+    "goalkeeper_saves": "nullable non-negative integer",
+    "conversion": "nullable fraction [0,1], deterministically goals/shots under same window",
+    "ppda": "nullable positive rate under Metric Contract v1",
+    "set_piece_shots": "nullable non-negative integer under Metric Contract v1",
+    "header_shots": "nullable non-negative integer under Metric Contract v1",
+    "big_chances": "nullable provider-defined integer only"
+  },
+  "temporal_rules": [
+    "kickoff must be timezone-aware",
+    "target features use only fixtures with kickoff strictly before target kickoff",
+    "history is competition-and-season scoped",
+    "splits are chronological 60/20/20 and never random",
+    "current standings never enter historical features",
+    "post-match observations never enter a pre-match target"
+  ],
+  "windows": [5, 10, 20],
+  "fixture_natural_key": ["competition", "season", "kickoff", "home_team", "away_team"],
+  "unknown_policy": "NULL",
+  "team_identity_policy": "exact canonical mapping or reject; never guess"
+}
