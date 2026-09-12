@@ -1,17 +1,24 @@
 {
-  "task_id": "TASK-20260904-053",
-  "title": "Marvis Zero-Cost Mode Architecture",
+  "task_id": "TASK-20260904-054",
+  "title": "Zero-Cost Research Dataset Manifest + Baseline Experiment Runner",
   "status": "completed_stopped_at_approval_gate",
-  "branch": "codex/TASK-20260904-053",
-  "architecture_commit": "ed83983",
-  "recommendation": "REVIEW_ARCHITECTURE_BEFORE_EXPERIMENT_IMPLEMENTATION",
-  "summary": "Zero-cost research and preliminary analysis are feasible with reduced automation. Formal betting without reliable manual or existing licensed odds remains prohibited.",
-  "outcomes": {
-    "zero_cost_mode_feasible": "YES_WITH_REDUCED_AUTOMATION",
-    "research_mode_feasible": "YES",
-    "live_preliminary_mode_feasible": "YES",
-    "formal_bet_mode_without_manual_odds": "NO",
-    "manual_odds_mode_feasible": "YES_CONDITIONAL"
+  "approval_gate": "ZERO_COST_MODEL_FEASIBILITY_APPROVAL_GATE",
+  "branch": "codex/TASK-20260904-054",
+  "implementation_commit": "fe032d98980c02509e91068a1f8e22d27eaf7ae5",
+  "summary": "Research-only manifest, temporal dataset contract and deterministic A-F baseline runner are complete. Existing verified assets do not contain sufficient rolling team history, so no model-quality or ROI claim is made.",
+  "decision": {
+    "zero_cost_model_feasible": "no_on_current_evidence",
+    "five_league_generalization": "insufficient_data",
+    "betting_simulation": "INSUFFICIENT_ODDS_DATA",
+    "live_odds_required_for_formal_bet": "yes"
+  },
+  "validation": {
+    "focused_tests": "9 passed",
+    "full_unit_tests": "698 passed",
+    "ruff": "PASS",
+    "black": "PASS",
+    "mypy": "PASS",
+    "git_diff_check": "PASS"
   },
   "production_impact": {
     "database_reads": 0,
@@ -23,9 +30,9 @@
   },
   "frozen_unchanged": true,
   "blockers": [
-    "No rights-cleared settled OOS dataset currently proves positive ROI.",
-    "Zero-cost sources do not guarantee continuous live five-league odds, lineup or advanced-event coverage.",
-    "Production database was offline during this audit, so current row counts remain unverified."
+    "No rights-cleared longitudinal five-league dataset is normalized yet.",
+    "Production database inventory was unavailable while Docker was offline.",
+    "No valid contemporaneous historical odds dataset is available."
   ],
-  "next_action": "Create a separately approved isolated task: Zero-Cost Research Dataset Manifest + Baseline Experiment Runner."
+  "next_action": "Acquire and normalize a materially larger compliant zero-cost historical dataset, then rerun the experiment without changing production or Frozen rules."
 }

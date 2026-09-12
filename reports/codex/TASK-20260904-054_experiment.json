@@ -1,0 +1,1338 @@
+{
+  "ablation": {
+    "A->B": [
+      {
+        "brier_delta": null,
+        "sample_size": 0,
+        "status": "INSUFFICIENT_PAIRED_SAMPLE",
+        "window": 5
+      },
+      {
+        "brier_delta": null,
+        "sample_size": 0,
+        "status": "INSUFFICIENT_PAIRED_SAMPLE",
+        "window": 10
+      },
+      {
+        "brier_delta": null,
+        "sample_size": 0,
+        "status": "INSUFFICIENT_PAIRED_SAMPLE",
+        "window": 20
+      }
+    ],
+    "B->C": [
+      {
+        "brier_delta": null,
+        "sample_size": 0,
+        "status": "INSUFFICIENT_PAIRED_SAMPLE",
+        "window": 5
+      },
+      {
+        "brier_delta": null,
+        "sample_size": 0,
+        "status": "INSUFFICIENT_PAIRED_SAMPLE",
+        "window": 10
+      },
+      {
+        "brier_delta": null,
+        "sample_size": 0,
+        "status": "INSUFFICIENT_PAIRED_SAMPLE",
+        "window": 20
+      }
+    ],
+    "C->D": [
+      {
+        "brier_delta": null,
+        "sample_size": 0,
+        "status": "INSUFFICIENT_PAIRED_SAMPLE",
+        "window": 5
+      },
+      {
+        "brier_delta": null,
+        "sample_size": 0,
+        "status": "INSUFFICIENT_PAIRED_SAMPLE",
+        "window": 10
+      },
+      {
+        "brier_delta": null,
+        "sample_size": 0,
+        "status": "INSUFFICIENT_PAIRED_SAMPLE",
+        "window": 20
+      }
+    ],
+    "D->E": [
+      {
+        "brier_delta": null,
+        "sample_size": 0,
+        "status": "INSUFFICIENT_PAIRED_SAMPLE",
+        "window": 5
+      },
+      {
+        "brier_delta": null,
+        "sample_size": 0,
+        "status": "INSUFFICIENT_PAIRED_SAMPLE",
+        "window": 10
+      },
+      {
+        "brier_delta": null,
+        "sample_size": 0,
+        "status": "INSUFFICIENT_PAIRED_SAMPLE",
+        "window": 20
+      }
+    ],
+    "E->F": [
+      {
+        "brier_delta": null,
+        "sample_size": 0,
+        "status": "INSUFFICIENT_PAIRED_SAMPLE",
+        "window": 5
+      },
+      {
+        "brier_delta": null,
+        "sample_size": 0,
+        "status": "INSUFFICIENT_PAIRED_SAMPLE",
+        "window": 10
+      },
+      {
+        "brier_delta": null,
+        "sample_size": 0,
+        "status": "INSUFFICIENT_PAIRED_SAMPLE",
+        "window": 20
+      }
+    ]
+  },
+  "betting_simulation": "INSUFFICIENT_ODDS_DATA",
+  "duplicate_count": 0,
+  "fixture_count": 0,
+  "outputs": {
+    "BEST_BRIER": "UNAVAILABLE",
+    "BEST_LOG_LOSS": "UNAVAILABLE",
+    "BEST_ZERO_COST_MODEL": "UNAVAILABLE",
+    "CALIBRATION_ACCEPTABLE": "no",
+    "FIVE_LEAGUE_GENERALIZATION": "insufficient_data",
+    "FROZEN_BETTING_POLICY": "min_ev=0.05; confidence>=0.70; Recommendation Gate required; quarter Kelly; stake cap<=0.03",
+    "LIVE_ODDS_REQUIRED_FOR_FORMAL_BET": "yes",
+    "MARKET_REFERENCE": "SEPARATE_UNAVAILABLE",
+    "PAID_ADVANCED_METRICS_NEEDED_FOR_MODEL_QUALITY": "unproven",
+    "RECOMMENDED_NEXT_STEP": "Normalize a materially larger rights-cleared zero-cost historical dataset, then rerun the unchanged experiment.",
+    "ZERO_COST_MODEL_FEASIBLE": "no"
+  },
+  "status": "INSUFFICIENT_SAMPLE",
+  "windows": {
+    "10": {
+      "temporal_samples": 0,
+      "test": 0,
+      "train": 0,
+      "validation": 0,
+      "variants": {
+        "A": {
+          "by_league": {
+            "Bundesliga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "La Liga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Ligue 1": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Premier League": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Serie A": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            }
+          },
+          "eligible_test_samples": 0,
+          "evaluation": {
+            "accuracy": null,
+            "brier": null,
+            "calibration_bins": [],
+            "expected_calibration_error": null,
+            "log_loss": null,
+            "sample_size": 0,
+            "status": "INSUFFICIENT_SAMPLE"
+          },
+          "features": [
+            "goals",
+            "recent_form"
+          ]
+        },
+        "B": {
+          "by_league": {
+            "Bundesliga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "La Liga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Ligue 1": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Premier League": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Serie A": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            }
+          },
+          "eligible_test_samples": 0,
+          "evaluation": {
+            "accuracy": null,
+            "brier": null,
+            "calibration_bins": [],
+            "expected_calibration_error": null,
+            "log_loss": null,
+            "sample_size": 0,
+            "status": "INSUFFICIENT_SAMPLE"
+          },
+          "features": [
+            "goals",
+            "recent_form",
+            "home_away"
+          ]
+        },
+        "C": {
+          "by_league": {
+            "Bundesliga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "La Liga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Ligue 1": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Premier League": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Serie A": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            }
+          },
+          "eligible_test_samples": 0,
+          "evaluation": {
+            "accuracy": null,
+            "brier": null,
+            "calibration_bins": [],
+            "expected_calibration_error": null,
+            "log_loss": null,
+            "sample_size": 0,
+            "status": "INSUFFICIENT_SAMPLE"
+          },
+          "features": [
+            "goals",
+            "recent_form",
+            "home_away",
+            "xg"
+          ]
+        },
+        "D": {
+          "by_league": {
+            "Bundesliga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "La Liga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Ligue 1": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Premier League": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Serie A": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            }
+          },
+          "eligible_test_samples": 0,
+          "evaluation": {
+            "accuracy": null,
+            "brier": null,
+            "calibration_bins": [],
+            "expected_calibration_error": null,
+            "log_loss": null,
+            "sample_size": 0,
+            "status": "INSUFFICIENT_SAMPLE"
+          },
+          "features": [
+            "goals",
+            "recent_form",
+            "home_away",
+            "xg",
+            "shots"
+          ]
+        },
+        "E": {
+          "by_league": {
+            "Bundesliga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "La Liga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Ligue 1": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Premier League": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Serie A": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            }
+          },
+          "eligible_test_samples": 0,
+          "evaluation": {
+            "accuracy": null,
+            "brier": null,
+            "calibration_bins": [],
+            "expected_calibration_error": null,
+            "log_loss": null,
+            "sample_size": 0,
+            "status": "INSUFFICIENT_SAMPLE"
+          },
+          "features": [
+            "goals",
+            "recent_form",
+            "home_away",
+            "xg",
+            "shots",
+            "possession",
+            "goalkeeper_saves",
+            "conversion"
+          ]
+        },
+        "F": {
+          "by_league": {
+            "Bundesliga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "La Liga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Ligue 1": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Premier League": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Serie A": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            }
+          },
+          "eligible_test_samples": 0,
+          "evaluation": {
+            "accuracy": null,
+            "brier": null,
+            "calibration_bins": [],
+            "expected_calibration_error": null,
+            "log_loss": null,
+            "sample_size": 0,
+            "status": "INSUFFICIENT_SAMPLE"
+          },
+          "features": [
+            "goals",
+            "recent_form",
+            "home_away",
+            "xg",
+            "shots",
+            "possession",
+            "goalkeeper_saves",
+            "conversion",
+            "research_event_features"
+          ]
+        }
+      }
+    },
+    "20": {
+      "temporal_samples": 0,
+      "test": 0,
+      "train": 0,
+      "validation": 0,
+      "variants": {
+        "A": {
+          "by_league": {
+            "Bundesliga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "La Liga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Ligue 1": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Premier League": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Serie A": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            }
+          },
+          "eligible_test_samples": 0,
+          "evaluation": {
+            "accuracy": null,
+            "brier": null,
+            "calibration_bins": [],
+            "expected_calibration_error": null,
+            "log_loss": null,
+            "sample_size": 0,
+            "status": "INSUFFICIENT_SAMPLE"
+          },
+          "features": [
+            "goals",
+            "recent_form"
+          ]
+        },
+        "B": {
+          "by_league": {
+            "Bundesliga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "La Liga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Ligue 1": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Premier League": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Serie A": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            }
+          },
+          "eligible_test_samples": 0,
+          "evaluation": {
+            "accuracy": null,
+            "brier": null,
+            "calibration_bins": [],
+            "expected_calibration_error": null,
+            "log_loss": null,
+            "sample_size": 0,
+            "status": "INSUFFICIENT_SAMPLE"
+          },
+          "features": [
+            "goals",
+            "recent_form",
+            "home_away"
+          ]
+        },
+        "C": {
+          "by_league": {
+            "Bundesliga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "La Liga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Ligue 1": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Premier League": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Serie A": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            }
+          },
+          "eligible_test_samples": 0,
+          "evaluation": {
+            "accuracy": null,
+            "brier": null,
+            "calibration_bins": [],
+            "expected_calibration_error": null,
+            "log_loss": null,
+            "sample_size": 0,
+            "status": "INSUFFICIENT_SAMPLE"
+          },
+          "features": [
+            "goals",
+            "recent_form",
+            "home_away",
+            "xg"
+          ]
+        },
+        "D": {
+          "by_league": {
+            "Bundesliga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "La Liga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Ligue 1": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Premier League": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Serie A": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            }
+          },
+          "eligible_test_samples": 0,
+          "evaluation": {
+            "accuracy": null,
+            "brier": null,
+            "calibration_bins": [],
+            "expected_calibration_error": null,
+            "log_loss": null,
+            "sample_size": 0,
+            "status": "INSUFFICIENT_SAMPLE"
+          },
+          "features": [
+            "goals",
+            "recent_form",
+            "home_away",
+            "xg",
+            "shots"
+          ]
+        },
+        "E": {
+          "by_league": {
+            "Bundesliga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "La Liga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Ligue 1": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Premier League": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Serie A": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            }
+          },
+          "eligible_test_samples": 0,
+          "evaluation": {
+            "accuracy": null,
+            "brier": null,
+            "calibration_bins": [],
+            "expected_calibration_error": null,
+            "log_loss": null,
+            "sample_size": 0,
+            "status": "INSUFFICIENT_SAMPLE"
+          },
+          "features": [
+            "goals",
+            "recent_form",
+            "home_away",
+            "xg",
+            "shots",
+            "possession",
+            "goalkeeper_saves",
+            "conversion"
+          ]
+        },
+        "F": {
+          "by_league": {
+            "Bundesliga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "La Liga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Ligue 1": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Premier League": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Serie A": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            }
+          },
+          "eligible_test_samples": 0,
+          "evaluation": {
+            "accuracy": null,
+            "brier": null,
+            "calibration_bins": [],
+            "expected_calibration_error": null,
+            "log_loss": null,
+            "sample_size": 0,
+            "status": "INSUFFICIENT_SAMPLE"
+          },
+          "features": [
+            "goals",
+            "recent_form",
+            "home_away",
+            "xg",
+            "shots",
+            "possession",
+            "goalkeeper_saves",
+            "conversion",
+            "research_event_features"
+          ]
+        }
+      }
+    },
+    "5": {
+      "temporal_samples": 0,
+      "test": 0,
+      "train": 0,
+      "validation": 0,
+      "variants": {
+        "A": {
+          "by_league": {
+            "Bundesliga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "La Liga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Ligue 1": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Premier League": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Serie A": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            }
+          },
+          "eligible_test_samples": 0,
+          "evaluation": {
+            "accuracy": null,
+            "brier": null,
+            "calibration_bins": [],
+            "expected_calibration_error": null,
+            "log_loss": null,
+            "sample_size": 0,
+            "status": "INSUFFICIENT_SAMPLE"
+          },
+          "features": [
+            "goals",
+            "recent_form"
+          ]
+        },
+        "B": {
+          "by_league": {
+            "Bundesliga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "La Liga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Ligue 1": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Premier League": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Serie A": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            }
+          },
+          "eligible_test_samples": 0,
+          "evaluation": {
+            "accuracy": null,
+            "brier": null,
+            "calibration_bins": [],
+            "expected_calibration_error": null,
+            "log_loss": null,
+            "sample_size": 0,
+            "status": "INSUFFICIENT_SAMPLE"
+          },
+          "features": [
+            "goals",
+            "recent_form",
+            "home_away"
+          ]
+        },
+        "C": {
+          "by_league": {
+            "Bundesliga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "La Liga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Ligue 1": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Premier League": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Serie A": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            }
+          },
+          "eligible_test_samples": 0,
+          "evaluation": {
+            "accuracy": null,
+            "brier": null,
+            "calibration_bins": [],
+            "expected_calibration_error": null,
+            "log_loss": null,
+            "sample_size": 0,
+            "status": "INSUFFICIENT_SAMPLE"
+          },
+          "features": [
+            "goals",
+            "recent_form",
+            "home_away",
+            "xg"
+          ]
+        },
+        "D": {
+          "by_league": {
+            "Bundesliga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "La Liga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Ligue 1": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Premier League": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Serie A": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            }
+          },
+          "eligible_test_samples": 0,
+          "evaluation": {
+            "accuracy": null,
+            "brier": null,
+            "calibration_bins": [],
+            "expected_calibration_error": null,
+            "log_loss": null,
+            "sample_size": 0,
+            "status": "INSUFFICIENT_SAMPLE"
+          },
+          "features": [
+            "goals",
+            "recent_form",
+            "home_away",
+            "xg",
+            "shots"
+          ]
+        },
+        "E": {
+          "by_league": {
+            "Bundesliga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "La Liga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Ligue 1": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Premier League": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Serie A": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            }
+          },
+          "eligible_test_samples": 0,
+          "evaluation": {
+            "accuracy": null,
+            "brier": null,
+            "calibration_bins": [],
+            "expected_calibration_error": null,
+            "log_loss": null,
+            "sample_size": 0,
+            "status": "INSUFFICIENT_SAMPLE"
+          },
+          "features": [
+            "goals",
+            "recent_form",
+            "home_away",
+            "xg",
+            "shots",
+            "possession",
+            "goalkeeper_saves",
+            "conversion"
+          ]
+        },
+        "F": {
+          "by_league": {
+            "Bundesliga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "La Liga": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Ligue 1": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Premier League": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            },
+            "Serie A": {
+              "accuracy": null,
+              "brier": null,
+              "calibration_bins": [],
+              "expected_calibration_error": null,
+              "log_loss": null,
+              "sample_size": 0,
+              "status": "INSUFFICIENT_SAMPLE"
+            }
+          },
+          "eligible_test_samples": 0,
+          "evaluation": {
+            "accuracy": null,
+            "brier": null,
+            "calibration_bins": [],
+            "expected_calibration_error": null,
+            "log_loss": null,
+            "sample_size": 0,
+            "status": "INSUFFICIENT_SAMPLE"
+          },
+          "features": [
+            "goals",
+            "recent_form",
+            "home_away",
+            "xg",
+            "shots",
+            "possession",
+            "goalkeeper_saves",
+            "conversion",
+            "research_event_features"
+          ]
+        }
+      }
+    }
+  }
+}

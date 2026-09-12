@@ -1,0 +1,107 @@
+{
+  "task_id": "TASK-20260904-054",
+  "title": "Zero-Cost Research Dataset Manifest + Baseline Experiment Runner",
+  "status": "completed_stopped_at_approval_gate",
+  "approval_gate": "ZERO_COST_MODEL_FEASIBILITY_APPROVAL_GATE",
+  "branch": "codex/TASK-20260904-054",
+  "base_commit": "a5aba7beebca5ce9ce936eafbffb14d12c51b90a",
+  "implementation_commit": "fe032d98980c02509e91068a1f8e22d27eaf7ae5",
+  "new_paid_provider_budget_eur": 0,
+  "dataset_inventory": {
+    "registered_datasets": 6,
+    "tracked_repository_historical_datasets": 0,
+    "local_statsbomb_open_sample_fixtures": 10,
+    "local_statsbomb_open_sample_events": 37137,
+    "local_api_football_crosscheck_fixtures": 10,
+    "production_database_inventoried": false,
+    "production_database_status": "UNAVAILABLE_DOCKER_OFFLINE",
+    "training_eligible_longitudinal_datasets": 0
+  },
+  "sources": {
+    "accepted_research_sample": [
+      "StatsBomb Open Data TASK-051 common sample"
+    ],
+    "conditional_existing_entitlement": [
+      "Retained API-Football fixture identity crosscheck"
+    ],
+    "registered_not_downloaded": [
+      "Wyscout public event dataset",
+      "openfootball football.json"
+    ],
+    "rejected_for_current_baseline": [
+      {
+        "source": "TASK-051 StatsBomb common sample",
+        "reason": "Only 10 sparse terminal fixtures; no per-team rolling history"
+      },
+      {
+        "source": "TASK-051 API-Football crosscheck",
+        "reason": "Identity and score crosscheck only; not a longitudinal feature dataset"
+      }
+    ]
+  },
+  "research_contract": {
+    "windows": [5, 10, 20],
+    "split": "chronological_60_20_20",
+    "variants": ["A", "B", "C", "D", "E", "F"],
+    "metrics": ["Brier Score", "Log Loss", "ECE/calibration bins", "accuracy", "sample size"],
+    "no_future_leakage": true,
+    "no_cross_season_leakage": true,
+    "goals_substitute_xg": false,
+    "big_chances_policy": "NULL unless strictly provider-defined",
+    "market_reference_separate": true
+  },
+  "experiment": {
+    "command": "python -m scripts.run_zero_cost_experiment --dataset docs/zero_cost_current_assets_experiment_input_v1.json --output reports/codex/TASK-20260904-054_experiment.json",
+    "status": "INSUFFICIENT_SAMPLE",
+    "normalized_fixtures": 0,
+    "duplicate_fixtures": 0,
+    "betting_simulation": "INSUFFICIENT_ODDS_DATA",
+    "zero_cost_model_feasible": "no",
+    "best_zero_cost_model": "UNAVAILABLE",
+    "best_brier": "UNAVAILABLE",
+    "best_log_loss": "UNAVAILABLE",
+    "calibration_acceptable": "no",
+    "five_league_generalization": "insufficient_data",
+    "paid_advanced_metrics_needed_for_model_quality": "unproven",
+    "live_odds_required_for_formal_bet": "yes"
+  },
+  "tests": {
+    "focused": "9 passed",
+    "full_unit": "698 passed",
+    "ruff": "PASS",
+    "black_check": "PASS",
+    "mypy_task_scope": "PASS",
+    "json_contracts": "5 valid",
+    "git_diff_check": "PASS"
+  },
+  "files_changed": [
+    "app/research/__init__.py",
+    "app/research/zero_cost.py",
+    "scripts/run_zero_cost_experiment.py",
+    "tests/unit/test_zero_cost_research.py",
+    "docs/zero_cost_research_dataset_manifest_v1.json",
+    "docs/zero_cost_research_schema_v1.json",
+    "docs/zero_cost_current_assets_experiment_input_v1.json",
+    "docs/marvis_zero_cost_experiment_spec_v1_adaptation.json",
+    "reports/codex/TASK-20260904-054_experiment.json",
+    "reports/codex/TASK-20260904-054_result.json",
+    "reports/codex/TASK-20260904-054_result.md",
+    "tasks/completed/TASK-20260904-054.md",
+    "handoff/latest_status.json"
+  ],
+  "production_impact": {
+    "database_reads": 0,
+    "database_writes": 0,
+    "external_api_calls": 0,
+    "production_jobs_run": 0,
+    "scheduler_changes": 0,
+    "deployments": 0
+  },
+  "frozen_unchanged": true,
+  "blockers": [
+    "No inventoried rights-cleared dataset contains enough per-team chronological history for 5/10/20-match OOS samples.",
+    "Production PostgreSQL could not be inventoried because the local Docker runtime was offline.",
+    "No valid contemporaneous historical odds dataset is available for the Frozen-policy betting simulation."
+  ],
+  "recommended_next_action": "Build a compliant zero-cost source acquisition and normalization task for a materially larger historical dataset, then rerun this unchanged experiment runner."
+}
