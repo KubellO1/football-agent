@@ -1,47 +1,50 @@
 {
-  "task_id": "TASK-20260912-055",
-  "title": "Zero-Cost Longitudinal Dataset Acquisition & Model Validation",
-  "status": "completed_stopped_at_merge_approval_gate",
-  "approval_gate": "MERGE_APPROVAL_GATE",
-  "branch": "codex/TASK-20260912-055",
+  "task_id": "TASK-20260913-056",
+  "title": "Zero-Cost Model Improvement — Market Baseline + Calibration + Feature Engineering",
+  "status": "completed_research_only_no_pr",
+  "approval_gate": "NONE_PRODUCTION_UNCHANGED",
+  "branch": "codex/TASK-20260913-056",
   "commits": [
-    "06c00fd359dc1ca6deae4c0bf51ccc52a81fcbd2",
-    "bd33acda3d21dccf78da65140cc4ca85fe97a0b8"
+    "958b85d"
   ],
-  "summary": "A compliant research-only five-league longitudinal dataset was built from 15 cached official CSVs: 5,256 completed fixtures, three seasons and zero duplicates. The unchanged TASK-054 baseline and a separate no-xG ablation were validated. Longitudinal sample sufficiency is resolved, but the best holdout result has negative ROI and unstable league/season behavior, so it is not a production candidate.",
+  "summary": "A strict temporal market benchmark, zero-cost feature pipeline, logistic/residual/boosted models, three calibration methods and a calibrated ensemble were evaluated on the frozen five-league longitudinal dataset. The selected model was worse than the de-vigged market on both Brier and Log Loss; positive-EV research results were negative or statistically inconclusive. No production PR was created.",
   "decision": {
-    "zero_cost_model_feasible": "RESEARCH_FEASIBLE_ONLY",
-    "research_feasible": true,
-    "live_production_feasible": false,
+    "status": "ZERO_COST_MODEL_RESEARCH_ONLY",
+    "predictive_edge_statement": "NO_PREDICTIVE_EDGE_EVIDENCE",
     "production_candidate": false,
-    "best_feature_set": "C_WINDOW_20",
-    "oos_brier": 0.6195309914406985,
-    "oos_log_loss": 1.0323687040304372,
-    "oos_roi": -0.12455950540958269
+    "market_brier": 0.5980245398363591,
+    "market_log_loss": 1.0008082091671908,
+    "model_brier": 0.6009937728109958,
+    "model_log_loss": 1.0049860376377655,
+    "model_minus_market_brier": 0.002969232974636693,
+    "model_minus_market_log_loss": 0.004177828470574685
   },
   "validation": {
-    "focused_tests": "10 passed",
-    "full_unit_tests": "708 passed",
+    "focused_tests": "17 passed",
+    "full_unit_tests": "715 passed",
     "integration_tests": "103 passed",
     "ruff": "PASS",
     "black": "PASS",
     "mypy": "PASS",
     "git_diff_check": "PASS",
-    "task_054_baseline_unchanged": true
+    "deterministic_report": true
   },
   "production_impact": {
     "database_reads": 0,
     "database_writes": 0,
-    "external_paid_api_calls": 0,
+    "external_api_calls": 0,
     "production_jobs": 0,
     "scheduler_changes": 0,
-    "deployments": 0
+    "deployments": 0,
+    "master_merge": false,
+    "production_pr_created": false
   },
   "frozen_unchanged": true,
   "blockers": [
-    "Commercial production rights remain unconfirmed.",
-    "The research source cannot satisfy the frozen production 90% completeness contract.",
-    "The best no-xG model has negative OOS ROI and insufficient league/season stability."
+    "No tested model beats the de-vigged market on final OOS probability quality.",
+    "Positive-EV returns are negative or statistically inconclusive.",
+    "PRE_CLOSING quote timestamps are unavailable, so live feature eligibility is not established.",
+    "Commercial production rights remain unconfirmed."
   ],
-  "next_action": "Review the research-only PR. Keep production unchanged and continue separate zero-cost calibration and benchmark research."
+  "next_action": "Keep production unchanged. Continue research only if a longer zero-cost walk-forward sample or new legally usable zero-cost signal becomes available; require robust market outperformance before any production proposal."
 }

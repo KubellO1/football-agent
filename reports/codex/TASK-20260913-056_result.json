@@ -1,0 +1,186 @@
+{
+  "task_id": "TASK-20260913-056",
+  "title": "Zero-Cost Model Improvement — Market Baseline + Calibration + Feature Engineering",
+  "status": "completed_research_only_no_pr",
+  "branch": "codex/TASK-20260913-056",
+  "base_commit": "15b1fc24b87ff4897361d40906253e8f4aa349d8",
+  "implementation_commits": [
+    "958b85d"
+  ],
+  "new_external_data_cost_eur": 0,
+  "frozen_baseline": {
+    "model": "C_WINDOW_20",
+    "sample_size": 790,
+    "oos_brier": 0.6195309914406985,
+    "oos_log_loss": 1.0323687040304372,
+    "oos_roi": -0.12455950540958269,
+    "status": "RESEARCH_FEASIBLE_ONLY",
+    "production_candidate": false,
+    "modified": false
+  },
+  "dataset": {
+    "source": "Football-Data.co.uk cached research dataset from TASK-20260912-055",
+    "source_status": "RESEARCH_ONLY_COMMERCIAL_RIGHTS_UNCONFIRMED",
+    "fixtures": 5256,
+    "market_aligned_rows": 2322,
+    "train_rows": 788,
+    "selection_rows": 746,
+    "holdout_rows": 788,
+    "leagues": 5,
+    "seasons": 3,
+    "duplicate_fixtures": 0,
+    "cache_hits": 15,
+    "network_downloads": 0,
+    "historical_odds_matches": 5256,
+    "xg_observations": 0
+  },
+  "temporal_validation": {
+    "train_season": "2023/2024",
+    "selection_season": "2024/2025",
+    "final_holdout_season": "2025/2026",
+    "model_and_calibration_selection_used_final_holdout": false,
+    "future_match_data_used": false,
+    "closing_odds_as_model_feature": false,
+    "pre_closing_market_context": "RESEARCH_BENCHMARK_ONLY_CAPTURE_TIME_UNAVAILABLE",
+    "live_market_feature_eligible": false
+  },
+  "market_baseline": {
+    "method": "Normalize reciprocal 1X2 prices after removing overround",
+    "sample_size": 788,
+    "brier": 0.5980245398363591,
+    "log_loss": 1.0008082091671908,
+    "accuracy": 0.5139593908629442,
+    "expected_calibration_error": 0.024895224834682383
+  },
+  "selected_model": {
+    "name": "MARKET_RESIDUAL_BOOST_PLATT",
+    "selection_basis": "Lowest eligible Brier on the second half of the 2024/2025 selection season",
+    "sample_size": 788,
+    "brier": 0.6009937728109958,
+    "log_loss": 1.0049860376377655,
+    "accuracy": 0.5063451776649747,
+    "expected_calibration_error": 0.031143125677185787,
+    "model_minus_market_brier": 0.002969232974636693,
+    "model_minus_market_log_loss": 0.004177828470574685,
+    "positive_ev_bets": 543,
+    "positive_ev_roi": -0.09392265193370165,
+    "positive_ev_roi_95ci": [
+      -0.21178637200736647,
+      0.018324125230202565
+    ],
+    "positive_ev_max_drawdown_units": 71.48000000000003
+  },
+  "additional_results": {
+    "uncalibrated_boost_positive_ev": {
+      "bet_count": 249,
+      "roi": 0.011004016064257032,
+      "roi_95ci": [
+        -0.1791566265060241,
+        0.21730923694779117
+      ],
+      "max_drawdown_units": 31.349999999999998,
+      "interpretation": "Inconclusive; confidence interval crosses zero and probability quality is worse than market."
+    },
+    "calibrated_ensemble_positive_ev": {
+      "bet_count": 280,
+      "roi": -0.004964285714285716,
+      "roi_95ci": [
+        -0.1855357142857143,
+        0.18589285714285714
+      ],
+      "max_drawdown_units": 25.79
+    }
+  },
+  "features": [
+    "rolling goals scored/conceded",
+    "home/away rolling goals and points",
+    "shots",
+    "shots on target",
+    "shot conversion",
+    "defensive shot suppression",
+    "points per match",
+    "goal difference",
+    "rest days",
+    "opponent-strength adjusted form using pre-match Elo",
+    "exponentially weighted form",
+    "league goal normalization using strictly prior fixtures",
+    "season phase",
+    "promoted-team handling"
+  ],
+  "model_families": [
+    "unchanged C_WINDOW_20 Poisson-style baseline",
+    "multinomial logistic regression",
+    "market plus zero-cost football features",
+    "market-offset residual logistic regression",
+    "gradient-boosted decision-stump residual model",
+    "Platt calibration",
+    "isotonic calibration",
+    "temperature calibration",
+    "calibrated ensemble"
+  ],
+  "robustness": {
+    "league_results": {
+      "Bundesliga": {"n": 125, "brier": 0.5746912468404018, "log_loss": 0.9678935623960522},
+      "La Liga": {"n": 179, "brier": 0.5897912705442053, "log_loss": 0.9924831541498034},
+      "Ligue 1": {"n": 126, "brier": 0.6161764244566844, "log_loss": 1.0224832043663203},
+      "Premier League": {"n": 180, "brier": 0.6438646519829633, "log_loss": 1.0623334118181902},
+      "Serie A": {"n": 178, "brier": 0.5766302407535172, "log_loss": 0.9732298870157713}
+    },
+    "minimum_league_sample": 125,
+    "league_brier_range": 0.06917340514256143,
+    "holdout_half_brier_range": 0.015186098916760704,
+    "cherry_picked_leagues_removed": 0
+  },
+  "decision": {
+    "status": "ZERO_COST_MODEL_RESEARCH_ONLY",
+    "predictive_edge_evidence": false,
+    "statement": "NO_PREDICTIVE_EDGE_EVIDENCE",
+    "production_candidate": false,
+    "reason": "The selected football model is worse than the de-vigged market on Brier and Log Loss, positive-EV research bets lose money, and the only positive sub-result has a very wide confidence interval crossing zero."
+  },
+  "artifacts": {
+    "experiment_report": "C:/Users/ruowa/Projects/football-agent-task-artifacts/TASK-20260913-056/output/market_improvement_report.json",
+    "experiment_report_sha256": "8E6EF6E7EB8E93BCBA789E55A1009C2FE291756FAD806E9CC01B42091D3D158D",
+    "deterministic_repeat": true
+  },
+  "tests": {
+    "focused_research": "17 passed",
+    "full_unit": "715 passed",
+    "integration": "103 passed against disposable PostgreSQL",
+    "isolated_migrations": "0001 to 0021 PASS",
+    "isolated_alembic_check": "PASS",
+    "ruff_task_scope": "PASS",
+    "black_task_scope": "PASS",
+    "mypy_task_scope": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "files_changed": [
+    "app/research/market_improvement.py",
+    "scripts/run_market_improvement_research.py",
+    "tests/unit/test_market_improvement_research.py",
+    "reports/codex/TASK-20260913-056_result.json",
+    "reports/codex/TASK-20260913-056_result.md",
+    "tasks/completed/TASK-20260913-056.md",
+    "handoff/latest_status.json"
+  ],
+  "production_impact": {
+    "production_database_reads": 0,
+    "production_database_writes": 0,
+    "production_jobs": 0,
+    "scheduler_changes": 0,
+    "deployments": 0,
+    "external_api_calls": 0,
+    "paid_api_calls": 0,
+    "master_merge": false,
+    "production_pr_created": false
+  },
+  "frozen_unchanged": true,
+  "blockers": [
+    "No model tested outperformed the market baseline on final temporal OOS probability quality.",
+    "Positive-EV research performance is negative or statistically inconclusive.",
+    "Historical PRE_CLOSING columns have no captured timestamp and are not eligible for live feature use.",
+    "Dataset commercial production rights remain unconfirmed.",
+    "The frozen production 90% completeness contract remains unchanged and unmet by this research source."
+  ],
+  "recommended_next_action": "Keep production unchanged. Treat the de-vigged market as the mandatory research benchmark; improve only with additional legally usable zero-cost information or a substantially longer walk-forward sample, and require market outperformance before any production proposal."
+}
