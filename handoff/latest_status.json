@@ -1,27 +1,26 @@
 {
-  "task_id": "TASK-20260913-058",
-  "title": "Zero-Cost Research Program Closure & Reproducible Benchmark",
-  "status": "completed_research_program_closed_no_pr",
-  "approval_gate": "STOP_RESEARCH_CLOSED",
-  "branch": "codex/TASK-20260913-058",
+  "task_id": "TASK-20260913-059",
+  "title": "Daily Zero-Cost Football Intelligence Dataset",
+  "status": "completed_stopped_at_production_data_collection_approval_gate",
+  "approval_gate": "PRODUCTION_DATA_COLLECTION_APPROVAL_GATE",
+  "branch": "codex/TASK-20260913-059",
   "commits": [
-    "dc1f80e1a7348caf4212953b68cb984ef073ef7f"
+    "6c2a08b"
   ],
-  "decision": {
-    "status": "ZERO_COST_BETTING_EDGE_NOT_DEMONSTRATED",
-    "production_candidate": false,
-    "market_baseline_mandatory": true,
-    "research_reopen_allowed_now": false
-  },
-  "reproduction": {
-    "assets_verified": "28/28",
-    "task_055": "PASS",
-    "task_056": "PASS",
-    "task_057": "PASS"
+  "result": {
+    "sources_evaluated": 12,
+    "sources_approved": 3,
+    "five_league_fixture_coverage": "5/5",
+    "capture_windows": 7,
+    "canary": "PASS_IDEMPOTENT",
+    "isolated_observations": 1889,
+    "expected_daily_requests": 20,
+    "expected_monthly_cost_eur": 0,
+    "new_data_created_vs_task058": true
   },
   "validation": {
-    "focused_tests": "11 passed",
-    "full_unit_tests": "733 passed",
+    "focused_tests": "16 passed",
+    "full_unit_tests": "749 passed",
     "integration_tests": "103 passed",
     "ruff": "PASS",
     "black": "PASS",
@@ -31,13 +30,13 @@
   "production_impact": {
     "database_reads": 0,
     "database_writes": 0,
-    "external_api_calls": 0,
     "production_jobs": 0,
     "scheduler_changes": 0,
     "deployments": 0,
+    "paid_api_calls": 0,
     "master_merge": false,
     "production_pr_created": false
   },
   "frozen_unchanged": true,
-  "next_action": "Keep research closed. Reopen only for a materially new legal point-in-time information source listed in the benchmark manifest."
+  "next_action": "Await approval for data-layer design, governance, reviewed identity mappings, and a <=10-fixture production collection Canary"
 }
