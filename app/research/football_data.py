@@ -481,6 +481,8 @@ def _odds_quotes(fixture_id: str, row: Mapping[str, str]) -> tuple[HistoricalOdd
         ("market-average", "CLOSING", ("AvgCH", "AvgCD", "AvgCA")),
         ("Bet365", "PRE_CLOSING", ("B365H", "B365D", "B365A")),
         ("Bet365", "CLOSING", ("B365CH", "B365CD", "B365CA")),
+        ("Bwin", "PRE_CLOSING", ("BWH", "BWD", "BWA")),
+        ("Bwin", "CLOSING", ("BWCH", "BWCD", "BWCA")),
         ("Pinnacle", "PRE_CLOSING", ("PSH", "PSD", "PSA")),
         ("Pinnacle", "CLOSING", ("PSCH", "PSCD", "PSCA")),
     )
