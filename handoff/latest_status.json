@@ -1,28 +1,27 @@
 {
-  "task_id": "TASK-20260913-057",
-  "title": "Zero-Cost Betting Edge Discovery — Information & Market Timing",
-  "status": "completed_research_only_no_pr",
-  "approval_gate": "NONE_PRODUCTION_UNCHANGED",
-  "branch": "codex/TASK-20260913-057",
+  "task_id": "TASK-20260913-058",
+  "title": "Zero-Cost Research Program Closure & Reproducible Benchmark",
+  "status": "completed_research_program_closed_no_pr",
+  "approval_gate": "STOP_RESEARCH_CLOSED",
+  "branch": "codex/TASK-20260913-058",
   "commits": [
-    "046e1c3"
+    "dc1f80e1a7348caf4212953b68cb984ef073ef7f"
   ],
   "decision": {
     "status": "ZERO_COST_BETTING_EDGE_NOT_DEMONSTRATED",
-    "best_zero_cost_signal": "CROSS_BOOK_REST",
-    "market_baseline_brier": 0.5980245398363591,
-    "best_model_brier": 0.6019025049015412,
-    "incremental_edge": -0.0038779650651821207,
-    "mean_clv": -0.05297306301053395,
-    "oos_roi": -0.05215719063545149,
-    "roi_95_ci": [-0.17316053511705684, 0.0687123745819398],
-    "edge_evidence": false,
-    "production_candidate": false
+    "production_candidate": false,
+    "market_baseline_mandatory": true,
+    "research_reopen_allowed_now": false
   },
-  "summary": "Reasonable zero-cost information and timing signals were exhausted on the frozen five-league temporal benchmark. The selected model underperformed the de-vigged market on Brier and Log Loss, had negative ROI and CLV, and was not stable across walk-forward periods. Cross-book observations also lack deployable row-level timestamps.",
+  "reproduction": {
+    "assets_verified": "28/28",
+    "task_055": "PASS",
+    "task_056": "PASS",
+    "task_057": "PASS"
+  },
   "validation": {
-    "focused_tests": "24 passed",
-    "full_unit_tests": "722 passed",
+    "focused_tests": "11 passed",
+    "full_unit_tests": "733 passed",
     "integration_tests": "103 passed",
     "ruff": "PASS",
     "black": "PASS",
@@ -32,7 +31,7 @@
   "production_impact": {
     "database_reads": 0,
     "database_writes": 0,
-    "external_data_api_calls": 0,
+    "external_api_calls": 0,
     "production_jobs": 0,
     "scheduler_changes": 0,
     "deployments": 0,
@@ -40,5 +39,5 @@
     "production_pr_created": false
   },
   "frozen_unchanged": true,
-  "next_action": "Keep production unchanged. Resume only when a legal timestamped longitudinal zero-cost signal is available, and continue to require robust OOS market outperformance."
+  "next_action": "Keep research closed. Reopen only for a materially new legal point-in-time information source listed in the benchmark manifest."
 }

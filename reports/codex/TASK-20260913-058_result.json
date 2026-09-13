@@ -1,0 +1,136 @@
+{
+  "task_id": "TASK-20260913-058",
+  "title": "Zero-Cost Research Program Closure & Reproducible Benchmark",
+  "status": "completed_research_program_closed_no_pr",
+  "branch": "codex/TASK-20260913-058",
+  "base_commit": "0cc3ac1e0dba55afe903f224aa17c8a5254bfc17",
+  "commits": [
+    "dc1f80e1a7348caf4212953b68cb984ef073ef7f"
+  ],
+  "conclusion": "ZERO_COST_BETTING_EDGE_NOT_DEMONSTRATED",
+  "production_candidate": false,
+  "preservation": {
+    "benchmark_id": "ZERO_COST_BENCHMARK_V1",
+    "manifest": "research/benchmarks/zero_cost_v1/manifest.json",
+    "checked_artifacts": 28,
+    "verified_artifacts": 28,
+    "datasets_copied_into_git": false,
+    "large_artifact_location": "C:/Users/ruowa/Projects/football-agent-task-artifacts",
+    "hash_algorithm": "SHA-256",
+    "source_tasks": [
+      "TASK-20260912-055",
+      "TASK-20260913-056",
+      "TASK-20260913-057"
+    ]
+  },
+  "methodology": {
+    "train_season": "2023/2024",
+    "selection_and_calibration_season": "2024/2025",
+    "final_untouched_oos_season": "2025/2026",
+    "rolling_windows": [5, 10, 20],
+    "strict_temporal_ordering": true,
+    "future_data_used": false,
+    "final_holdout_used_for_selection": false,
+    "league_exclusion_allowed": false,
+    "final_oos_threshold_optimization_allowed": false,
+    "mandatory_market_baseline": "DE_VIGGED_1X2_MARKET",
+    "market_formula": "normalize(1/home_odds, 1/draw_odds, 1/away_odds)",
+    "closing_odds_usage": "EVALUATION_BENCHMARK_AND_CLV_ONLY"
+  },
+  "dataset": {
+    "source": "Football-Data.co.uk public CSV cache",
+    "license_mode": "RESEARCH_ONLY_COMMERCIAL_RIGHTS_UNCONFIRMED",
+    "leagues": 5,
+    "seasons": 3,
+    "completed_fixtures": 5256,
+    "historical_odds_matches": 5256,
+    "duplicate_fixtures": 0
+  },
+  "accepted_benchmarks": {
+    "TASK-20260912-055": {
+      "best_baseline": "C_WINDOW_20",
+      "oos_brier": 0.6195309914406985,
+      "oos_log_loss": 1.0323687040304372,
+      "oos_roi": -0.12455950540958269
+    },
+    "TASK-20260913-056": {
+      "market_brier": 0.5980245398363591,
+      "market_log_loss": 1.0008082091671908,
+      "selected_model": "MARKET_RESIDUAL_BOOST_PLATT",
+      "model_brier": 0.6009937728109958,
+      "model_log_loss": 1.0049860376377655,
+      "model_minus_market_brier": 0.002969232974636693,
+      "model_minus_market_log_loss": 0.004177828470574685,
+      "decision": "NO_PREDICTIVE_EDGE_EVIDENCE"
+    },
+    "TASK-20260913-057": {
+      "best_zero_cost_signal": "CROSS_BOOK_REST",
+      "market_baseline_brier": 0.5980245398363591,
+      "best_model_brier": 0.6019025049015412,
+      "incremental_edge": -0.0038779650651821207,
+      "mean_clv": -0.05297306301053395,
+      "oos_roi": -0.05215719063545149,
+      "roi_95_ci": [-0.17316053511705684, 0.0687123745819398],
+      "edge_evidence": false
+    }
+  },
+  "reproduction": {
+    "network_access": false,
+    "artifact_verification": "PASS",
+    "task_055_comparison": "PASS",
+    "task_056_comparison": "PASS",
+    "task_057_comparison": "PASS",
+    "summary_sha256": "0a19083cf840b5e0f881141f802db31179a6daaf323c75cdab0b30a5f9046ee8",
+    "output_directory": "C:/Users/ruowa/Projects/football-agent-task-artifacts/TASK-20260913-058/reproduction"
+  },
+  "reopening_policy": {
+    "allowed": [
+      "LONGER_POINT_IN_TIME_HISTORICAL_ODDS",
+      "LEGAL_HISTORICAL_LINEUPS",
+      "LEGAL_HISTORICAL_INJURIES_SUSPENSIONS",
+      "TIMESTAMPED_MARKET_MOVEMENT",
+      "MATERIALLY_RICHER_OPEN_EVENT_DATASET",
+      "GENUINELY_NEW_INFORMATION_SOURCE"
+    ],
+    "not_sufficient": [
+      "ANOTHER_ALGORITHM",
+      "THRESHOLD_CHANGE",
+      "LEAGUE_FILTERING",
+      "HISTORICAL_ROI_OPTIMIZATION"
+    ]
+  },
+  "files_changed": [
+    "app/research/benchmark.py",
+    "scripts/run_zero_cost_benchmark.py",
+    "tests/unit/test_zero_cost_benchmark.py",
+    "research/benchmarks/zero_cost_v1/manifest.json",
+    "docs/zero_cost_research_benchmark_v1.md",
+    "tasks/completed/TASK-20260913-058.md",
+    "reports/codex/TASK-20260913-058_result.json",
+    "reports/codex/TASK-20260913-058_result.md",
+    "handoff/latest_status.json"
+  ],
+  "tests": {
+    "focused": "11 passed",
+    "full_unit": "733 passed",
+    "integration": "103 passed against isolated football_test PostgreSQL",
+    "ruff": "PASS",
+    "black": "PASS",
+    "mypy": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "production_impact": {
+    "production_database_reads": 0,
+    "production_database_writes": 0,
+    "external_api_calls": 0,
+    "paid_api_calls": 0,
+    "production_jobs": 0,
+    "scheduler_changes": 0,
+    "deployments": 0,
+    "master_merge": false,
+    "production_pr_created": false
+  },
+  "frozen_unchanged": true,
+  "blockers": [],
+  "recommended_next_action": "Keep the research program closed and production unchanged. Reopen only when an allowed materially new point-in-time information source is available."
+}
