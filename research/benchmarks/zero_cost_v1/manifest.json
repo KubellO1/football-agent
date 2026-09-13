@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "ZERO_COST_BENCHMARK_V1",
+  "status": "CLOSED",
+  "conclusion": "ZERO_COST_BETTING_EDGE_NOT_DEMONSTRATED",
+  "production_candidate": false,
+  "source_lineage": [
+    {"task_id": "TASK-20260912-055", "commit": "15b1fc24", "report": "reports/codex/TASK-20260912-055_result.json"},
+    {"task_id": "TASK-20260913-056", "commit": "6d61263f", "report": "reports/codex/TASK-20260913-056_result.json"},
+    {"task_id": "TASK-20260913-057", "commit": "0cc3ac1e0dba55afe903f224aa17c8a5254bfc17", "report": "reports/codex/TASK-20260913-057_result.json"}
+  ],
+  "dataset": {
+    "source": "Football-Data.co.uk public CSV cache",
+    "license_mode": "RESEARCH_ONLY_COMMERCIAL_RIGHTS_UNCONFIRMED",
+    "completed_fixtures": 5256,
+    "historical_odds_matches": 5256,
+    "leagues": ["Bundesliga", "La Liga", "Ligue 1", "Premier League", "Serie A"],
+    "season_codes": ["2324", "2425", "2526"],
+    "season_labels": ["2023/2024", "2024/2025", "2025/2026"]
+  },
+  "methodology": {
+    "train_seasons": ["2023/2024"],
+    "selection_seasons": ["2024/2025"],
+    "final_holdout_seasons": ["2025/2026"],
+    "rolling_windows": [5, 10, 20],
+    "strict_temporal_ordering": true,
+    "model_selection_uses_final_holdout": false,
+    "future_data_allowed": false,
+    "league_exclusion_allowed": false,
+    "final_oos_threshold_optimization_allowed": false,
+    "market_baseline": {
+      "mandatory": true,
+      "name": "DE_VIGGED_1X2_MARKET",
+      "formula": "normalize(1/home_odds, 1/draw_odds, 1/away_odds)",
+      "overround_removed": true
+    },
+    "closing_odds": {
+      "allowed_uses": ["evaluation_benchmark", "clv_target"],
+      "allowed_as_earlier_decision_feature": false
+    }
+  },
+  "accepted_benchmarks": {
+    "TASK-20260912-055": {
+      "best_baseline": "C_WINDOW_20",
+      "oos_brier": 0.6195309914406985,
+      "oos_log_loss": 1.0323687040304372,
+      "oos_roi": -0.12455950540958269
+    },
+    "TASK-20260913-056": {
+      "market_brier": 0.5980245398363591,
+      "market_log_loss": 1.0008082091671908,
+      "selected_model": "MARKET_RESIDUAL_BOOST_PLATT",
+      "model_brier": 0.6009937728109958,
+      "model_log_loss": 1.0049860376377655,
+      "model_minus_market_brier": 0.002969232974636693,
+      "model_minus_market_log_loss": 0.004177828470574685,
+      "decision": "NO_PREDICTIVE_EDGE_EVIDENCE"
+    },
+    "TASK-20260913-057": {
+      "best_zero_cost_signal": "CROSS_BOOK_REST",
+      "market_baseline_brier": 0.5980245398363591,
+      "best_model_brier": 0.6019025049015412,
+      "incremental_edge": -0.0038779650651821207,
+      "mean_clv": -0.05297306301053395,
+      "oos_roi": -0.05215719063545149,
+      "roi_95_ci": [-0.17316053511705684, 0.0687123745819398],
+      "edge_evidence": "no",
+      "decision": "ZERO_COST_BETTING_EDGE_NOT_DEMONSTRATED"
+    }
+  },
+  "artifact_root_contract": "Pass the parent directory containing TASK-20260912-055, TASK-20260913-056 and TASK-20260913-057.",
+  "artifacts": [
+    {"path": "TASK-20260912-055/cache/2324/D1.csv", "bytes": 135825, "sha256": "1de8bc12a133dbbf71bc6ffda62082642f087f61b1b7c15ae9f2d320876fb07e"},
+    {"path": "TASK-20260912-055/cache/2324/E0.csv", "bytes": 172196, "sha256": "b2e057b0ed959f198b0f63d2391c01239f3608e6de5db68edab3f88e04d07ff3"},
+    {"path": "TASK-20260912-055/cache/2324/F1.csv", "bytes": 135000, "sha256": "ca0a4bf51d5b1ccfd0e1558ea41de6bb829df6c96c759888a87248d296d5adb7"},
+    {"path": "TASK-20260912-055/cache/2324/I1.csv", "bytes": 167015, "sha256": "343a89db026fe4204ebeabd663cdfee8d02a45457828fc1cb63fa630ca170723"},
+    {"path": "TASK-20260912-055/cache/2324/SP1.csv", "bytes": 168164, "sha256": "5323f596c7ed318e4bce95557a369d809d98501fa499ea5f41350cd45cf3c7d9"},
+    {"path": "TASK-20260912-055/cache/2425/D1.csv", "bytes": 156414, "sha256": "a295c58033cfe6393cbbc28f7db85671839b960c5f1153fd3678e20ad2adb92e"},
+    {"path": "TASK-20260912-055/cache/2425/E0.csv", "bytes": 197110, "sha256": "d0c8ce4a96d886cf60cf101f570f4a3893844226f91c7bd769eb568c49edbfa4"},
+    {"path": "TASK-20260912-055/cache/2425/F1.csv", "bytes": 154703, "sha256": "fe6ae6a0c30d05f0ac88e0fc4a31452c7203e2b444703dfa941e22f38f20ab63"},
+    {"path": "TASK-20260912-055/cache/2425/I1.csv", "bytes": 191722, "sha256": "79d87a5b18771e066ac7419b7876bfd9771a68ca117a9712375d6bc9685abee3"},
+    {"path": "TASK-20260912-055/cache/2425/SP1.csv", "bytes": 192863, "sha256": "c086e96d6a53f6e6c0fce4e35db0d1728c773b4362323da0161a34769e315a36"},
+    {"path": "TASK-20260912-055/cache/2526/D1.csv", "bytes": 159944, "sha256": "618301a4b39918225a8ccc57f0f839d675e1abd92fa3a3ccd9a67acd7c79dd7f"},
+    {"path": "TASK-20260912-055/cache/2526/E0.csv", "bytes": 203438, "sha256": "3e3a8352f9ada6789c508d6ca184424421fed56a30400904a4a327c583407e62"},
+    {"path": "TASK-20260912-055/cache/2526/F1.csv", "bytes": 158471, "sha256": "898b7ddcd373cfe955ae353b1a98cf7f1c8757ca10b69d53039f4e098e88f192"},
+    {"path": "TASK-20260912-055/cache/2526/I1.csv", "bytes": 196217, "sha256": "709ae279617d16af226312bcceac941e71241745ddaf950bdac2b83afad4fcbb"},
+    {"path": "TASK-20260912-055/cache/2526/SP1.csv", "bytes": 197653, "sha256": "4ca2e285f3ee0702f6bc55fcaa4f5a15cb3aef6220735a1d15398131e21d63f5"},
+    {"path": "TASK-20260912-055/output/experiment_report.json", "sha256": "19ae8b4f1e82c98625ee4f8e07a1ae236ae2eabc1763967f6708f5e96a0b8040"},
+    {"path": "TASK-20260912-055/output/normalized_fixtures.json", "sha256": "e36bd7280ef93b962e2d44bef4f5cd248f821701cbd621fb9db3bb07db65e563"},
+    {"path": "TASK-20260912-055/output/source_provenance.json", "sha256": "fc70a8e843ac4f6f56f585951f6bb961a37c7f2dcd290ff2605e50bf31d1f3e7"},
+    {"path": "TASK-20260913-056/output/market_improvement_report.json", "bytes": 240539, "sha256": "8e6ef6e7eb8e93bcba789e55a1009c2fe291756fad806e9cc01b42091d3d158d"},
+    {"path": "TASK-20260913-057/output/information_timing_report.json", "bytes": 74801, "sha256": "d715375b2a83f0d8f300711792868e5512d4d94e8378dadde73c1c87c29bbff7"}
+  ],
+  "runner_files": [
+    {"path": "app/research/football_data.py", "sha256": "a9671683508d9ffb46fcba164fe9e00416f2c788e3596108c4ecd4ea221f5dca"},
+    {"path": "app/research/zero_cost.py", "sha256": "7a148b3c34b7365efb3c531fc271f0e41212a64a6fd91e63be72fe3cb164f460"},
+    {"path": "app/research/longitudinal.py", "sha256": "c360ab690ee083f4be0923be4df68beed8f1659252a281cde4c96e06632a5c05"},
+    {"path": "app/research/market_improvement.py", "sha256": "34c13f3cfa38ce51c4685d7eee748615726287e0f4d454ca76f99eca53cab1ce"},
+    {"path": "app/research/information_timing.py", "sha256": "ffaa3447cd98191ef69c10d2e6b32e9fb4b2a2bd706aa79cf46489702d7ccc77"},
+    {"path": "scripts/run_longitudinal_research.py", "sha256": "3260de89828c3ffb0332584b68c7ba1e3b53617877c93dd1c5896b19806063f5"},
+    {"path": "scripts/run_market_improvement_research.py", "sha256": "9ddd6bc7e5faf3146ede9be33733fe91a410048696ed168686407cef37125560"},
+    {"path": "scripts/run_information_timing_research.py", "sha256": "e09e0ea869c9f04f90ec80ad41ac3ca54b07e1c9e7af425de5c5e2baf2f835f0"}
+  ],
+  "reopening_policy": {
+    "allowed_material_inputs": ["LONGER_POINT_IN_TIME_HISTORICAL_ODDS", "LEGAL_HISTORICAL_LINEUPS", "LEGAL_HISTORICAL_INJURIES_SUSPENSIONS", "TIMESTAMPED_MARKET_MOVEMENT", "MATERIALLY_RICHER_OPEN_EVENT_DATASET", "GENUINELY_NEW_INFORMATION_SOURCE"],
+    "disallowed_reasons": ["ANOTHER_ALGORITHM", "THRESHOLD_CHANGE", "LEAGUE_FILTERING", "HISTORICAL_ROI_OPTIMIZATION"]
+  },
+  "production_constraints": {
+    "production_model_unchanged": true,
+    "production_deployment_pr_allowed": false,
+    "production_database_writes_allowed": false,
+    "scheduler_changes_allowed": false,
+    "paid_api_allowed": false,
+    "frozen_changes_allowed": false
+  }
+}
