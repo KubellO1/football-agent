@@ -1,0 +1,267 @@
+{
+  "task_id": "TASK-20260913-057",
+  "title": "Zero-Cost Betting Edge Discovery — Information & Market Timing",
+  "status": "completed_research_only_no_pr",
+  "branch": "codex/TASK-20260913-057",
+  "base_commit": "6d61263f8371befe8ee6b2385ac31022aa51e24f",
+  "implementation_commits": [
+    "046e1c3"
+  ],
+  "new_external_data_cost_eur": 0,
+  "frozen_zero_cost_baseline": {
+    "model": "C_WINDOW_20",
+    "historical_match_count": 5256,
+    "oos_brier": 0.619531,
+    "oos_log_loss": 1.032369,
+    "oos_roi": -0.12456,
+    "modified": false
+  },
+  "dataset": {
+    "source": "Football-Data.co.uk cached research dataset from TASK-20260912-055",
+    "source_status": "RESEARCH_ONLY_COMMERCIAL_RIGHTS_UNCONFIRMED",
+    "leagues": 5,
+    "seasons": 3,
+    "completed_fixtures": 5256,
+    "historical_odds_matches": 5256,
+    "market_aligned_rows": 2322,
+    "train_rows": 788,
+    "selection_rows": 746,
+    "holdout_rows": 788,
+    "duplicate_fixtures": 0,
+    "cache_hits": 15,
+    "network_downloads": 0,
+    "odds_rows": 38922,
+    "odds_context_counts": {
+      "PRE_CLOSING": 19467,
+      "CLOSING": 19455
+    },
+    "bookmaker_context_rows": {
+      "MARKET_AVERAGE": 10512,
+      "BET365": 10512,
+      "BWIN": 9090,
+      "PINNACLE": 8808
+    }
+  },
+  "temporal_validation": {
+    "train_season": "2023/2024",
+    "selection_season": "2024/2025",
+    "final_holdout_season": "2025/2026",
+    "walk_forward": true,
+    "model_selection_used_final_holdout": false,
+    "future_match_data_used": false,
+    "closing_odds_as_model_feature": false,
+    "closing_odds_usage": "BENCHMARK_AND_CLV_ONLY",
+    "pre_closing_row_level_capture_time_available": false,
+    "cross_book_live_feature_eligible": false
+  },
+  "signal_audit": [
+    {
+      "signal": "OPENING_TO_LATER_ODDS_MOVEMENT",
+      "status": "UNAVAILABLE",
+      "reason": "No timestamped intermediate quote series exists in the cached longitudinal dataset."
+    },
+    {
+      "signal": "CROSS_BOOK_DISAGREEMENT",
+      "status": "RESEARCH_BENCHMARK_ONLY",
+      "reason": "Multiple bookmaker prices exist, but row-level capture timestamps are unavailable."
+    },
+    {
+      "signal": "CONFIRMED_LINEUPS",
+      "status": "UNAVAILABLE",
+      "reason": "No legal five-league longitudinal point-in-time lineup dataset is present."
+    },
+    {
+      "signal": "PLAYER_ABSENCES",
+      "status": "UNAVAILABLE",
+      "reason": "No legal five-league longitudinal point-in-time absence dataset is present."
+    },
+    {
+      "signal": "OFFICIAL_NEWS",
+      "status": "UNAVAILABLE",
+      "reason": "No normalized publication-time archive mapped to the historical fixtures is present."
+    },
+    {
+      "signal": "REST_AND_CONGESTION",
+      "status": "TEMPORALLY_VALID",
+      "reason": "Rest days are reconstructed exclusively from completed prior fixtures."
+    },
+    {
+      "signal": "WEATHER",
+      "status": "UNAVAILABLE_FOR_THIS_BENCHMARK",
+      "reason": "Venue coordinates are absent locally and public forecast archives do not cover the full three-season benchmark uniformly."
+    },
+    {
+      "signal": "POST_INFORMATION_MARKET_MOVEMENT",
+      "status": "UNAVAILABLE",
+      "reason": "Both information publication timestamps and timestamped quote series are required and unavailable."
+    }
+  ],
+  "market_baseline": {
+    "method": "Normalize reciprocal pre-match 1X2 prices after removing overround",
+    "sample_size": 788,
+    "brier": 0.5980245398363591,
+    "log_loss": 1.0008082091671908,
+    "accuracy": 0.5139593908629442,
+    "expected_calibration_error": 0.024895224834682383
+  },
+  "closing_market_benchmark": {
+    "sample_size": 788,
+    "brier": 0.5961541,
+    "log_loss": 0.998211,
+    "expected_calibration_error": 0.0176,
+    "mean_absolute_probability_movement": 0.01531,
+    "used_as_feature": false
+  },
+  "candidate_oos_results": {
+    "REST": {
+      "sample_size": 788,
+      "brier": 0.59876444,
+      "log_loss": 1.00192527,
+      "model_minus_market_brier": 0.0007399,
+      "positive_ev_bets": 204,
+      "roi": -0.097598,
+      "roi_95_ci": [-0.35397, 0.17373],
+      "mean_clv": -0.051708
+    },
+    "CROSS_BOOK": {
+      "sample_size": 788,
+      "brier": 0.60193507,
+      "log_loss": 1.00522348,
+      "model_minus_market_brier": 0.00391053,
+      "positive_ev_bets": 668,
+      "roi": -0.050749,
+      "roi_95_ci": [-0.16187, 0.05421],
+      "mean_clv": -0.052821
+    },
+    "CROSS_BOOK_REST": {
+      "sample_size": 788,
+      "brier": 0.60210007,
+      "log_loss": 1.00563101,
+      "model_minus_market_brier": 0.00407553,
+      "positive_ev_bets": 673,
+      "roi": -0.069391,
+      "roi_95_ci": [-0.1789, 0.03832],
+      "mean_clv": -0.052913
+    },
+    "FOOTBALL": {
+      "sample_size": 788,
+      "brier": 0.60795359,
+      "log_loss": 1.01741087,
+      "model_minus_market_brier": 0.00992905,
+      "positive_ev_bets": 686,
+      "roi": -0.095321,
+      "roi_95_ci": [-0.20359, 0.02163],
+      "mean_clv": -0.058305
+    },
+    "ALL": {
+      "sample_size": 788,
+      "brier": 0.60985761,
+      "log_loss": 1.01950254,
+      "model_minus_market_brier": 0.01183307,
+      "positive_ev_bets": 708,
+      "roi": -0.123588,
+      "roi_95_ci": [-0.22794, -0.02188],
+      "mean_clv": -0.055377
+    }
+  },
+  "selected_model": {
+    "signal": "CROSS_BOOK_REST",
+    "selection_method": "Signal and calibration selected on pre-holdout seasons, then refit on train plus selection only",
+    "sample_size": 788,
+    "brier": 0.6019025049015412,
+    "log_loss": 1.005471699690259,
+    "accuracy": 0.5,
+    "expected_calibration_error": 0.03908921,
+    "incremental_edge_brier": -0.0038779650651821207,
+    "positive_ev_bets": 598,
+    "oos_roi": -0.05215719063545149,
+    "roi_95_ci": [-0.17316053511705684, 0.0687123745819398],
+    "mean_clv": -0.05297306301053395,
+    "leagues_beating_market_brier": 1,
+    "leagues_evaluated": 5,
+    "temporally_deployable": false
+  },
+  "walk_forward": [
+    {
+      "test_season": "2024/2025",
+      "sample_size": 120,
+      "model_brier": 0.5407487,
+      "market_brier": 0.5468616,
+      "model_better": true
+    },
+    {
+      "test_season": "2025/2026",
+      "sample_size": 788,
+      "model_brier": 0.6019025049015412,
+      "market_brier": 0.5980245398363591,
+      "model_better": false
+    }
+  ],
+  "required_outputs": {
+    "BEST_ZERO_COST_SIGNAL": "CROSS_BOOK_REST",
+    "MARKET_BASELINE_BRIER": 0.5980245398363591,
+    "BEST_MODEL_BRIER": 0.6019025049015412,
+    "INCREMENTAL_EDGE": -0.0038779650651821207,
+    "MEAN_CLV": -0.05297306301053395,
+    "OOS_ROI": -0.05215719063545149,
+    "ROI_95_CI": [-0.17316053511705684, 0.0687123745819398],
+    "EDGE_EVIDENCE": "no"
+  },
+  "decision": {
+    "status": "ZERO_COST_BETTING_EDGE_NOT_DEMONSTRATED",
+    "edge_evidence": false,
+    "production_candidate": false,
+    "reason": "The selected model is worse than the de-vigged market on final temporal OOS Brier and Log Loss, produces negative ROI and CLV, has an ROI confidence interval crossing zero, is stable in only one of two walk-forward periods, and relies on cross-book observations without reconstructable row-level timestamps."
+  },
+  "artifacts": {
+    "experiment_report": "C:/Users/ruowa/Projects/football-agent-task-artifacts/TASK-20260913-057/output/information_timing_report.json",
+    "experiment_report_sha256": "D715375B2A83F0D8F300711792868E5512D4D94E8378DADDE73C1C87C29BBFF7"
+  },
+  "official_sources": [
+    "https://www.football-data.co.uk/downloadm.php",
+    "https://www.football-data.co.uk/data.php",
+    "https://www.football-data.co.uk/blog/closing_odds.php",
+    "https://github.com/statsbomb/open-data/blob/master/README.md",
+    "https://open-meteo.com/en/docs/previous-runs-api"
+  ],
+  "tests": {
+    "focused_research": "24 passed",
+    "full_unit": "722 passed",
+    "integration": "103 passed against fresh disposable PostgreSQL",
+    "ruff_task_scope": "PASS",
+    "black_task_scope": "PASS",
+    "mypy_task_scope": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "files_changed": [
+    "app/research/football_data.py",
+    "app/research/information_timing.py",
+    "scripts/run_information_timing_research.py",
+    "tests/unit/test_information_timing_research.py",
+    "reports/codex/TASK-20260913-057_result.json",
+    "reports/codex/TASK-20260913-057_result.md",
+    "tasks/completed/TASK-20260913-057.md",
+    "handoff/latest_status.json"
+  ],
+  "production_impact": {
+    "production_database_reads": 0,
+    "production_database_writes": 0,
+    "production_jobs": 0,
+    "scheduler_changes": 0,
+    "deployments": 0,
+    "external_data_api_calls": 0,
+    "paid_api_calls": 0,
+    "master_merge": false,
+    "production_pr_created": false
+  },
+  "frozen_unchanged": true,
+  "blockers": [
+    "No tested signal/model beats the de-vigged market on final temporal OOS probability quality.",
+    "Positive-EV research returns and mean CLV are negative.",
+    "The ROI 95% confidence interval crosses zero.",
+    "Cross-book pre-closing prices lack row-level timestamps and are not eligible for deployment.",
+    "Lineup, absence, official-news and post-information movement archives are unavailable point-in-time.",
+    "Dataset commercial production rights remain unconfirmed."
+  ],
+  "recommended_next_action": "Keep production unchanged. Do not pursue threshold tuning. Resume betting-edge research only when a legal, timestamped, longitudinal zero-cost information source becomes available; retain the de-vigged market as the mandatory benchmark."
+}
