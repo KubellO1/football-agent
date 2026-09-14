@@ -1,42 +1,46 @@
 {
-  "task_id": "TASK-20260913-059",
-  "title": "Daily Zero-Cost Football Intelligence Dataset",
-  "status": "completed_stopped_at_production_data_collection_approval_gate",
-  "approval_gate": "PRODUCTION_DATA_COLLECTION_APPROVAL_GATE",
-  "branch": "codex/TASK-20260913-059",
-  "commits": [
-    "6c2a08b"
-  ],
+  "task_id": "TASK-20260914-060",
+  "title": "Production Observation Foundation + 10-Fixture Canary",
+  "status": "completed_stopped_at_production_database_approval_gate",
+  "approval_gate": "PRODUCTION_DATABASE_APPROVAL_GATE",
+  "branch": "codex/TASK-20260914-060",
+  "commits": ["58462567fdea0451b113ef8fabf07ec8158f983b"],
   "result": {
-    "sources_evaluated": 12,
-    "sources_approved": 3,
-    "five_league_fixture_coverage": "5/5",
-    "capture_windows": 7,
-    "canary": "PASS_IDEMPOTENT",
-    "isolated_observations": 1889,
-    "expected_daily_requests": 20,
-    "expected_monthly_cost_eur": 0,
-    "new_data_created_vs_task058": true
+    "migration": "0021_to_0022",
+    "schema_ready": true,
+    "mapping_ready": "exact_only",
+    "clone_rehearsal": "PASS_ON_LAST_VERIFIED_FULL_PRODUCTION_CLONE",
+    "rehearsal_cycles": 2,
+    "rollback": "PASS",
+    "schema_hash_identical": true,
+    "existing_data_unchanged": true,
+    "append_only_checks": "20/20 rejected",
+    "repository_replay": "PASS_IDEMPOTENT",
+    "current_production_identity_canonical": false
   },
   "validation": {
-    "focused_tests": "16 passed",
-    "full_unit_tests": "749 passed",
-    "integration_tests": "103 passed",
+    "focused_unit": "12 passed",
+    "focused_integration": "2 passed",
+    "full_unit": "759 passed",
+    "full_integration": "105 collected/executed successfully",
+    "fresh_0001_to_0022": "PASS",
+    "alembic_check": "PASS",
     "ruff": "PASS",
     "black": "PASS",
     "mypy": "PASS",
     "git_diff_check": "PASS"
   },
   "production_impact": {
-    "database_reads": 0,
+    "database_reads": "read-only preflight and pg_dump",
     "database_writes": 0,
+    "schema_operations": 0,
+    "external_api_calls": 0,
     "production_jobs": 0,
     "scheduler_changes": 0,
     "deployments": 0,
-    "paid_api_calls": 0,
-    "master_merge": false,
-    "production_pr_created": false
+    "canary": false
   },
   "frozen_unchanged": true,
-  "next_action": "Await approval for data-layer design, governance, reviewed identity mappings, and a <=10-fixture production collection Canary"
+  "blocker": "The database currently named football reports 0021 but contains only alembic_version; establish the actual production DB identity and fresh canonical clone before any 0022 approval.",
+  "next_action": "Read-only production database identity/topology reconciliation, then fresh clone preflight; do not migrate or run canary."
 }

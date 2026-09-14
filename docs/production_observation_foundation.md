@@ -33,10 +33,12 @@ Deletion is a separately approved governance operation. It must never mutate obs
 rows; raw bytes may be removed only after retention/licensing review while preserving
 their immutable metadata and hash.
 
-At TASK-059 canary density (about 1,889 observations from six source responses), a
-conservative 90-day planning envelope is 180,000 normalized/mapping rows and 15 GB of
-compressed raw payload archive. Actual storage must be measured during the separately
-approved 10-fixture production canary before scheduling recurring collection.
+The TASK-059 canary artifact was 1,961,033 bytes for 1,889 observations and six source
+responses. At one equivalent five-league capture per day, the measured 90-day projection
+is about 177 MB. Reserve 1 GB for the currently approved fixture/result/weather data
+types, then remeasure before adding checkpoint-dense news or manual evidence. Actual
+storage must still be measured during the separately approved 10-fixture production
+canary before scheduling recurring collection.
 
 ## Proposed collection commands (design only)
 
