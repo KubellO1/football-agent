@@ -46,6 +46,14 @@ class SourcePolicy(StrEnum):
     REJECTED = "REJECTED"
 
 
+class SemanticStatus(StrEnum):
+    VERIFIED = "VERIFIED"
+    UNMAPPED = "UNMAPPED"
+    AMBIGUOUS = "AMBIGUOUS"
+    WEATHER_UNAVAILABLE = "WEATHER_UNAVAILABLE"
+    REJECTED = "REJECTED"
+
+
 def utc_datetime(value: datetime, *, field: str) -> datetime:
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError(f"{field} must be timezone-aware")
@@ -93,6 +101,10 @@ class Observation:
     source_policy: SourcePolicy
     capture_window: CaptureWindow
     payload: Mapping[str, object]
+    source_record_id: str | None = None
+    observed_at: datetime | None = None
+    schema_version: str = "1"
+    semantic_status: SemanticStatus = SemanticStatus.VERIFIED
 
     def __post_init__(self) -> None:
         required = (
@@ -113,33 +125,51 @@ class Observation:
                 "published_at",
                 utc_datetime(self.published_at, field="published_at"),
             )
+        observed_at = self.observed_at or self.published_at or self.captured_at
+        object.__setattr__(self, "observed_at", utc_datetime(observed_at, field="observed_at"))
+        if not self.schema_version.strip():
+            raise ValueError("schema_version cannot be empty")
 
     @property
     def observation_id(self) -> str:
+        observed_at = self.observed_at
+        if observed_at is None:  # Defensive guard for static type checking.
+            raise RuntimeError("observed_at was not initialized")
         identity = {
             "fixture_id": self.fixture_id,
             "source": self.source,
+            "source_record_id": self.source_record_id,
+            "observed_at": observed_at.isoformat(),
             "published_at": self.published_at.isoformat() if self.published_at else None,
             "raw_payload_hash": self.raw_payload_hash,
             "parser_version": self.parser_version,
+            "schema_version": self.schema_version,
             "data_type": self.data_type,
+            "semantic_status": self.semantic_status,
             "capture_window": self.capture_window,
             "payload": self.payload,
         }
         return hashlib.sha256(canonical_json(identity)).hexdigest()
 
     def to_dict(self) -> dict[str, object]:
+        observed_at = self.observed_at
+        if observed_at is None:  # Defensive guard for static type checking.
+            raise RuntimeError("observed_at was not initialized")
         return {
             "observation_id": self.observation_id,
             "fixture_id": self.fixture_id,
             "source": self.source,
             "source_url": self.source_url,
+            "source_record_id": self.source_record_id,
+            "observed_at": observed_at.isoformat(),
             "published_at": self.published_at.isoformat() if self.published_at else None,
             "captured_at": self.captured_at.isoformat(),
             "raw_payload_hash": self.raw_payload_hash,
             "parser_version": self.parser_version,
+            "schema_version": self.schema_version,
             "data_type": self.data_type,
             "source_policy": self.source_policy,
+            "semantic_status": self.semantic_status,
             "capture_window": self.capture_window,
             "payload": dict(self.payload),
         }

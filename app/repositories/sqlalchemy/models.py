@@ -32,6 +32,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     Uuid,
+    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -646,3 +647,325 @@ class PerformanceSnapshotORM(TimestampMixin, Base):
     max_drawdown: Mapped[float | None] = mapped_column(Float, nullable=True)
     sharpe_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
     breakdown_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# 零成本 point-in-time 情报数据层
+# ---------------------------------------------------------------------------
+
+
+class IntelligenceSourceORM(TimestampMixin, Base):
+    """经过合规审计的采集来源注册表。"""
+
+    __tablename__ = "intelligence_sources"
+    __table_args__ = (
+        UniqueConstraint("code", name="uq_intelligence_sources_code"),
+        CheckConstraint(
+            "source_policy IN ('OPEN_DATA', 'FREE_OFFICIAL_API', "
+            "'FREE_PUBLIC_DOWNLOAD', 'PUBLIC_WEB_AUTOMATION_ALLOWED', "
+            "'MANUAL_USER_SUPPLIED', 'RESEARCH_ONLY', 'REJECTED')",
+            name="ck_intelligence_sources_policy",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    code: Mapped[str] = mapped_column(String(80))
+    display_name: Mapped[str] = mapped_column(String(160))
+    base_url: Mapped[str] = mapped_column(String(500))
+    source_policy: Mapped[str] = mapped_column(String(40))
+    automation_allowed: Mapped[bool] = mapped_column(Boolean)
+    license_reference: Mapped[str] = mapped_column(String(500))
+
+
+class IntelligenceRawPayloadORM(Base):
+    """内容寻址原始归档的不可变数据库元数据。"""
+
+    __tablename__ = "intelligence_raw_payloads"
+    __table_args__ = (
+        UniqueConstraint("natural_key", name="uq_intelligence_raw_payloads_natural_key"),
+        CheckConstraint("byte_length >= 0", name="ck_intelligence_raw_payloads_byte_length"),
+        CheckConstraint(
+            "raw_payload_hash ~ '^[0-9a-f]{64}$'",
+            name="ck_intelligence_raw_payloads_sha256",
+        ),
+        CheckConstraint(
+            "source_policy IN ('OPEN_DATA', 'FREE_OFFICIAL_API', "
+            "'FREE_PUBLIC_DOWNLOAD', 'PUBLIC_WEB_AUTOMATION_ALLOWED', "
+            "'MANUAL_USER_SUPPLIED', 'RESEARCH_ONLY', 'REJECTED')",
+            name="ck_intelligence_raw_payloads_policy",
+        ),
+        Index("ix_intelligence_raw_payloads_source_captured", "source_id", "captured_at"),
+        Index("ix_intelligence_raw_payloads_hash", "raw_payload_hash"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    natural_key: Mapped[str] = mapped_column(String(64))
+    source_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("intelligence_sources.id", name="fk_intelligence_raw_payloads_source"),
+    )
+    source_url: Mapped[str] = mapped_column(String(1000))
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    raw_payload_hash: Mapped[str] = mapped_column(String(64))
+    media_type: Mapped[str] = mapped_column(String(120))
+    byte_length: Mapped[int] = mapped_column(BigInteger)
+    storage_uri: Mapped[str] = mapped_column(String(1000))
+    etag: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    last_modified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    source_policy: Mapped[str] = mapped_column(String(40))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class IntelligenceObservationORM(Base):
+    """与 fixture 关联的不可变、追加式标准化观察。"""
+
+    __tablename__ = "intelligence_observations"
+    __table_args__ = (
+        UniqueConstraint("observation_key", name="uq_intelligence_observations_key"),
+        CheckConstraint(
+            "raw_payload_hash ~ '^[0-9a-f]{64}$'",
+            name="ck_intelligence_observations_sha256",
+        ),
+        CheckConstraint(
+            "published_at IS NULL OR published_at <= captured_at",
+            name="ck_intelligence_observations_published_at",
+        ),
+        CheckConstraint(
+            "semantic_status IN ('VERIFIED', 'UNMAPPED', 'AMBIGUOUS', "
+            "'WEATHER_UNAVAILABLE', 'REJECTED')",
+            name="ck_intelligence_observations_semantic_status",
+        ),
+        CheckConstraint(
+            "source_policy IN ('OPEN_DATA', 'FREE_OFFICIAL_API', "
+            "'FREE_PUBLIC_DOWNLOAD', 'PUBLIC_WEB_AUTOMATION_ALLOWED', "
+            "'MANUAL_USER_SUPPLIED', 'RESEARCH_ONLY', 'REJECTED')",
+            name="ck_intelligence_observations_policy",
+        ),
+        CheckConstraint(
+            "capture_window IN ('DAILY', 'T-24H', 'T-6H', 'T-90', 'T-60', " "'T-30', 'POST_MATCH')",
+            name="ck_intelligence_observations_capture_window",
+        ),
+        Index(
+            "ix_intelligence_observations_fixture_type_captured",
+            "fixture_id",
+            "data_type",
+            "captured_at",
+        ),
+        Index(
+            "ix_intelligence_observations_source_type_captured",
+            "source_id",
+            "data_type",
+            "captured_at",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    observation_key: Mapped[str] = mapped_column(String(64))
+    fixture_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("fixtures.id", name="fk_intelligence_observations_fixture"),
+    )
+    source_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("intelligence_sources.id", name="fk_intelligence_observations_source"),
+    )
+    raw_payload_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey(
+            "intelligence_raw_payloads.id",
+            name="fk_intelligence_observations_raw_payload",
+        ),
+        nullable=True,
+    )
+    source_url: Mapped[str] = mapped_column(String(1000))
+    source_record_id: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    data_type: Mapped[str] = mapped_column(String(40))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    raw_payload_hash: Mapped[str] = mapped_column(String(64))
+    parser_version: Mapped[str] = mapped_column(String(100))
+    schema_version: Mapped[str] = mapped_column(String(40))
+    source_policy: Mapped[str] = mapped_column(String(40))
+    semantic_status: Mapped[str] = mapped_column(String(40))
+    capture_window: Mapped[str] = mapped_column(String(20))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class TeamIdentityMappingORM(Base):
+    """来源球队身份的不可变映射决策。"""
+
+    __tablename__ = "team_identity_mappings"
+    __table_args__ = (
+        UniqueConstraint("mapping_key", name="uq_team_identity_mappings_key"),
+        CheckConstraint(
+            "status IN ('MATCHED', 'UNMAPPED', 'AMBIGUOUS', " "'WEATHER_UNAVAILABLE', 'REJECTED')",
+            name="ck_team_identity_mappings_status",
+        ),
+        CheckConstraint(
+            "method IN ('EXACT_EXTERNAL_ID', 'EXACT_CANONICAL_NAME', " "'MANUAL_REVIEWED', 'NONE')",
+            name="ck_team_identity_mappings_method",
+        ),
+        CheckConstraint(
+            "(status = 'MATCHED' AND team_id IS NOT NULL) OR "
+            "(status <> 'MATCHED' AND team_id IS NULL)",
+            name="ck_team_identity_mappings_target",
+        ),
+        Index("ix_team_identity_mappings_source_name", "source_id", "source_team_name"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    mapping_key: Mapped[str] = mapped_column(String(64))
+    source_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("intelligence_sources.id", name="fk_team_identity_mappings_source"),
+    )
+    source_team_id: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    source_team_name: Mapped[str] = mapped_column(String(160))
+    competition_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("competitions.id", name="fk_team_identity_mappings_competition"),
+        nullable=True,
+    )
+    team_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("teams.id", name="fk_team_identity_mappings_team"),
+        nullable=True,
+    )
+    status: Mapped[str] = mapped_column(String(40))
+    method: Mapped[str] = mapped_column(String(40))
+    reason_code: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    raw_payload_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("intelligence_raw_payloads.id", name="fk_team_identity_mappings_raw_payload"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class FixtureIdentityMappingORM(Base):
+    """来源比赛身份的不可变映射决策。"""
+
+    __tablename__ = "fixture_identity_mappings"
+    __table_args__ = (
+        UniqueConstraint("mapping_key", name="uq_fixture_identity_mappings_key"),
+        CheckConstraint(
+            "status IN ('MATCHED', 'UNMAPPED', 'AMBIGUOUS', " "'WEATHER_UNAVAILABLE', 'REJECTED')",
+            name="ck_fixture_identity_mappings_status",
+        ),
+        CheckConstraint(
+            "method IN ('EXACT_EXTERNAL_ID', 'EXACT_CANONICAL_NAME', " "'MANUAL_REVIEWED', 'NONE')",
+            name="ck_fixture_identity_mappings_method",
+        ),
+        CheckConstraint(
+            "(status = 'MATCHED' AND fixture_id IS NOT NULL) OR "
+            "(status <> 'MATCHED' AND fixture_id IS NULL)",
+            name="ck_fixture_identity_mappings_target",
+        ),
+        Index("ix_fixture_identity_mappings_source_fixture", "source_id", "source_fixture_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    mapping_key: Mapped[str] = mapped_column(String(64))
+    source_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("intelligence_sources.id", name="fk_fixture_identity_mappings_source"),
+    )
+    source_fixture_id: Mapped[str] = mapped_column(String(256))
+    source_competition: Mapped[str] = mapped_column(String(160))
+    source_home_team: Mapped[str] = mapped_column(String(160))
+    source_away_team: Mapped[str] = mapped_column(String(160))
+    source_kickoff: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    fixture_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("fixtures.id", name="fk_fixture_identity_mappings_fixture"),
+        nullable=True,
+    )
+    status: Mapped[str] = mapped_column(String(40))
+    method: Mapped[str] = mapped_column(String(40))
+    reason_code: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    raw_payload_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey(
+            "intelligence_raw_payloads.id",
+            name="fk_fixture_identity_mappings_raw_payload",
+        ),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class VenueMappingORM(Base):
+    """经人工核验坐标来源的不可变球场映射决策。"""
+
+    __tablename__ = "venue_mappings"
+    __table_args__ = (
+        UniqueConstraint("mapping_key", name="uq_venue_mappings_key"),
+        CheckConstraint(
+            "status IN ('MATCHED', 'UNMAPPED', 'AMBIGUOUS', " "'WEATHER_UNAVAILABLE', 'REJECTED')",
+            name="ck_venue_mappings_status",
+        ),
+        CheckConstraint(
+            "method IN ('EXACT_EXTERNAL_ID', 'EXACT_CANONICAL_NAME', " "'MANUAL_REVIEWED', 'NONE')",
+            name="ck_venue_mappings_method",
+        ),
+        CheckConstraint(
+            "(latitude IS NULL) = (longitude IS NULL)",
+            name="ck_venue_mappings_coordinate_pair",
+        ),
+        CheckConstraint(
+            "latitude IS NULL OR (latitude >= -90 AND latitude <= 90)",
+            name="ck_venue_mappings_latitude",
+        ),
+        CheckConstraint(
+            "longitude IS NULL OR (longitude >= -180 AND longitude <= 180)",
+            name="ck_venue_mappings_longitude",
+        ),
+        CheckConstraint(
+            "status <> 'MATCHED' OR "
+            "(latitude IS NOT NULL AND coordinate_source_url IS NOT NULL)",
+            name="ck_venue_mappings_provenance",
+        ),
+        Index("ix_venue_mappings_fixture_captured", "fixture_id", "captured_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    mapping_key: Mapped[str] = mapped_column(String(64))
+    fixture_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("fixtures.id", name="fk_venue_mappings_fixture"),
+    )
+    source_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("intelligence_sources.id", name="fk_venue_mappings_source"),
+    )
+    source_venue_name: Mapped[str] = mapped_column(String(200))
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
+    coordinate_source: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    coordinate_source_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    status: Mapped[str] = mapped_column(String(40))
+    method: Mapped[str] = mapped_column(String(40))
+    reason_code: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    raw_payload_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("intelligence_raw_payloads.id", name="fk_venue_mappings_raw_payload"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
