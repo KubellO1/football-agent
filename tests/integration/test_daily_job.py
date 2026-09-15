@@ -17,7 +17,7 @@ import pytest_asyncio
 from sqlalchemy import func, select
 
 from app.agents.interfaces import CommitteeReviewer
-from app.config.settings import Settings, get_settings
+from app.config.settings import Settings
 from app.core.container import Container
 from app.database.base import Base
 from app.models.entities.bookmaker import Bookmaker
@@ -47,6 +47,7 @@ from app.repositories.sqlalchemy.reference_repositories import (
 )
 from app.schemas.committee_review import CommitteeReview, CommitteeReviewContext, SelectionReview
 from app.workers.daily_job import run_daily_job
+from tests.database_safety import require_test_database_url, run_guarded_metadata_operation
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,7 +58,7 @@ PAST = datetime(2026, 5, 1, 18, 0, tzinfo=UTC)
 
 
 def _test_dsn() -> str:
-    return os.environ.get("TEST_DATABASE_URL") or get_settings().sqlalchemy_dsn
+    return require_test_database_url(os.environ)
 
 
 class FakeFixturesProvider(FixturesProvider):
@@ -120,20 +121,21 @@ class FakeReviewer(CommitteeReviewer):
 
 @pytest_asyncio.fixture
 async def container():
+    dsn = _test_dsn()
     settings = Settings(
-        database_url=_test_dsn(),
+        database_url=dsn,
         openai_api_key="test",
         analysis_odds_max_age_minutes=52_560_000,
     )
     ctx = Container(settings)
     ctx.init_resources()
     async with ctx.database.engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await run_guarded_metadata_operation(conn, dsn=dsn, operation=Base.metadata.create_all)
     try:
         yield ctx
     finally:
         async with ctx.database.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
+            await run_guarded_metadata_operation(conn, dsn=dsn, operation=Base.metadata.drop_all)
         await ctx.shutdown_resources()
 
 

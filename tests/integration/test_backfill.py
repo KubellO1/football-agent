@@ -13,7 +13,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import func, select
 
-from app.config.settings import Settings, get_settings
+from app.config.settings import Settings
 from app.core.container import Container
 from app.database.base import Base
 from app.providers.interfaces.fixtures_provider import FixturesProvider
@@ -26,10 +26,11 @@ from app.services.backfill import (
     write_checkpoint,
     write_league_checkpoint,
 )
+from tests.database_safety import require_test_database_url, run_guarded_metadata_operation
 
 
 def _test_dsn() -> str:
-    return os.environ.get("TEST_DATABASE_URL") or get_settings().sqlalchemy_dsn
+    return require_test_database_url(os.environ)
 
 
 class FakeFixturesProvider(FixturesProvider):
@@ -66,16 +67,17 @@ async def _fixture_count(container: Container) -> int:
 
 @pytest_asyncio.fixture
 async def container():
-    settings = Settings(database_url=_test_dsn(), openai_api_key="test")
+    dsn = _test_dsn()
+    settings = Settings(database_url=dsn, openai_api_key="test")
     ctx = Container(settings)
     ctx.init_resources()
     async with ctx.database.engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await run_guarded_metadata_operation(conn, dsn=dsn, operation=Base.metadata.create_all)
     try:
         yield ctx
     finally:
         async with ctx.database.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
+            await run_guarded_metadata_operation(conn, dsn=dsn, operation=Base.metadata.drop_all)
         await ctx.shutdown_resources()
 
 
