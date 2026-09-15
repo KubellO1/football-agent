@@ -1,0 +1,277 @@
+{
+  "task_id": "TASK-20260915-062",
+  "title": "Production Database Recovery Safety + Disposable Rehearsal",
+  "status": "production_database_recovery_approval_gate",
+  "branch": "codex/TASK-20260915-062",
+  "base_commit": "6cc6c8f03bcf4f537db8ab49711402e71155de70",
+  "commits": ["0b05e5e79d1db1bc6f9d9a812562eb2ce2b37d62"],
+  "root_cause": {
+    "confidence": "HIGH_CONFIDENCE_NOT_STATEMENT_LOG_PROVEN",
+    "finding": "Three integration modules fell back from absent TEST_DATABASE_URL to the application DATABASE_URL and then executed Base.metadata.drop_all().",
+    "why_ledger_survived": "alembic_version is outside Base.metadata, so mapped business tables could be dropped while the 0021 ledger row remained.",
+    "incident_window": "after 2026-09-02T17:00:25+02:00 and before 2026-09-03T11:00:34Z",
+    "forensic_limit": "PostgreSQL statement logging was disabled, so the exact DROP statements are not durably recorded."
+  },
+  "test_database_safety": {
+    "fixed": true,
+    "explicit_test_dsn_required": true,
+    "application_dsn_fallback_removed": true,
+    "protected_database_names": ["football", "postgres", "template0", "template1"],
+    "required_test_identity": "database name must end with _test",
+    "connected_identity_check": "SELECT current_database() must equal the explicit TEST_DATABASE_URL database before metadata DDL",
+    "ci_migration_guard": "python -m tests.database_safety runs before alembic upgrade head",
+    "fail_closed_proof": {
+      "missing_TEST_DATABASE_URL": "PASS; failure occurs before engine creation or mutation",
+      "TEST_DATABASE_URL_to_football": "PASS; protected identity rejected before mutation",
+      "DATABASE_URL_to_football_without_TEST_DATABASE_URL": "PASS; no fallback",
+      "connected_database_mismatch": "PASS; rejected before run_sync",
+      "production_tables_during_full_integration": "1 before / 1 after",
+      "production_revision_during_full_integration": "0021 before / 0021 after"
+    }
+  },
+  "destructive_path_audit": {
+    "status": "COMPLETE_FOR_REPOSITORY_AT_BASE_6cc6c8f",
+    "integration_metadata_ddl": {
+      "paths": 4,
+      "files": [
+        "tests/integration/conftest.py",
+        "tests/integration/test_backfill.py",
+        "tests/integration/test_backtest.py",
+        "tests/integration/test_daily_job.py"
+      ],
+      "result": "all create_all/drop_all calls now use the connected identity guard"
+    },
+    "ci_test_migration": {
+      "file": ".github/workflows/ci.yml",
+      "result": "explicit test DSN plus connected identity guard before alembic upgrade head"
+    },
+    "alembic_downgrades": {
+      "scope": "0001 through 0021",
+      "result": "expected drop_table/drop_column/drop_index/drop_constraint operations; not executed; remain approval-controlled"
+    },
+    "backup_restore_script": {
+      "file": "scripts/backup_pgdata.ps1",
+      "operations": "DROP/CREATE of fixed disposable database football_restore_test",
+      "result": "audited, not executed; name-isolated but should receive connected-identity hardening in a separate task before future use"
+    },
+    "synthetic_cleanup": {
+      "file": "scripts/synthetic_dataset.py",
+      "operations": "source-scoped DELETE for synthetic-dev rows",
+      "result": "audited, not executed; still application-DSN driven and should be separately hardened"
+    },
+    "truncate_occurrences": 0,
+    "production_destructive_operations": 0
+  },
+  "recovery_inventory": {
+    "best_candidate": {
+      "path": "C:/Users/ruowa/Projects/football-agent-production-backups/TASK-20260830-032-production-0021/production_0020_before_0021_20260830_204115.dump",
+      "timestamp": "2026-08-30T20:41:16+02:00",
+      "bytes": 888381,
+      "sha256": "494E3F0FB74DE399C949BE5D773B5F8BA46E6802E4B2D84640632F8B0DC20579",
+      "source_revision": "0020",
+      "selection_reason": "newest complete production-origin custom-format backup found; same data lineage as preserved football_reconcile_current_preflight_20260830"
+    },
+    "other_candidates": [
+      "football_reconcile_current_preflight_20260830 (preserved DB, 0021)",
+      "football_current_preflight_0020_20260830 (preserved DB, 0020)",
+      "production_0020_20260830_192838.dump (older verified custom dump)",
+      "TASK-20260827-021 production reconciliation dumps",
+      "backup_pre_013_2026-08-05.sql",
+      "backup_pre_backfill_2026-08-04*.sql",
+      "football_agent_backup_20260717_003141.sql",
+      "football_pre_schema_repair_20260726.dump",
+      "TASK-20260914-060 damaged-production ledger-only dump",
+      "TASK-20260914-060 verified-source clone dump (derived, not newer production data)"
+    ],
+    "wal_archive": {
+      "archive_mode": "off",
+      "archive_command": "disabled",
+      "wal_keep_size": "0",
+      "pitr_to_incident": false,
+      "reason": "only current Sep 14-15 WAL remains; no archive covers the Sep 3 incident"
+    },
+    "volume_snapshot": {
+      "usable_snapshot_found": false,
+      "active_volume": "football-agent_pgdata",
+      "damaged_volume_preserved": true
+    }
+  },
+  "last_known_healthy_evidence": {
+    "date": "2026-08-31",
+    "fixtures": 7719,
+    "predictions": 576,
+    "bookmakers": 1,
+    "odds_snapshots": 0,
+    "sources": ["TASK-20260831-037", "TASK-20260831-039"]
+  },
+  "recovered_state": {
+    "revision_before_upgrade": "0020",
+    "revision_after_upgrade": "0021",
+    "canonical_tables": 18,
+    "canonical_columns": 216,
+    "canonical_indexes": 61,
+    "canonical_constraints": 202,
+    "row_counts": {
+      "bankroll_entries": 0,
+      "bookmakers": 0,
+      "competitions": 465,
+      "decision_logs": 0,
+      "fixtures": 7624,
+      "lineup_players": 0,
+      "lineups": 0,
+      "odds_snapshots": 0,
+      "performance_snapshots": 0,
+      "player_availability_observations": 0,
+      "players": 0,
+      "predictions": 569,
+      "seasons": 0,
+      "settlements": 0,
+      "team_match_statistics": 0,
+      "teams": 6469,
+      "value_bets": 0
+    },
+    "sequence_inventory": {"bankroll_entries_sequence_seq": null},
+    "schema_drift": 0,
+    "canonical_natural_key_duplicates": 0,
+    "foreign_key_orphans": 0,
+    "invalid_or_unvalidated_constraints": 0,
+    "semantic_fixture_collision_groups": 2,
+    "semantic_fixture_collision_note": "Pre-existing duplicate-looking competition/home/away/kickoff groups with distinct API-Football IDs; not violations of the canonical external_source/external_id natural key and not changed during recovery."
+  },
+  "rehearsals": {
+    "first": {
+      "database": "football_recovery_r1_test",
+      "pg_restore": "PASS",
+      "upgrade_0020_to_0021": "PASS",
+      "alembic_check": "PASS",
+      "schema_hash": "18C334664F110CD165757DB43F271A31462600AF1941DAC4329DF5ED7224360F",
+      "data_hash": "C2C8814DE2A29623475BA07F92AA36F0F910B63DADF4891C78B676B7F14F1B0A",
+      "integrity": "PASS"
+    },
+    "second": {
+      "database": "football_recovery_r2_test",
+      "pg_restore": "PASS",
+      "upgrade_0020_to_0021": "PASS",
+      "alembic_check": "PASS",
+      "schema_hash": "18C334664F110CD165757DB43F271A31462600AF1941DAC4329DF5ED7224360F",
+      "data_hash": "C2C8814DE2A29623475BA07F92AA36F0F910B63DADF4891C78B676B7F14F1B0A",
+      "integrity": "PASS"
+    },
+    "deterministic": true
+  },
+  "application_compatibility": {
+    "result": "PASS_WITH_DATA_GAP_CAVEAT",
+    "repositories_initialized": true,
+    "fixtures_read": true,
+    "teams_read": true,
+    "competitions_read": true,
+    "prediction_rows_read": true,
+    "bookmaker_repository_read": true,
+    "dashboard_built_read_only": true,
+    "dashboard_fixture_rows": 6,
+    "external_api_calls": 0,
+    "writes": 0,
+    "caveat": "Recovered candidate has zero bookmakers and its predictions are decision records; no aggregate prediction was available from the aggregate repository."
+  },
+  "known_data_gap": {
+    "minimum_only": true,
+    "fixtures": {
+      "count": 95,
+      "classification": "REQUIRES_EXTERNAL_SOURCE",
+      "evidence": "TASK-20260831-037 records the 95 inserts and league totals but no raw API response or row-level export was preserved. Exact provider IDs/rows must not be fabricated."
+    },
+    "predictions": {
+      "count": 7,
+      "classification": "IRRECOVERABLE_AS_EXACT_ORIGINAL_ROWS",
+      "evidence": "Only aggregate counts are preserved. Re-running a model would create new records, not recover the original point-in-time predictions."
+    },
+    "bookmakers": {
+      "count": 1,
+      "classification": "RECONSTRUCTABLE_FROM_LOCAL_ARTIFACT",
+      "evidence": "TASK-20260831-039 preserves the canonical Bet365 natural identity and repository semantics; no dependent odds rows exist. Reconstruction still requires separate write approval."
+    },
+    "odds_snapshots": {"count": 0, "classification": "NO_KNOWN_GAP"},
+    "post_2026_08_31_writes": {
+      "classification": "UNKNOWN",
+      "note": "No complete post-Aug-31 backup/WAL archive exists; additional losses cannot be quantified without fabricating evidence."
+    }
+  },
+  "production_recovery_plan": {
+    "preferred_strategy": "validated replacement database plus atomic name cutover; never overwrite the damaged forensic database",
+    "steps": [
+      "Confirm all PostgreSQL writers are disabled and no writer/Alembic sessions or locks exist.",
+      "Take a fresh forensic custom-format dump of current football and preserve/export football-agent_pgdata before any cutover.",
+      "Create an unmistakably named staging database and restore the SHA-verified Aug-30 candidate.",
+      "Run the rehearsed repository Alembic 0020 to 0021 upgrade against staging only.",
+      "Require exact schema hash, row counts, sequence inventory, zero canonical duplicates, zero FK orphans, clean alembic check and application read-only compatibility.",
+      "Apply no delta reconstruction unless separately approved after row-level evidence review.",
+      "Terminate application connections, rename football to a timestamped damaged/forensic database, then rename the validated staging database to football.",
+      "Re-run identity, revision, schema, data-integrity and application initialization checks before allowing any writer to resume.",
+      "Rollback by reversing database names if validation fails; retain all dumps and the original volume."
+    ],
+    "estimated_cutover_downtime": "approximately 5-15 minutes after staging validation; excludes optional delta reconstruction",
+    "rollback_ready": "PROCEDURE_AND_RECOVERY_ASSETS_READY_NOT_EXECUTED_ON_PRODUCTION",
+    "conditions_before_execution": [
+      "Merge/deploy the test-safety fix before any integration testing is re-enabled.",
+      "Explicitly accept the minimum known 95 fixture / 7 prediction / 1 bookmaker gap or separately approve evidence-based reconstruction.",
+      "Reconfirm an administrator-level writer freeze and take fresh forensic backup/volume preservation.",
+      "Do not include Alembic 0022 in recovery."
+    ]
+  },
+  "tests": {
+    "focused_database_safety": "13 passed",
+    "full_unit": "698 passed",
+    "full_integration": "103 passed against football_task_062_integration_test",
+    "ruff_changed_python": "PASS",
+    "black_changed_python": "PASS",
+    "mypy_database_safety_helper": "PASS with CI-equivalent follow-imports=silent",
+    "git_diff_check": "PASS",
+    "warnings": "two existing Starlette/httpx/anyio deprecation warnings"
+  },
+  "files_changed": [
+    ".github/workflows/ci.yml",
+    "tests/database_safety.py",
+    "tests/unit/test_database_safety.py",
+    "tests/integration/conftest.py",
+    "tests/integration/test_backfill.py",
+    "tests/integration/test_backtest.py",
+    "tests/integration/test_daily_job.py",
+    "tasks/completed/TASK-20260915-062.md",
+    "reports/codex/TASK-20260915-062_result.json",
+    "reports/codex/TASK-20260915-062_result.md",
+    "handoff/latest_status.json"
+  ],
+  "production_impact": {
+    "production_database_reads": "identity/revision/table-count catalog checks only",
+    "production_database_writes": 0,
+    "production_schema_operations": 0,
+    "external_api_calls": 0,
+    "production_jobs_run": 0,
+    "scheduler_changes": 0,
+    "deployment": 0,
+    "production_restore": 0
+  },
+  "frozen_unchanged": true,
+  "summary_fields": {
+    "ROOT_CAUSE_CONFIDENCE": "HIGH_CONFIDENCE_NOT_STATEMENT_LOG_PROVEN",
+    "TEST_DSN_GUARD_FIXED": "yes",
+    "DESTRUCTIVE_PATHS_AUDITED": "yes",
+    "BEST_RECOVERY_CANDIDATE": "production_0020_before_0021_20260830_204115.dump",
+    "BACKUP_TIMESTAMP": "2026-08-30T20:41:16+02:00",
+    "RECOVERED_REVISION": "0021",
+    "RECOVERED_TABLES": 18,
+    "RECOVERED_FIXTURES": 7624,
+    "RECOVERED_PREDICTIONS": 569,
+    "KNOWN_DATA_GAP": "minimum 95 fixtures, 7 predictions, 1 bookmaker; later writes unknown",
+    "CLONE_REHEARSAL_1": "PASS",
+    "CLONE_REHEARSAL_2": "PASS",
+    "APPLICATION_COMPATIBILITY": "PASS_WITH_DATA_GAP_CAVEAT",
+    "SCHEMA_DRIFT": 0,
+    "DUPLICATES": "canonical natural keys 0; pre-existing semantic fixture collision groups 2",
+    "ORPHANS": 0,
+    "PRODUCTION_RECOVERY_READY": "CONDITIONALLY_READY_FOR_APPROVAL",
+    "ROLLBACK_READY": "yes_procedure_and_assets_ready"
+  },
+  "approval_gate": "PRODUCTION_DATABASE_RECOVERY_APPROVAL_GATE",
+  "next_action": "Review and merge/deploy the test-safety fix, explicitly decide how to handle the known data gap, then separately authorize the documented production recovery procedure. Alembic 0022 remains frozen."
+}

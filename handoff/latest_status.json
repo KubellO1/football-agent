@@ -1,21 +1,38 @@
 {
-  "task_id": "TASK-20260901-041",
-  "status": "completed_local_approval_gate",
-  "branch": "codex/TASK-20260901-041",
-  "implementation_commit": "906dd96",
-  "summary": "Confirmed Home vs Away was caused by the Dashboard builder ignoring canonical team rows when decision predictions were absent; added reference-data labels and a configuration-driven EV threshold display.",
-  "root_cause": "C_db_builder_did_not_read_team_names",
-  "verification": {
-    "production_db": "READ ONLY; both fixture FKs and all four team rows exist",
-    "focused": "9 passed",
-    "unit": "689 passed",
-    "task_scope_quality": "Ruff, Black, MyPy and git diff --check passed for the clean task-scoped modules; legacy renderer/types debt documented"
+  "task_id": "TASK-20260915-062",
+  "status": "production_database_recovery_approval_gate",
+  "branch": "codex/TASK-20260915-062",
+  "implementation_commit": "0b05e5e79d1db1bc6f9d9a812562eb2ce2b37d62",
+  "summary": "Integration tests now fail closed on missing/unsafe TEST_DATABASE_URL and verify the actual connected test DB before metadata DDL or CI migration. Two independent disposable restores of the best Aug-30 production backup produced identical canonical 0021 schema/data hashes and passed application compatibility.",
+  "root_cause_confidence": "HIGH_CONFIDENCE_NOT_STATEMENT_LOG_PROVEN",
+  "best_recovery_candidate": "production_0020_before_0021_20260830_204115.dump",
+  "recovered_revision": "0021",
+  "recovered_counts": {
+    "tables": 18,
+    "fixtures": 7624,
+    "predictions": 569,
+    "teams": 6469,
+    "competitions": 465,
+    "bookmakers": 0
   },
-  "provider_health": "Separate producer/consumer contract mismatch; not fixed in this task.",
+  "known_minimum_gap": {
+    "fixtures": 95,
+    "predictions": 7,
+    "bookmakers": 1,
+    "later_writes": "unknown"
+  },
+  "rehearsal_1": "PASS",
+  "rehearsal_2": "PASS",
+  "schema_drift": 0,
+  "canonical_duplicates": 0,
+  "semantic_fixture_collision_groups": 2,
+  "orphans": 0,
+  "application_compatibility": "PASS_WITH_DATA_GAP_CAVEAT",
+  "production_recovery_ready": "CONDITIONALLY_READY_FOR_APPROVAL",
   "production_database_writes": 0,
-  "external_api_calls": 0,
   "production_jobs_run": 0,
+  "external_api_calls": 0,
   "scheduler_changes": 0,
   "frozen_unchanged": true,
-  "next_action": "Review the local commit. Keep Provider Health and legacy Dashboard quality cleanup in separate tasks before production deployment."
+  "next_action": "Review/merge the safety fix, decide whether to accept or reconstruct the known data gap, then grant a separate Production Database Recovery Approval. Do not run Alembic 0022."
 }
