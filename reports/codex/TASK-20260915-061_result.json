@@ -1,0 +1,200 @@
+{
+  "task_id": "TASK-20260915-061",
+  "title": "Production Database Identity/Topology Reconciliation",
+  "status": "read_only_audit_complete_stopped",
+  "branch": "codex/TASK-20260915-061",
+  "base_commit": "6cc6c8f03bcf4f537db8ab49711402e71155de70",
+  "production_identity": {
+    "status": "PROVEN",
+    "runtime_target": "postgresql on localhost:5432, database football, user football",
+    "configuration_source": "C:/Users/ruowa/Projects/football-agent/.env",
+    "settings_behavior": "app/config/settings.py uses an absolute env_file path, so clean release worktrees load the old production tree .env",
+    "container": "football-postgres",
+    "container_image": "postgres:16-alpine",
+    "postgres_version": "16.14",
+    "compose_project": "football-agent",
+    "compose_working_directory": "C:/Users/ruowa/Projects/football-agent",
+    "host_port": 5432,
+    "volume": "football-agent_pgdata",
+    "volume_created": "2026-07-02T17:20:05Z",
+    "alternate_active_postgres_container_found": false,
+    "alternate_active_production_volume_found": false,
+    "note": "Anonymous Docker volumes are dangling; the only active production PostgreSQL container mounts football-agent_pgdata."
+  },
+  "configured_production_database": {
+    "database": "football",
+    "owner": "football",
+    "role_is_superuser": true,
+    "health": "healthy",
+    "active_other_sessions_at_audit": 0,
+    "ungranted_locks_at_audit": 0,
+    "alembic_version": "0021",
+    "public_tables": 1,
+    "public_columns": 1,
+    "public_indexes": 1,
+    "public_constraints": 2,
+    "only_table": "alembic_version",
+    "canonical_0021_tables": 18,
+    "canonical_0021_columns": 216,
+    "canonical_0021_indexes": 61,
+    "canonical_0021_constraints": 202,
+    "missing_business_tables": 17,
+    "classification": "LEDGER_ONLY_NONCANONICAL_0021",
+    "canonical_0021_equivalent": false
+  },
+  "identity_conclusion": {
+    "wrong_database_name_or_hidden_production_database": false,
+    "configured_database_was_emptied": true,
+    "safe_to_treat_a_preserved_clone_as_current_production": false,
+    "reason": "Every production configuration and runtime artifact targets database football on the active football-postgres container. The data-bearing databases are explicitly named rehearsal/preflight/test clones and contain older snapshots."
+  },
+  "last_known_production_state": {
+    "evidence_date": "2026-08-31",
+    "fixtures": 7719,
+    "predictions": 576,
+    "bookmakers": 1,
+    "odds_snapshots": 0,
+    "source_reports": ["TASK-20260831-037", "TASK-20260831-039"]
+  },
+  "preserved_candidates": [
+    {
+      "name": "football_reconcile_current_preflight_20260830",
+      "type": "preserved PostgreSQL clone",
+      "revision": "0021",
+      "tables": 18,
+      "fixtures": 7624,
+      "predictions": 569,
+      "teams": 6469,
+      "competitions": 465,
+      "bookmakers": 0,
+      "odds_snapshots": 0,
+      "assessment": "NEWEST_COMPLETE_LOCAL_CLONE_FOUND; not authoritative current production"
+    },
+    {
+      "name": "football_current_preflight_0020_20260830",
+      "type": "preserved PostgreSQL preflight clone",
+      "revision": "0020",
+      "tables": 18,
+      "fixtures": 7624,
+      "predictions": 569,
+      "teams": 6469,
+      "competitions": 465,
+      "bookmakers": 0,
+      "odds_snapshots": 0,
+      "assessment": "complete pre-0021 data candidate; requires rehearsed 0021 upgrade if selected"
+    },
+    {
+      "path": "C:/Users/ruowa/Projects/football-agent-production-backups/TASK-20260830-032-production-0021/production_0020_before_0021_20260830_204115.dump",
+      "type": "custom-format production backup",
+      "bytes": 888381,
+      "sha256": "494E3F0FB74DE399C949BE5D773B5F8BA46E6802E4B2D84640632F8B0DC20579",
+      "assessment": "fresh pre-0021 production backup; restore only in a disposable rehearsal under a new approval"
+    },
+    {
+      "path": "C:/Users/ruowa/Projects/football-agent-task-worktrees/TASK-20260830-032/backups/TASK-20260830-032/production_0020_20260830_192838.dump",
+      "type": "custom-format production backup",
+      "bytes": 887067,
+      "sha256": "ACA31B8DA841F0D8D5EBA3AF1D1D4315A12E50F6357A1A4B9A6ECBF1FB85A84A",
+      "documented_fixtures": 7624,
+      "documented_predictions": 549,
+      "assessment": "older verified backup"
+    }
+  ],
+  "recovery_delta_from_last_known_state": {
+    "against_newest_complete_clone": {
+      "fixtures_missing": 95,
+      "predictions_missing": 7,
+      "bookmakers_missing": 1,
+      "odds_snapshots_missing": 0
+    },
+    "warning": "These are minimum known deltas; writes after the 2026-08-31 evidence may not be represented."
+  },
+  "incident_timeline": {
+    "last_successful_full_schema_runtime_evidence": "2026-09-02T17:00:25+02:00 dashboard_refresh success",
+    "high_volume_schema_activity_evidence": "2026-09-03T07:03:13Z through 07:05:20Z, 1255 buffers, 9344 sync files and 70744 kB WAL distance",
+    "first_logged_missing_table": "2026-09-03T11:00:34Z, relation fixtures does not exist",
+    "loss_window": "after 2026-09-02T17:00:25+02:00 and before 2026-09-03T11:00:34Z",
+    "ddl_statement_log_available": false,
+    "postgres_settings": {
+      "log_statement": "none",
+      "log_connections": "off",
+      "log_disconnections": "off",
+      "logging_collector": "off",
+      "log_min_duration_statement": -1
+    }
+  },
+  "probable_root_cause": {
+    "classification": "HIGH_CONFIDENCE_TEST_DATABASE_SAFETY_DEFECT_NOT_FORENSICALLY_PROVEN",
+    "unsafe_modules": [
+      "tests/integration/test_backfill.py",
+      "tests/integration/test_backtest.py",
+      "tests/integration/test_daily_job.py"
+    ],
+    "contract_violation": "Each module uses TEST_DATABASE_URL if present, otherwise falls back to get_settings().sqlalchemy_dsn, and runs Base.metadata.create_all() then Base.metadata.drop_all().",
+    "why_alembic_version_survived": "alembic_version is not part of SQLAlchemy Base.metadata, so drop_all removes mapped business tables while leaving the ledger marker.",
+    "timing_correlation": [
+      "TASK-20260903-048 pytest cache created at 2026-09-03T08:55:02+02:00",
+      "TASK-20260903-048 reported 103 passing integration tests and completed around 09:22+02:00",
+      "PostgreSQL recorded unusually large checkpoint activity from 09:03:13 to 09:05:20+02:00"
+    ],
+    "why_not_definitive": "The exact test command/environment and DDL statements were not durably recorded, and PostgreSQL statement logging was disabled.",
+    "existing_safe_contract": "tests/integration/conftest.py calls require_test_database_url and requires a database name ending in _test; the three named modules bypass it."
+  },
+  "scheduler_topology": {
+    "current_non_admin_view": "Only legacy FootballAgent-WeeklyReport is visible and disabled.",
+    "administrator_baseline_from_TASK_033": "Nine canonical tasks plus four noncanonical tasks and legacy WeeklyReport existed.",
+    "last_approved_enabled_policy_from_TASK_035": "Five low-risk tasks enabled; four writer tasks disabled.",
+    "runtime_log_evidence": "ProviderHealthCheck, DashboardRefresh, DailyPerformanceReport and WeeklyPerformanceReport continued to execute from the clean 6cc6c8f release through 2026-09-15, proving the current non-admin view is incomplete.",
+    "modifications": 0,
+    "recommendation": "Capture a fresh administrator inventory at the recovery gate; do not infer deletion from the restricted view."
+  },
+  "risk_findings": [
+    "The application role football is a PostgreSQL superuser with CREATEDB.",
+    "Settings uses an absolute .env path, coupling worktrees to the production target unless explicitly overridden.",
+    "Three integration test modules bypass the existing _test DSN guard.",
+    "The revision ledger reports 0021 while the actual production schema is noncanonical and empty.",
+    "No backup or clone containing the complete last-known 7719-fixture/576-prediction/one-bookmaker state was found."
+  ],
+  "reconciliation_decision": {
+    "production_0022_migration_allowed": false,
+    "production_stamp_allowed": false,
+    "TASK_060_pr_allowed": false,
+    "canary_allowed": false,
+    "safe_to_restore_now": false,
+    "next_gate": "PRODUCTION_DATABASE_RECOVERY_APPROVAL_GATE"
+  },
+  "recommended_remediation": [
+    "Keep PostgreSQL-writing jobs disabled and separately review whether repeatedly failing report jobs should be paused.",
+    "Create a separate P0 code task that forces every destructive integration fixture to require an explicit _test DSN, removes production fallback, and adds regression tests.",
+    "Choose the newest verified backup/clone only after a disposable restore rehearsal, exact schema/data inventory, and acceptance of the known data gap.",
+    "Build a deterministic delta reconstruction plan from TASK-037 and TASK-039 evidence; never fabricate or silently discard the seven-prediction delta.",
+    "Rehearse restore plus 0020-to-0021 migration, exact schema comparison and rollback before requesting production recovery approval.",
+    "Later introduce a least-privilege application role and isolated test credentials/database in a separate task."
+  ],
+  "verification": {
+    "source_and_config_audit": "PASS",
+    "docker_container_and_volume_audit": "PASS",
+    "postgres_catalog_inventory": "PASS, read-only",
+    "backup_and_clone_inventory": "PASS, read-only",
+    "runtime_log_timeline": "PASS",
+    "integration_test_safety_static_audit": "PASS, defect found",
+    "tests_run": 0,
+    "reason_no_tests": "The discovered integration fixtures can drop the configured production schema when TEST_DATABASE_URL is absent."
+  },
+  "files_changed": [
+    "tasks/completed/TASK-20260915-061.md",
+    "reports/codex/TASK-20260915-061_result.json",
+    "reports/codex/TASK-20260915-061_result.md",
+    "handoff/latest_status.json"
+  ],
+  "production_database_reads": "catalog, counts and topology only",
+  "production_database_writes": 0,
+  "external_api_calls": 0,
+  "production_jobs_run": 0,
+  "scheduler_changes": 0,
+  "migration_operations": 0,
+  "pr_created": false,
+  "master_merged": false,
+  "frozen_unchanged": true,
+  "stop_reason": "Production recovery requires a separately approved clone rehearsal and production recovery gate; 0022 remains blocked."
+}

@@ -1,21 +1,18 @@
 {
-  "task_id": "TASK-20260901-041",
-  "status": "completed_local_approval_gate",
-  "branch": "codex/TASK-20260901-041",
-  "implementation_commit": "906dd96",
-  "summary": "Confirmed Home vs Away was caused by the Dashboard builder ignoring canonical team rows when decision predictions were absent; added reference-data labels and a configuration-driven EV threshold display.",
-  "root_cause": "C_db_builder_did_not_read_team_names",
-  "verification": {
-    "production_db": "READ ONLY; both fixture FKs and all four team rows exist",
-    "focused": "9 passed",
-    "unit": "689 passed",
-    "task_scope_quality": "Ruff, Black, MyPy and git diff --check passed for the clean task-scoped modules; legacy renderer/types debt documented"
-  },
-  "provider_health": "Separate producer/consumer contract mismatch; not fixed in this task.",
+  "task_id": "TASK-20260915-061",
+  "status": "read_only_audit_complete_stopped",
+  "branch": "codex/TASK-20260915-061",
+  "summary": "Configured production identity is proven as local Docker database football on football-agent_pgdata. It is a ledger-only noncanonical 0021 database containing only alembic_version; 17 canonical business tables are absent.",
+  "root_cause": "High-confidence test database safety defect: three integration fixtures fall back to production DSN and execute Base.metadata.drop_all(). Timing and surviving alembic_version match, but PostgreSQL DDL statement logging was disabled, so exact attribution is not forensic proof.",
+  "latest_complete_candidate": "football_reconcile_current_preflight_20260830: revision 0021, 18 tables, 7624 fixtures, 569 predictions, 6469 teams, 465 competitions, 0 bookmakers, 0 odds snapshots",
+  "last_known_production": "2026-08-31: 7719 fixtures, 576 predictions, 1 bookmaker, 0 odds snapshots",
   "production_database_writes": 0,
   "external_api_calls": 0,
   "production_jobs_run": 0,
   "scheduler_changes": 0,
+  "migration_operations": 0,
   "frozen_unchanged": true,
-  "next_action": "Review the local commit. Keep Provider Health and legacy Dashboard quality cleanup in separate tasks before production deployment."
+  "production_0022_allowed": false,
+  "next_gate": "PRODUCTION_DATABASE_RECOVERY_APPROVAL_GATE",
+  "recommended_next_action": "First fix the destructive integration-test DSN fallback in a separate P0 PR. Then perform a fresh disposable restore/recovery rehearsal from the newest verified backup/clone, quantify and plan the known data delta, validate exact canonical 0021 and rollback, and STOP for explicit production recovery approval."
 }
