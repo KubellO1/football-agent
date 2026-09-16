@@ -1,0 +1,100 @@
+{
+  "task_id": "TASK-20260916-065",
+  "title": "Clean Production Runtime Preparation",
+  "status": "COMPLETE_STOPPED_AT_CONTROLLED_DAILY_CANARY_APPROVAL_GATE",
+  "branch": "codex/TASK-20260916-065",
+  "base_commit": "6cc6c8f03bcf4f537db8ab49711402e71155de70",
+  "release": {
+    "path": "C:/Users/ruowa/Projects/football-agent-release-dashboard-6cc6c8f",
+    "head": "6cc6c8f03bcf4f537db8ab49711402e71155de70",
+    "git_status": "clean",
+    "persistent_api_image_id": "sha256:a0a65ef04a6a5ebf634144581115a381567eda2b567908301a9cda4b32d9974a",
+    "persistent_api_release_label": "6cc6c8f03bcf4f537db8ab49711402e71155de70",
+    "persistent_api_mount": "C:/Users/ruowa/Projects/football-agent-release-dashboard-6cc6c8f:/app",
+    "build_context": "tracked files from git archive only",
+    "image_contains_env_file": false
+  },
+  "persistent_api": {
+    "container": "football-api",
+    "status": "running",
+    "health_endpoint": {"http_status": 200, "body": {"status": "ok"}},
+    "ready_endpoint": {"http_status": 200, "body": {"status": "ready", "database": "ok", "redis": "ok"}},
+    "tracebacks": 0,
+    "module_not_found_errors": 0,
+    "credential_leak_markers": 0,
+    "external_football_api_url_markers": 0
+  },
+  "scheduler_runtime": {
+    "python_path": "C:/Users/ruowa/Projects/football-agent-release-dashboard-6cc6c8f/.venv/Scripts/python.exe",
+    "python_version": "3.12.14",
+    "project_version": "0.1.0",
+    "tzdata_version": "2026.4",
+    "pip_check": "PASS",
+    "zoneinfo_europe_paris": "PASS",
+    "scheduler_runner_import": "PASS",
+    "provider_imports": "PASS",
+    "scheduler_help": "PASS",
+    "pyproject_sha256": "FEBF2741D671BC4E513CC7145C138F6E83215AED0CD519DFD487104AB8AF2919",
+    "dependency_snapshot": "C:/Users/ruowa/Projects/football-agent-task-artifacts/TASK-20260916-065/scheduler_venv_freeze.txt",
+    "dependency_snapshot_sha256": "D023DC8C41087B3FBD85F5CA2BF82A38EBC1E5F0B29F92F24706F2F26EA4BD2A",
+    "repository_lock_file": "absent",
+    "install_source": "declared pyproject.toml dependencies only",
+    "unique_scheduler_commands": 8,
+    "unresolved_scheduler_commands": 0
+  },
+  "scheduler": {
+    "administrator_verified": true,
+    "canonical_task_count": 9,
+    "definition_changes": 0,
+    "writer_processes": 0,
+    "all_executables_match_new_venv": true,
+    "all_working_directories_match_clean_release": true,
+    "writer_tasks": {
+      "FootballAgent-DailyProductionRun": "Disabled",
+      "FootballAgent-ProductionRecoveryCheck": "Disabled",
+      "FootballAgent-PreKickoffValidation": "Disabled",
+      "FootballAgent-SettlementFallback": "Disabled"
+    }
+  },
+  "database_and_cache": {
+    "postgresql": "healthy",
+    "redis": "healthy",
+    "alembic_revision": "0021",
+    "repository_alembic_head": "0021",
+    "alembic_check": "CLEAN",
+    "canonical_tables": 18,
+    "fixtures_before_after": [7624, 7624],
+    "predictions_before_after": [569, 569],
+    "bookmakers_before_after": [0, 0],
+    "odds_snapshots_before_after": [0, 0],
+    "schema_sha256": "18C334664F110CD165757DB43F271A31462600AF1941DAC4329DF5ED7224360F",
+    "foreign_key_orphans": 0,
+    "canonical_duplicate_groups": 0,
+    "postgresql_write_delta": 0,
+    "0022_status": "FROZEN"
+  },
+  "forensic_preservation": {
+    "task_063_assets_verified_present": true,
+    "modified": false
+  },
+  "production_impact": {
+    "persistent_api_rebuilt": true,
+    "scheduler_venv_rebuilt": true,
+    "scheduler_tasks_enabled": 0,
+    "scheduler_definitions_changed": 0,
+    "writer_jobs_run": 0,
+    "production_jobs_manually_triggered": 0,
+    "external_football_data_api_calls": 0,
+    "production_database_writes": 0,
+    "historical_repairs": 0,
+    "frozen_changes": 0
+  },
+  "blockers": [],
+  "non_blocking_hardening_notes": [
+    "No dependency lock file exists; the verified installed set was preserved as a hashed pip-freeze artifact.",
+    "No tracked .dockerignore exists; the final image was built from a sanitized git-archive context.",
+    "The canonical API command still uses uvicorn --reload and the existing local environment profile."
+  ],
+  "final_decision": "READY_FOR_CONTROLLED_DAILY_CANARY",
+  "approval_gate": "No writer task was enabled or executed. Explicit approval remains required."
+}
