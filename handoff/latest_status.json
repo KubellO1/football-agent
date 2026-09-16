@@ -1,21 +1,20 @@
 {
-  "task_id": "TASK-20260901-041",
-  "status": "completed_local_approval_gate",
-  "branch": "codex/TASK-20260901-041",
-  "implementation_commit": "906dd96",
-  "summary": "Confirmed Home vs Away was caused by the Dashboard builder ignoring canonical team rows when decision predictions were absent; added reference-data labels and a configuration-driven EV threshold display.",
-  "root_cause": "C_db_builder_did_not_read_team_names",
-  "verification": {
-    "production_db": "READ ONLY; both fixture FKs and all four team rows exist",
-    "focused": "9 passed",
-    "unit": "689 passed",
-    "task_scope_quality": "Ruff, Black, MyPy and git diff --check passed for the clean task-scoped modules; legacy renderer/types debt documented"
-  },
-  "provider_health": "Separate producer/consumer contract mismatch; not fixed in this task.",
+  "task_id": "TASK-20260916-064",
+  "status": "stopped_at_writer_reenable_approval_gate",
+  "branch": "codex/TASK-20260916-064",
+  "summary": "Redis is running healthy. A temporary clean-release API passed read-only health/readiness and was removed. Persistent production API remains stopped because it bind-mounts the dirty legacy tree. Scheduler runtime Python is broken. All four DB writers remain Disabled.",
+  "recommendation": "NOT_READY_FOR_WRITER_ENABLEMENT",
+  "postgresql": "healthy_0021",
+  "redis": "running_healthy",
+  "persistent_api": "stopped",
+  "temporary_api_validation": "PASS",
+  "writer_tasks_enabled": 0,
   "production_database_writes": 0,
   "external_api_calls": 0,
-  "production_jobs_run": 0,
+  "production_jobs": 0,
+  "historical_gap_repairs": 0,
   "scheduler_changes": 0,
+  "0022_status": "FROZEN",
   "frozen_unchanged": true,
-  "next_action": "Review the local commit. Keep Provider Health and legacy Dashboard quality cleanup in separate tasks before production deployment."
+  "next_action": "Obtain separate approval to prepare a clean persistent API runtime and rebuild the declared-dependency scheduler virtual environment. Do not enable writers before those runtime blockers are resolved."
 }

@@ -1,0 +1,107 @@
+{
+  "task_id": "TASK-20260916-064",
+  "title": "Controlled production re-enable after TASK-20260915-063 recovery",
+  "status": "STOPPED_AT_WRITER_REENABLE_APPROVAL_GATE",
+  "branch": "codex/TASK-20260916-064",
+  "base_commit": "6cc6c8f03bcf4f537db8ab49711402e71155de70",
+  "services": {
+    "postgresql": "running_healthy",
+    "redis": "running_healthy",
+    "existing_production_api": "stopped_unsafe_dirty_bind_mount",
+    "temporary_clean_release_api": "health_ready_pass_then_removed"
+  },
+  "api_audit": {
+    "existing_image": "football-agent-api",
+    "existing_command": "uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload",
+    "existing_bind_mount": "C:/Users/ruowa/Projects/football-agent -> /app rw",
+    "dirty_tree_head": "d7a25fd45b126b27e5c8d9a5f9e361b1760aaedb",
+    "clean_release": "C:/Users/ruowa/Projects/football-agent-release-dashboard-6cc6c8f",
+    "clean_release_head": "6cc6c8f03bcf4f537db8ab49711402e71155de70",
+    "temporary_mount": "clean release mounted read-only; no published port",
+    "health": {"http_status": 200, "body": {"status": "ok"}},
+    "ready": {
+      "http_status": 200,
+      "body": {"status": "ready", "database": "ok", "redis": "ok"}
+    },
+    "tracebacks": 0,
+    "module_errors": 0,
+    "external_http_calls": 0,
+    "api_key_leakage": 0
+  },
+  "database_read_only_verification": {
+    "alembic_revision": "0021",
+    "canonical_tables": 18,
+    "fixtures": 7624,
+    "predictions": 569,
+    "teams": 6469,
+    "competitions": 465,
+    "bookmakers": 0,
+    "odds_snapshots": 0,
+    "other_sessions_after_check": 0,
+    "ungranted_locks": 0,
+    "writes": 0
+  },
+  "scheduler": {
+    "administrator_task_count": 14,
+    "writer_tasks": {
+      "FootballAgent-DailyProductionRun": "Disabled",
+      "FootballAgent-PreKickoffValidation": "Disabled",
+      "FootballAgent-ProductionRecoveryCheck": "Disabled",
+      "FootballAgent-SettlementFallback": "Disabled"
+    },
+    "writer_processes": 0,
+    "changes": 0,
+    "runtime_path": "C:/Users/ruowa/Projects/football-agent-release-dashboard-6cc6c8f",
+    "runtime_python": "C:/Users/ruowa/Projects/football-agent-release-dashboard-6cc6c8f/.venv/Scripts/python.exe",
+    "runtime_python_check": "FAIL: launcher references removed C:/Users/ruowa/AppData/Local/Programs/Python/Python312/python.exe"
+  },
+  "blockers": [
+    "Existing persistent production API container mounts the old dirty working tree read-write and must not be started.",
+    "Canonical Scheduler task executable is broken because its virtual environment references a removed Python 3.12 base installation.",
+    "Recovered database has zero bookmaker rows; normal odds ingestion may recreate canonical bookmaker reference data and requires explicit operational acceptance before odds-writing jobs resume."
+  ],
+  "ordered_writer_reenable_plan": [
+    {
+      "stage": 0,
+      "action": "Prepare a new immutable/clean API runtime from master 6cc6c8f and rebuild a fresh declared-dependency Windows virtual environment at the scheduler release path or a new approved release path.",
+      "acceptance": "API health/ready PASS persistently; Python, pip check and scheduler_runner imports PASS; DB 0021; Redis healthy; no external calls or DB writes."
+    },
+    {
+      "stage": 1,
+      "action": "With separate approval, run one controlled DailyProductionRun while recurring task remains Disabled.",
+      "acceptance": "Exit 0, heartbeat/timeline/log success, bounded external requests, no duplicate fixtures/predictions/snapshots, explicit review of any bookmaker creation and all row deltas."
+    },
+    {
+      "stage": 2,
+      "action": "If Stage 1 passes, enable DailyProductionRun only and observe one scheduled cycle.",
+      "acceptance": "No traceback, rate-limit breach, duplicate data, unexpected historical reconstruction or schema change."
+    },
+    {
+      "stage": 3,
+      "action": "Perform a separately approved natural-window odds/pre-kickoff canary, then enable PreKickoffValidation only after provenance, bookmaker identity and duplicate checks pass.",
+      "acceptance": "Valid T-90/T-60/T-30 fixture, bounded API calls, zero 403/429, canonical bookmaker behavior and zero duplicate snapshots."
+    },
+    {
+      "stage": 4,
+      "action": "Enable SettlementFallback after upstream fixture/value-bet lifecycle is healthy.",
+      "acceptance": "Controlled settlement dry evidence, idempotency and bankroll/settlement duplicate checks."
+    },
+    {
+      "stage": 5,
+      "action": "Enable ProductionRecoveryCheck last.",
+      "acceptance": "Daily heartbeat is healthy and recovery decision is proven to SKIP after success; this task can invoke DailyProductionRun and must not be enabled earlier."
+    }
+  ],
+  "recommendation": "NOT_READY_FOR_WRITER_ENABLEMENT",
+  "production_impact": {
+    "database_writes": 0,
+    "external_api_calls": 0,
+    "production_jobs": 0,
+    "historical_gap_repairs": 0,
+    "scheduler_changes": 0,
+    "writers_enabled": 0,
+    "redis_state_change": "started and left healthy",
+    "0022_status": "FROZEN",
+    "frozen_changes": 0
+  }
+}
