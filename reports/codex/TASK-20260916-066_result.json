@@ -1,0 +1,224 @@
+{
+  "task_id": "TASK-20260916-066",
+  "title": "Controlled DailyProductionRun Canary",
+  "status": "COMPLETE_STOPPED_NOT_READY",
+  "branch": "codex/TASK-20260916-066",
+  "base_commit": "6cc6c8f03bcf4f537db8ab49711402e71155de70",
+  "runtime": {
+    "release_path": "C:/Users/ruowa/Projects/football-agent-release-dashboard-6cc6c8f",
+    "release_head": "6cc6c8f03bcf4f537db8ab49711402e71155de70",
+    "python": "C:/Users/ruowa/Projects/football-agent-release-dashboard-6cc6c8f/.venv/Scripts/python.exe",
+    "command": "python -m app.workers.scheduler_runner --command daily_job --trigger-source manual",
+    "run_id": "a3efceade966",
+    "run_count": 1,
+    "started_at": "2026-09-17T00:02:43+02:00",
+    "duration_seconds": 10.766099,
+    "exit_code": 0,
+    "heartbeat": "success"
+  },
+  "scheduler": {
+    "definition_changes": 0,
+    "writer_processes_before": 0,
+    "writer_processes_after": 0,
+    "writer_tasks_before_after": {
+      "FootballAgent-DailyProductionRun": ["Disabled", "Disabled"],
+      "FootballAgent-ProductionRecoveryCheck": ["Disabled", "Disabled"],
+      "FootballAgent-PreKickoffValidation": ["Disabled", "Disabled"],
+      "FootballAgent-SettlementFallback": ["Disabled", "Disabled"]
+    }
+  },
+  "external_providers": [
+    {
+      "provider": "API-Football",
+      "endpoint_class": "/fixtures by date",
+      "requests": 1,
+      "successes": 1,
+      "failures": 0,
+      "retries": 0
+    },
+    {
+      "provider": "Odds-API.io",
+      "endpoint_class": "/events",
+      "requests": 1,
+      "successes": 1,
+      "failures": 0,
+      "retries": 0,
+      "events_returned": 4419,
+      "target_mappings_requested": 2,
+      "target_mappings_matched": 0,
+      "odds_multi_requests": 0
+    },
+    {
+      "provider": "The Odds API",
+      "endpoint_class": "/sports/{sport}/odds fixture-level fallback",
+      "requests": 1,
+      "successes": 1,
+      "failures": 0,
+      "retries": 0,
+      "events_matched": 2
+    }
+  ],
+  "http_and_security": {
+    "external_api_requests": 3,
+    "http_403": 0,
+    "http_429": 0,
+    "retries": 0,
+    "tracebacks": 0,
+    "api_key_leakage": 0,
+    "raw_secret_occurrences": 0,
+    "note": "Request counts are reconstructed from deterministic provider paths and sanitized provider logs; the application does not emit per-request transport telemetry for all providers."
+  },
+  "database_before": {
+    "alembic_revision": "0021",
+    "canonical_tables": 18,
+    "fixtures": 7624,
+    "teams": 6469,
+    "competitions": 465,
+    "seasons": 0,
+    "bookmakers": 0,
+    "odds_snapshots": 0,
+    "predictions": 569,
+    "value_bets": 0,
+    "decision_logs": 0,
+    "settlements": 0,
+    "bankroll_entries": 0,
+    "duplicates": 0,
+    "orphans": 0
+  },
+  "database_after": {
+    "alembic_revision": "0021",
+    "canonical_tables": 18,
+    "fixtures": 7800,
+    "teams": 6557,
+    "competitions": 481,
+    "seasons": 0,
+    "bookmakers": 46,
+    "odds_snapshots": 276,
+    "predictions": 571,
+    "value_bets": 0,
+    "decision_logs": 0,
+    "settlements": 0,
+    "bankroll_entries": 0,
+    "duplicates": 0,
+    "orphans": 0
+  },
+  "database_delta": {
+    "inserts": {
+      "competitions": 16,
+      "teams": 88,
+      "fixtures": 176,
+      "bookmakers": 46,
+      "odds_snapshots": 276,
+      "predictions": 2
+    },
+    "updates": {"fixtures": 1},
+    "deletes": {},
+    "total_inserts": 604,
+    "total_updates": 1,
+    "total_deletes": 0,
+    "expected_writes": 605,
+    "unexpected_writes": 0,
+    "classification": "All observed writes belong to the current DailyProductionRun fixture, reference-data, odds-snapshot, and decision-audit paths."
+  },
+  "integrity": {
+    "schema_sha256_before": "f430791b8d03739f444c6914edd3ec3cfd004587b91cebab75d84894227d0768",
+    "schema_sha256_after": "f430791b8d03739f444c6914edd3ec3cfd004587b91cebab75d84894227d0768",
+    "schema_changed": false,
+    "sequences_changed": false,
+    "alembic_check": "CLEAN",
+    "canonical_duplicate_groups": 0,
+    "foreign_key_orphans": 0,
+    "deletes": 0
+  },
+  "pipeline_funnel": {
+    "fixtures_discovered": 177,
+    "fixtures_created": 176,
+    "fixtures_updated": 1,
+    "fixtures_unchanged": 0,
+    "service_reported_analyzed": 177,
+    "unsupported_competition": 175,
+    "analysis_candidates_after_whitelist": 2,
+    "odds_candidates": 2,
+    "odds_matched": 2,
+    "odds_snapshots_created": 276,
+    "history_qualified": 0,
+    "data_completeness_qualified": 0,
+    "predictions_created": 2,
+    "prediction_record_kind": "decision audit rows; no model probabilities",
+    "ev_qualified": 0,
+    "confidence_qualified": 0,
+    "gate_qualified": 0,
+    "recommendations_created": 0,
+    "zero_stage_reason": "INSUFFICIENT_HISTORY for both whitelist-eligible La Liga fixtures; 175 other fixtures were SKIPPED_UNSUPPORTED_COMPETITION."
+  },
+  "odds_provenance": {
+    "primary_hits": 0,
+    "fallback_hits": 2,
+    "odds_api_io_snapshots": 0,
+    "the_odds_api_snapshots": 276,
+    "snapshots_with_provider_event_id": 276,
+    "bookmaker_rows_created": 46
+  },
+  "decision_rows": [
+    {
+      "fixture": "Real Betis vs Getafe",
+      "competition": "La Liga",
+      "persisted_state": "WATCH",
+      "semantic_reason": "INSUFFICIENT_HISTORY",
+      "data_quality": 0.0,
+      "ev": null,
+      "confidence": null
+    },
+    {
+      "fixture": "Malaga vs Villarreal",
+      "competition": "La Liga",
+      "persisted_state": "WATCH",
+      "semantic_reason": "INSUFFICIENT_HISTORY",
+      "data_quality": 0.0,
+      "ev": null,
+      "confidence": null
+    }
+  ],
+  "second_run_safety": {
+    "production_second_run_executed": false,
+    "fixtures": "idempotent by external_source + external_id lookup/unique constraint",
+    "reference_data": "idempotent by provider external identity",
+    "odds_snapshots": "idempotent by uq_odds_snapshots_natural and ON CONFLICT DO NOTHING",
+    "predictions": "NOT IDEMPOTENT for the two no-selection/insufficient-history decision rows",
+    "evidence": "DailyTopPicksService calls log_fixture_predictions before its decision-log skip; the no-selection branch unconditionally session.adds a new UUID row, and predictions has no corresponding natural unique constraint.",
+    "expected_replay_effect": "A repeated run for the same date would append another WATCH decision row for each of the same two fixtures."
+  },
+  "post_canary": {
+    "health": "PASS HTTP 200",
+    "ready": "PASS HTTP 200; database=ok; redis=ok",
+    "writer_tasks_remain_disabled": true,
+    "writer_processes": 0,
+    "0022_status": "FROZEN",
+    "frozen_changes": 0
+  },
+  "required_result": {
+    "DAILY_CANARY_RESULT": "PASS_WITH_IDEMPOTENCY_BLOCKER",
+    "RUN_COUNT": 1,
+    "EXTERNAL_API_REQUESTS": 3,
+    "DB_INSERTS_BY_TABLE": "competitions=16, teams=88, fixtures=176, bookmakers=46, odds_snapshots=276, predictions=2",
+    "DB_UPDATES_BY_TABLE": "fixtures=1",
+    "DB_DELETES_BY_TABLE": "none",
+    "FIXTURES_DISCOVERED": 177,
+    "FIXTURES_CREATED": 176,
+    "FIXTURES_UPDATED": 1,
+    "ODDS_SNAPSHOTS_CREATED": 276,
+    "PREDICTIONS_CREATED": 2,
+    "RECOMMENDATIONS_CREATED": 0,
+    "DUPLICATES": 0,
+    "ORPHANS": 0,
+    "403": 0,
+    "429": 0,
+    "TRACEBACKS": 0,
+    "API_KEY_LEAKAGE": 0,
+    "ALEMBIC_REVISION": "0021",
+    "HEALTH_AFTER_RUN": "PASS",
+    "READY_FOR_DAILY_ENABLEMENT": "NOT_READY_FOR_DAILY_ENABLEMENT"
+  },
+  "final_recommendation": "NOT_READY_FOR_DAILY_ENABLEMENT",
+  "blocker": "Fix prediction decision-row replay idempotency in a separate task and validate with isolated replay tests before another production execution or recurring enablement."
+}

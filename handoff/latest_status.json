@@ -1,21 +1,47 @@
 {
-  "task_id": "TASK-20260901-041",
-  "status": "completed_local_approval_gate",
-  "branch": "codex/TASK-20260901-041",
-  "implementation_commit": "906dd96",
-  "summary": "Confirmed Home vs Away was caused by the Dashboard builder ignoring canonical team rows when decision predictions were absent; added reference-data labels and a configuration-driven EV threshold display.",
-  "root_cause": "C_db_builder_did_not_read_team_names",
-  "verification": {
-    "production_db": "READ ONLY; both fixture FKs and all four team rows exist",
-    "focused": "9 passed",
-    "unit": "689 passed",
-    "task_scope_quality": "Ruff, Black, MyPy and git diff --check passed for the clean task-scoped modules; legacy renderer/types debt documented"
+  "task_id": "TASK-20260916-066",
+  "status": "completed_daily_canary_not_ready",
+  "branch": "codex/TASK-20260916-066",
+  "release_commit": "6cc6c8f03bcf4f537db8ab49711402e71155de70",
+  "run": {
+    "run_id": "a3efceade966",
+    "count": 1,
+    "exit_code": 0,
+    "heartbeat": "success"
   },
-  "provider_health": "Separate producer/consumer contract mismatch; not fixed in this task.",
-  "production_database_writes": 0,
-  "external_api_calls": 0,
-  "production_jobs_run": 0,
-  "scheduler_changes": 0,
+  "summary": "The single DailyProductionRun completed safely and produced expected fixture/reference/odds writes, but insufficient-history prediction decision rows are not replay-idempotent.",
+  "pipeline": {
+    "fixtures_discovered": 177,
+    "fixtures_created": 176,
+    "fixtures_updated": 1,
+    "odds_candidates": 2,
+    "odds_matched": 2,
+    "odds_snapshots_created": 276,
+    "predictions_created": 2,
+    "recommendations_created": 0
+  },
+  "integrity": {
+    "alembic": "0021",
+    "alembic_check": "clean",
+    "duplicates": 0,
+    "orphans": 0,
+    "deletes": 0,
+    "tracebacks": 0,
+    "api_key_leakage": 0
+  },
+  "scheduler_writers": {
+    "daily_job": "Disabled",
+    "production_recovery": "Disabled",
+    "pre_kickoff": "Disabled",
+    "settlement": "Disabled"
+  },
+  "external_api_requests": 3,
+  "production_database_inserts": 604,
+  "production_database_updates": 1,
+  "production_database_deletes": 0,
   "frozen_unchanged": true,
-  "next_action": "Review the local commit. Keep Provider Health and legacy Dashboard quality cleanup in separate tasks before production deployment."
+  "0022_status": "FROZEN",
+  "decision": "NOT_READY_FOR_DAILY_ENABLEMENT",
+  "blocker": "Prediction decision-row replay idempotency must be fixed and isolated replay-tested before another production run or recurring enablement.",
+  "next_action": "Create a separate minimal idempotency task; do not rerun production daily_job without separate approval."
 }
