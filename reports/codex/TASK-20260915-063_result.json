@@ -1,96 +1,154 @@
 {
   "task_id": "TASK-20260915-063",
   "title": "Production Database Recovery Execution",
-  "status": "STOPPED_PRE_RECOVERY_ADMIN_SCHEDULER_ACCESS_BLOCKED",
+  "status": "COMPLETE_STOPPED_WRITERS_DISABLED",
   "branch": "codex/TASK-20260915-063",
   "base_commit": "6cc6c8f03bcf4f537db8ab49711402e71155de70",
-  "approved_backup": "production_0020_before_0021_20260830_204115.dump",
-  "preflight": {
-    "production_postgresql_container": "Exited (0) since 2026-09-15T02:14:32Z",
-    "production_redis_container": "Exited (0)",
-    "active_football_agent_writer_processes": 0,
-    "active_alembic_processes": 0,
-    "non_admin_scheduler_view": "only legacy FootballAgent-WeeklyReport visible; Disabled",
-    "direct_canonical_task_query": "Access is denied",
-    "canonical_writer_task_states": "UNKNOWN_NOT_VERIFIABLE_WITH_CURRENT_WINDOWS_TOKEN",
-    "all_writers_confirmed_frozen": false,
-    "decision": "STOP before starting production PostgreSQL or performing cutover"
+  "approved_backup": {
+    "path": "C:/Users/ruowa/Projects/football-agent-production-backups/TASK-20260830-032-production-0021/production_0020_before_0021_20260830_204115.dump",
+    "timestamp": "2026-08-30T20:41:15+02:00",
+    "sha256": "494E3F0FB74DE399C949BE5D773B5F8BA46E6802E4B2D84640632F8B0DC20579",
+    "readable": true
+  },
+  "scheduler": {
+    "administrator_task_count": 14,
+    "canonical_task_count": 9,
+    "writer_tasks": {
+      "FootballAgent-DailyProductionRun": "Disabled",
+      "FootballAgent-PreKickoffValidation": "Disabled",
+      "FootballAgent-ProductionRecoveryCheck": "Disabled",
+      "FootballAgent-SettlementFallback": "Disabled"
+    },
+    "writer_processes_before": 0,
+    "writer_processes_after": 0,
+    "changes": 0,
+    "writers_reenabled": false
   },
   "forensic_preservation": {
-    "production_volume": "football-agent_pgdata; untouched and still mounted by stopped football-postgres container",
-    "cold_tar": {
+    "original_pgdata_volume": "football-agent_pgdata preserved",
+    "cold_pgdata_tar": {
       "path": "C:/Users/ruowa/Projects/football-agent-task-artifacts/TASK-20260915-063/damaged_pgdata_cold_20260915_183941.tar",
-      "bytes": 470040064,
-      "sha256": "443F157C5CF77B1317757B6EBB57C77CF7D6B203AB8A0B3514EA0DFF8BEA5CF6",
-      "method": "read-only mount of the stopped production volume, no-network one-shot container, tar archive",
+      "sha256": "443F157C5CF77B1317757B6EBB57C77CF7D6B203AB8A0B3514EA0DFF8BEA5CF6"
+    },
+    "cold_clone_dump": {
+      "path": "C:/Users/ruowa/Projects/football-agent-task-artifacts/TASK-20260915-063/damaged_football_forensic_from_cold_clone_20260915.dump",
+      "sha256": "3B68BB1430A467045EE3950401D9165647FAF12512629D0EBB58675F415CA489"
+    },
+    "fresh_direct_dump": {
+      "path": "C:/Users/ruowa/Projects/football-agent-task-artifacts/TASK-20260915-063/damaged_football_direct_pg_dump_20260915_195101.dump",
+      "sha256": "5DA3100707EAEB5698197324EF3012DDB72AA92F7B15BE51FBF5FD129E1A0D12",
       "readable": true
     },
-    "fresh_dump_from_cold_clone": {
-      "path": "C:/Users/ruowa/Projects/football-agent-task-artifacts/TASK-20260915-063/damaged_football_forensic_from_cold_clone_20260915.dump",
-      "bytes": 1676,
-      "sha256": "3B68BB1430A467045EE3950401D9165647FAF12512629D0EBB58675F415CA489",
-      "method": "restore cold tar to new football-task063-forensic-clone Docker volume; start isolated no-network clone; run pg_dump -Fc; pg_restore -l readable",
-      "direct_live_production_pg_dump": false,
-      "note": "A direct live production pg_dump remains required after administrator-level writer freeze and before cutover."
+    "damaged_database_preserved_as": "football_damaged_forensic_20260915"
+  },
+  "recovery": {
+    "staging_restore": "PASS",
+    "staging_upgrade_0020_to_0021": "PASS",
+    "staging_alembic_check": "CLEAN",
+    "data_preserving_name_cutover": "PASS",
+    "rollback_needed": false,
+    "migration_beyond_0021": false
+  },
+  "verification": {
+    "alembic_revision": "0021",
+    "canonical_tables": 18,
+    "row_counts": {
+      "alembic_version": 1,
+      "bankroll_entries": 0,
+      "bookmakers": 0,
+      "competitions": 465,
+      "decision_logs": 0,
+      "fixtures": 7624,
+      "lineup_players": 0,
+      "lineups": 0,
+      "odds_snapshots": 0,
+      "performance_snapshots": 0,
+      "player_availability_observations": 0,
+      "players": 0,
+      "predictions": 569,
+      "seasons": 0,
+      "settlements": 0,
+      "team_match_statistics": 0,
+      "teams": 6469,
+      "value_bets": 0
     },
-    "isolated_clone": {
-      "container": "football-task063-forensic-postgres",
-      "network": "none",
-      "volume": "football-task063-forensic-clone",
-      "state_after_audit": "Exited (0)",
-      "database": "football",
-      "alembic_revision": "0021",
-      "public_tables": 1,
-      "only_business_catalog_state": "alembic_version only"
-    }
+    "schema_sha256": "18C334664F110CD165757DB43F271A31462600AF1941DAC4329DF5ED7224360F",
+    "schema_hash_matches_rehearsal": true,
+    "data_sha256": "C2C8814DE2A29623475BA07F92AA36F0F910B63DADF4891C78B676B7F14F1B0A",
+    "data_hash_matches_rehearsal": true,
+    "schema_drift": 0,
+    "alembic_check": "CLEAN",
+    "columns": 216,
+    "indexes": 61,
+    "constraints": 81,
+    "foreign_keys": 24,
+    "foreign_key_orphans": 0,
+    "unique_constraints": 13,
+    "canonical_duplicate_groups": 0,
+    "unvalidated_constraints": 0,
+    "sequences": [{"name": "bankroll_entries_sequence_seq", "last_value": null}],
+    "known_segunda_division_semantic_conflict_groups": 2,
+    "segunda_division_groups_unchanged": true
   },
-  "recovery_execution": {
-    "approved_backup_restored_to_production": false,
-    "staging_restore": false,
-    "database_cutover": false,
-    "production_alembic_operations": 0,
-    "production_database_writes": 0,
-    "application_validation": "NOT_RUN",
-    "production_jobs": 0,
+  "application_read_only_validation": {
+    "release_path": "C:/Users/ruowa/Projects/football-agent-release-dashboard-6cc6c8f",
+    "release_head": "6cc6c8f03bcf4f537db8ab49711402e71155de70",
+    "transaction": "READ ONLY",
+    "application_initialization": "PASS",
+    "fixtures_teams_competitions_prediction_rows_bookmakers": "PASS",
+    "dashboard_builder": "PASS",
     "external_api_calls": 0,
-    "scheduler_changes": 0
+    "database_writes": 0,
+    "note": "The 569 recovered predictions are decision records; aggregate-only repository correctly returns no aggregate."
   },
-  "expected_from_TASK_062": {
-    "revision": "0021",
-    "tables": 18,
-    "fixtures": 7624,
-    "predictions": 569,
-    "teams": 6469,
-    "competitions": 465,
-    "schema_hash": "18C334664F110CD165757DB43F271A31462600AF1941DAC4329DF5ED7224360F",
-    "data_hash": "C2C8814DE2A29623475BA07F92AA36F0F910B63DADF4891C78B676B7F14F1B0A",
-    "known_minimum_gap": "95 fixtures, 7 predictions, 1 bookmaker; later writes UNKNOWN"
+  "known_data_gap": {
+    "minimum_fixtures": {
+      "count": 95,
+      "classification": "REQUIRES_PAID_SOURCE",
+      "note": "Exact API-Football provider rows/IDs cannot be reconstructed from preserved evidence."
+    },
+    "minimum_predictions": {
+      "count": 7,
+      "classification": "IRRECOVERABLE",
+      "note": "Original point-in-time prediction rows were not preserved."
+    },
+    "bookmaker": {
+      "count": 1,
+      "classification": "RECOVERABLE_LOCAL",
+      "note": "Canonical Bet365 identity is documented locally but was not reconstructed."
+    },
+    "later_unknown_writes": {
+      "classification": "UNKNOWN",
+      "note": "No complete post-2026-08-31 backup or WAL archive exists."
+    },
+    "reconstruction_performed": false
   },
-  "required_before_resuming": [
-    "Use an Administrator Windows context to enumerate the full FootballAgent Scheduler topology and verify or temporarily freeze every PostgreSQL-writing task without permanent definition changes.",
-    "Confirm no writer/Alembic processes and no stale locks immediately before starting production PostgreSQL.",
-    "After the writer freeze is proven, take a direct fresh pg_dump of the live damaged production database; keep the cold tar and clone dump as extra forensic copies.",
-    "Only then follow the exact TASK-062 staging restore, 0020 to 0021 upgrade, exact verification, and data-preserving cutover/rollback procedure."
-  ],
+  "production_impact": {
+    "production_database_writes": "approved restore to staging, rehearsed 0020-to-0021 migration on staging, and database rename cutover only",
+    "production_jobs_run": 0,
+    "external_api_calls": 0,
+    "scheduler_changes": 0,
+    "frozen_changes": 0,
+    "0022_status": "FROZEN"
+  },
   "requested_result_fields": {
-    "PRODUCTION_RECOVERY_RESULT": "NOT_EXECUTED_PREFLIGHT_BLOCKED",
-    "ALEMBIC_REVISION": "damaged database 0021 ledger only; recovered production not yet available",
-    "CANONICAL_TABLES": "NOT_RECOVERED",
-    "FIXTURES": "NOT_RECOVERED",
-    "PREDICTIONS": "NOT_RECOVERED",
-    "TEAMS": "NOT_RECOVERED",
-    "COMPETITIONS": "NOT_RECOVERED",
-    "SCHEMA_HASH_MATCH": "NOT_TESTED_ON_PRODUCTION",
+    "PRODUCTION_RECOVERY_RESULT": "PASS",
+    "ALEMBIC_REVISION": "0021",
+    "CANONICAL_TABLES": 18,
+    "FIXTURES": 7624,
+    "PREDICTIONS": 569,
+    "TEAMS": 6469,
+    "COMPETITIONS": 465,
+    "SCHEMA_HASH_MATCH": true,
     "DATA_HASH_EXPECTED": "C2C8814DE2A29623475BA07F92AA36F0F910B63DADF4891C78B676B7F14F1B0A",
-    "ALEMBIC_CHECK": "NOT_RUN_ON_PRODUCTION",
-    "ORPHANS": "NOT_TESTED_ON_PRODUCTION",
-    "CANONICAL_DUPLICATES": "NOT_TESTED_ON_PRODUCTION",
-    "APPLICATION_READ_ONLY_CHECK": "NOT_RUN",
-    "FORENSIC_DAMAGED_BACKUP": "cold pgdata tar plus custom pg_dump from isolated cold clone; direct live dump pending",
+    "ALEMBIC_CHECK": "CLEAN",
+    "ORPHANS": 0,
+    "CANONICAL_DUPLICATES": 0,
+    "APPLICATION_READ_ONLY_CHECK": "PASS",
+    "FORENSIC_DAMAGED_BACKUP": "preserved cold tar, cold-clone dump, fresh direct dump, original volume, and renamed damaged database",
     "KNOWN_DATA_GAP": "minimum 95 fixtures, 7 predictions, 1 bookmaker; later writes UNKNOWN",
-    "SCHEDULER_STATE": "UNKNOWN_ADMIN_ACCESS_DENIED",
+    "SCHEDULER_STATE": "four DB writers remain Disabled",
     "0022_STATUS": "FROZEN"
   },
-  "frozen_unchanged": true,
-  "stop_reason": "The current Windows token cannot read canonical scheduled tasks. Production PostgreSQL is stopped, and restarting it before proving all writers frozen could allow an unseen writer to run during cutover."
+  "stop_reason": "Approved recovery completed and verified; all writer Scheduler tasks remain disabled."
 }
