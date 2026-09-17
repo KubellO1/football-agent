@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.config.whitelist import get_whitelist
 from app.core.logging import get_logger
+from app.services.prediction_decision_identity import PredictionDecisionContext
 from app.services.prediction_logger import log_fixture_predictions
 
 if TYPE_CHECKING:
@@ -171,6 +172,7 @@ class DailyTopPicksService:
                     home_team_name=home_name,
                     away_team_name=away_name,
                     model_version=self._model_version,
+                    decision_context=PredictionDecisionContext.daily(on_date),
                 )
                 predictions_logged += pred_report.inserted
             except Exception:

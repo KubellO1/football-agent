@@ -31,7 +31,7 @@ from app.models.value_objects.odds import Odds
 from app.models.value_objects.score import Score
 from app.repositories.sqlalchemy.decision_log_repository import SqlAlchemyDecisionLogRepository
 from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
-from app.repositories.sqlalchemy.models import DecisionLogORM, ValueBetORM
+from app.repositories.sqlalchemy.models import DecisionLogORM, PredictionORM, ValueBetORM
 from app.repositories.sqlalchemy.odds_snapshot_repository import (
     SqlAlchemyOddsSnapshotRepository,
 )
@@ -211,10 +211,13 @@ async def test_rerun_skips_already_reviewed_and_spends_no_more_llm_calls(
 
     first = await service.run(TARGET)
     assert first.fixtures_reviewed == 5
+    first_prediction_count = await _count(db_session, PredictionORM)
 
     second = await service.run(TARGET)
     assert second.fixtures_reviewed == 0
     assert second.fixtures_skipped_existing == 5
+    assert second.predictions_logged == 0
+    assert await _count(db_session, PredictionORM) == first_prediction_count
     assert reviewer.calls == 5  # 未再增加
     assert await _count(db_session, DecisionLogORM) == 5  # 未重复落库
 

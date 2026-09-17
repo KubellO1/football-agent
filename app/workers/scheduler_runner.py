@@ -373,6 +373,7 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
         checkpoint_idempotency_key,
         completed_checkpoints,
     )
+    from app.services.prediction_decision_identity import PredictionDecisionContext
     from app.services.prediction_logger import log_fixture_predictions
 
     TRIGGER_LOG = PROJECT_ROOT / "app" / "state" / "pre_kickoff_triggers.json"
@@ -485,6 +486,7 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
                         home_team_name=home_name,
                         away_team_name=away_name,
                         model_version="pre_kickoff",
+                        decision_context=PredictionDecisionContext.pre_kickoff(checkpoint.value),
                     )
 
                     qualifying = [
