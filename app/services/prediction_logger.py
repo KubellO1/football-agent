@@ -10,11 +10,13 @@ predictions 表是 settlement 和 performance 追踪的数据源——所有生�
 
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
+
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.core.logging import get_logger
 from app.repositories.sqlalchemy.models import (
@@ -25,6 +27,12 @@ from app.services.fixture_analysis import (
     NO_ODDS_MESSAGE,
     DetailedAnalysis,
     SelectionAnalysis,
+)
+from app.services.prediction_decision_identity import (
+    PredictionDecisionContext,
+    PredictionDecisionIdentity,
+    PredictionDecisionWorkflow,
+    build_prediction_decision_identity,
 )
 
 if TYPE_CHECKING:
@@ -46,6 +54,7 @@ class PredictionLogReport:
     watch_count: int
     no_bet_count: int
     inserted: int
+    reused: int = 0
     errors: int = 0
     details: list[str] = field(default_factory=list)
 
@@ -82,6 +91,145 @@ def _build_confidence_killer(selection: SelectionAnalysis) -> str | None:
     return None
 
 
+def _default_decision_context(
+    detailed: DetailedAnalysis,
+    model_version: str,
+) -> PredictionDecisionContext:
+    if model_version != "pre_kickoff":
+        return PredictionDecisionContext.daily(detailed.analysis_as_of.date())
+    minutes_before = (detailed.fixture.kickoff - detailed.analysis_as_of).total_seconds() / 60.0
+    if minutes_before <= 30.0:
+        checkpoint = "T30"
+    elif minutes_before <= 60.0:
+        checkpoint = "T60"
+    else:
+        checkpoint = "T90"
+    return PredictionDecisionContext.pre_kickoff(checkpoint)
+
+
+_SEMANTIC_VALUE_FIELDS = (
+    "market",
+    "selection",
+    "odds",
+    "market_probability",
+    "model_probability",
+    "expected_value",
+    "kelly_stake",
+    "confidence",
+    "final_decision",
+    "why_not_bet",
+    "confidence_killer",
+    "data_quality",
+)
+
+
+def _identity_metadata(
+    identity: PredictionDecisionIdentity,
+    context: PredictionDecisionContext,
+) -> dict[str, Any]:
+    return {
+        "version": 1,
+        "key": identity.key,
+        "workflow": context.workflow.value,
+        "checkpoint": context.checkpoint,
+        "run_date": context.run_date.isoformat() if context.run_date is not None else None,
+        "input_fingerprint": identity.input_fingerprint,
+        "decision_fingerprint": identity.decision_fingerprint,
+    }
+
+
+def _legacy_context_matches(
+    row: PredictionORM,
+    context: PredictionDecisionContext,
+) -> bool:
+    timestamp = row.prediction_timestamp
+    if timestamp is None:
+        return False
+    if context.workflow is PredictionDecisionWorkflow.DAILY:
+        return (
+            context.run_date is not None
+            and row.kickoff_time is not None
+            and row.kickoff_time.date() == context.run_date
+        )
+
+    kickoff = row.kickoff_time
+    if kickoff is None:
+        return False
+    minutes_before = (kickoff - timestamp).total_seconds() / 60.0
+    if context.checkpoint == "T90":
+        return 60.0 < minutes_before <= 100.0
+    if context.checkpoint == "T60":
+        return 30.0 < minutes_before <= 60.0
+    return -5.0 <= minutes_before <= 30.0
+
+
+def _legacy_row_matches(
+    row: PredictionORM,
+    *,
+    values: dict[str, Any],
+    context: PredictionDecisionContext,
+) -> bool:
+    sources = row.provider_sources or {}
+    metadata = sources.get("decision_identity")
+    if isinstance(metadata, dict):
+        return False
+    if not _legacy_context_matches(row, context):
+        return False
+    return all(getattr(row, field) == values.get(field) for field in _SEMANTIC_VALUE_FIELDS)
+
+
+async def _persist_decision_if_absent(
+    *,
+    session: Any,
+    detailed: DetailedAnalysis,
+    context: PredictionDecisionContext,
+    model_version: str,
+    provider_sources: dict[str, Any],
+    values: dict[str, Any],
+) -> bool:
+    semantic_payload = {field: values.get(field) for field in _SEMANTIC_VALUE_FIELDS}
+    identity = build_prediction_decision_identity(
+        detailed=detailed,
+        context=context,
+        prediction_version=PREDICTION_VERSION,
+        model_version=model_version,
+        decision_payload=semantic_payload,
+    )
+
+    existing = await session.get(PredictionORM, identity.row_id)
+    if existing is not None:
+        return False
+
+    legacy_stmt = select(PredictionORM).where(
+        PredictionORM.fixture_id == detailed.fixture.id,
+        PredictionORM.record_kind == PREDICTION_RECORD_DECISION,
+        PredictionORM.prediction_version == PREDICTION_VERSION,
+        PredictionORM.model_version == model_version,
+    )
+    legacy_rows = (await session.execute(legacy_stmt)).scalars().all()
+    if any(_legacy_row_matches(row, values=values, context=context) for row in legacy_rows):
+        return False
+
+    enriched_sources = dict(provider_sources)
+    enriched_sources["decision_identity"] = _identity_metadata(identity, context)
+    statement = (
+        pg_insert(PredictionORM)
+        .values(
+            id=identity.row_id,
+            fixture_id=detailed.fixture.id,
+            record_kind=PREDICTION_RECORD_DECISION,
+            prediction_version=PREDICTION_VERSION,
+            model_version=model_version,
+            provider_sources=enriched_sources,
+            **values,
+        )
+        .on_conflict_do_nothing(index_elements=[PredictionORM.id])
+        .returning(PredictionORM.id)
+    )
+    result = await session.execute(statement)
+    return result.scalar_one_or_none() is not None
+
+
 async def log_fixture_predictions(
     detailed: DetailedAnalysis,
     *,
@@ -90,6 +238,7 @@ async def log_fixture_predictions(
     home_team_name: str = "",
     away_team_name: str = "",
     model_version: str = "",
+    decision_context: PredictionDecisionContext | None = None,
 ) -> PredictionLogReport:
     """将一场比赛的全部 selection 分析写入 predictions 表。
 
@@ -107,6 +256,7 @@ async def log_fixture_predictions(
     fixture = detailed.fixture
     result = detailed.result
     now = datetime.now(UTC)
+    decision_context = decision_context or _default_decision_context(detailed, model_version)
 
     # 构建 provider_sources 元数据
     provider_sources: dict[str, Any] = {
@@ -164,26 +314,28 @@ async def log_fixture_predictions(
             final_decision = "WATCH"
             why_not = result.message or "数据不足，无法生成预测"
 
-        row = PredictionORM(
-            id=uuid.uuid4(),
-            fixture_id=fixture.id,
-            record_kind=PREDICTION_RECORD_DECISION,
-            kickoff_time=fixture.kickoff,
-            competition=competition_name or str(fixture.competition_id),
-            home_team=home_team_name or str(fixture.home_team_id),
-            away_team=away_team_name or str(fixture.away_team_id),
-            prediction_timestamp=now,
-            prediction_version=PREDICTION_VERSION,
+        values: dict[str, Any] = {
+            "kickoff_time": fixture.kickoff,
+            "competition": competition_name or str(fixture.competition_id),
+            "home_team": home_team_name or str(fixture.home_team_id),
+            "away_team": away_team_name or str(fixture.away_team_id),
+            "prediction_timestamp": now,
+            "final_decision": final_decision,
+            "why_not_bet": why_not,
+            "confidence_killer": result.confidence_killer,
+            "data_quality": result.data_completeness,
+            "generated_at": now,
+        }
+        inserted = await _persist_decision_if_absent(
+            session=session,
+            detailed=detailed,
+            context=decision_context,
             model_version=model_version,
-            final_decision=final_decision,
-            why_not_bet=why_not,
-            confidence_killer=result.confidence_killer,
             provider_sources=provider_sources,
-            data_quality=result.data_completeness,
-            generated_at=now,
+            values=values,
         )
-        session.add(row)
-        report.inserted = 1
+        report.inserted = int(inserted)
+        report.reused = int(not inserted)
         if is_no_odds:
             report.no_bet_count = 1
         else:
@@ -212,40 +364,42 @@ async def log_fixture_predictions(
             report.no_bet_count += 1
 
         try:
-            row = PredictionORM(
-                id=uuid.uuid4(),
-                fixture_id=fixture.id,
-                record_kind=PREDICTION_RECORD_DECISION,
+            values = {
                 # 比赛上下文
-                kickoff_time=fixture.kickoff,
-                competition=competition_name or str(fixture.competition_id),
-                home_team=home_team_name or str(fixture.home_team_id),
-                away_team=away_team_name or str(fixture.away_team_id),
+                "kickoff_time": fixture.kickoff,
+                "competition": competition_name or str(fixture.competition_id),
+                "home_team": home_team_name or str(fixture.home_team_id),
+                "away_team": away_team_name or str(fixture.away_team_id),
                 # 预测元数据
-                prediction_timestamp=now,
-                prediction_version=PREDICTION_VERSION,
+                "prediction_timestamp": now,
                 # 市场决策
-                market="1X2",
-                selection=sel.code,
-                odds=Decimal(str(round(sel.decimal_odds, 3))),
-                market_probability=sel.implied_probability,
-                model_probability=sel.model_probability,
+                "market": "1X2",
+                "selection": sel.code,
+                "odds": Decimal(str(round(sel.decimal_odds, 3))),
+                "market_probability": sel.implied_probability,
+                "model_probability": sel.model_probability,
                 # 价值评估
-                expected_value=sel.expected_value,
-                kelly_stake=sel.kelly_stake,
-                confidence=sel.confidence,
+                "expected_value": sel.expected_value,
+                "kelly_stake": sel.kelly_stake,
+                "confidence": sel.confidence,
                 # 最终判定
-                final_decision=final_decision,
-                why_not_bet=why_not_bet,
-                confidence_killer=_build_confidence_killer(sel),
+                "final_decision": final_decision,
+                "why_not_bet": why_not_bet,
+                "confidence_killer": _build_confidence_killer(sel),
                 # 元数据
-                provider_sources=provider_sources,
+                "data_quality": result.data_completeness,
+                "generated_at": now,
+            }
+            inserted = await _persist_decision_if_absent(
+                session=session,
+                detailed=detailed,
+                context=decision_context,
                 model_version=model_version,
-                data_quality=result.data_completeness,
-                generated_at=now,
+                provider_sources=provider_sources,
+                values=values,
             )
-            session.add(row)
-            report.inserted += 1
+            report.inserted += int(inserted)
+            report.reused += int(not inserted)
             report.details.append(
                 f"{sel.code} → {final_decision} "
                 f"(EV={sel.expected_value:+.3f}, Kelly={sel.kelly_fraction:.1%}, "
@@ -260,13 +414,15 @@ async def log_fixture_predictions(
             report.errors += 1
 
     logger.info(
-        "PredictionLogger: fixture=%s selections=%d BET=%d WATCH=%d NO_BET=%d inserted=%d errors=%d",
+        "PredictionLogger: fixture=%s selections=%d BET=%d WATCH=%d NO_BET=%d "
+        "inserted=%d reused=%d errors=%d",
         fixture.id,
         report.total_selections,
         report.bet_count,
         report.watch_count,
         report.no_bet_count,
         report.inserted,
+        report.reused,
         report.errors,
     )
     return report
