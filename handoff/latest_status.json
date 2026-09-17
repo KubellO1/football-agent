@@ -1,21 +1,23 @@
 {
-  "task_id": "TASK-20260901-041",
+  "task_id": "TASK-20260917-067",
   "status": "completed_local_approval_gate",
-  "branch": "codex/TASK-20260901-041",
-  "implementation_commit": "906dd96",
-  "summary": "Confirmed Home vs Away was caused by the Dashboard builder ignoring canonical team rows when decision predictions were absent; added reference-data labels and a configuration-driven EV threshold display.",
-  "root_cause": "C_db_builder_did_not_read_team_names",
+  "branch": "codex/TASK-20260917-067",
+  "implementation_commit": "484c46e",
+  "summary": "Prediction decision persistence now uses a checkpoint-aware semantic identity and deterministic conflict-safe UUID; production-clone replay inserted zero predictions on both runs.",
   "verification": {
-    "production_db": "READ ONLY; both fixture FKs and all four team rows exist",
-    "focused": "9 passed",
-    "unit": "689 passed",
-    "task_scope_quality": "Ruff, Black, MyPy and git diff --check passed for the clean task-scoped modules; legacy renderer/types debt documented"
+    "focused": "11 passed",
+    "unit": "692 passed",
+    "integration": "107 passed",
+    "quality": "Ruff, Black, MyPy CI parameters, and git diff --check passed",
+    "clone_replay": "first new predictions=0; second new predictions=0; duplicates=0"
   },
-  "provider_health": "Separate producer/consumer contract mismatch; not fixed in this task.",
   "production_database_writes": 0,
-  "external_api_calls": 0,
   "production_jobs_run": 0,
+  "external_api_calls": 0,
   "scheduler_changes": 0,
+  "schema_changes": 0,
   "frozen_unchanged": true,
-  "next_action": "Review the local commit. Keep Provider Health and legacy Dashboard quality cleanup in separate tasks before production deployment."
+  "ready_for_controlled_daily_replay": true,
+  "approval_gate": "STOP_BEFORE_PRODUCTION_REPLAY",
+  "next_action": "Review the branch; do not run another production DailyProductionRun until merge/deployment and a separate controlled replay approval."
 }

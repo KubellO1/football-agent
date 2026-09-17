@@ -1,0 +1,100 @@
+{
+  "task_id": "TASK-20260917-067",
+  "title": "Prediction Decision Replay Idempotency — DailyProductionRun",
+  "status": "completed_local_approval_gate",
+  "branch": "codex/TASK-20260917-067",
+  "base_commit": "6cc6c8f03bcf4f537db8ab49711402e71155de70",
+  "implementation_commit": "484c46e",
+  "prediction_natural_key": [
+    "fixture_id",
+    "workflow",
+    "checkpoint",
+    "daily run_date where applicable",
+    "prediction_version",
+    "model_version",
+    "material input fingerprint",
+    "persisted decision payload fingerprint"
+  ],
+  "design": {
+    "schema_change_required": false,
+    "identity_storage": "provider_sources.decision_identity plus deterministic UUIDv5 primary key",
+    "concurrency_control": "PostgreSQL INSERT ON CONFLICT DO NOTHING on deterministic primary key",
+    "legacy_compatibility": "Equivalent legacy random-UUID rows are reused by read-only semantic/context matching and are not updated",
+    "wall_clock_excluded": true,
+    "distinct_checkpoints": ["T90", "T60", "T30"]
+  },
+  "production_read_only_audit": {
+    "alembic_revision": "0021",
+    "prediction_rows": 571,
+    "decision_rows": 571,
+    "aggregate_rows": 0,
+    "fixtures_with_decisions": 155,
+    "fixtures_with_multiple_decision_rows": 146,
+    "fixtures_with_legitimate_distinct_contexts": 127,
+    "watch_rows": 262,
+    "no_odds_rows": 309,
+    "bet_rows": 0,
+    "exact_payload_duplicate_groups_when_checkpoint_is_ignored": 155,
+    "extra_rows_when_checkpoint_is_ignored": 291,
+    "semantic_duplicate_groups_after_checkpoint_classification": 34,
+    "historical_semantic_extra_rows": 52,
+    "historical_rows_modified": 0
+  },
+  "clone_rehearsal": {
+    "source": "read-only pg_dump of production 0021",
+    "database": "football_task067_clone_test",
+    "before": {
+      "fixtures": 7800,
+      "odds_snapshots": 276,
+      "predictions": 571
+    },
+    "first_run": {
+      "fixtures_analyzed": 177,
+      "new_fixtures": 0,
+      "new_odds_snapshots": 0,
+      "new_predictions": 0,
+      "legacy_task066_rows_reused": 2
+    },
+    "second_run": {
+      "fixtures_analyzed": 177,
+      "new_fixtures": 0,
+      "new_odds_snapshots": 0,
+      "new_predictions": 0
+    },
+    "new_prediction_identity_duplicates": 0,
+    "odds_snapshot_natural_key_duplicates": 0,
+    "external_api_calls": 0
+  },
+  "files_changed": [
+    "app/services/prediction_decision_identity.py",
+    "app/services/prediction_logger.py",
+    "app/services/daily_top_picks.py",
+    "app/workers/scheduler_runner.py",
+    "tests/unit/test_prediction_decision_identity.py",
+    "tests/integration/test_prediction_decision_idempotency.py",
+    "tests/integration/test_daily_top_picks.py",
+    "tasks/completed/TASK-20260917-067.md",
+    "reports/codex/TASK-20260917-067_result.json",
+    "reports/codex/TASK-20260917-067_result.md",
+    "handoff/latest_status.json"
+  ],
+  "tests": {
+    "focused": "11 passed",
+    "full_unit": "692 passed",
+    "full_integration": "107 passed",
+    "ruff": "PASS",
+    "black": "PASS",
+    "mypy_ci_parameters": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "production_database_writes": 0,
+  "production_daily_runs": 0,
+  "external_api_calls": 0,
+  "scheduler_changes": 0,
+  "schema_changes": 0,
+  "frozen_diff": 0,
+  "ready_for_controlled_daily_replay": true,
+  "approval_gate": "STOP_BEFORE_PRODUCTION_REPLAY",
+  "blockers": [],
+  "recommended_next_action": "Review the branch and, after merge/deployment approval, authorize exactly one controlled production DailyProductionRun replay while keeping recurring writers disabled."
+}
