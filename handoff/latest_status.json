@@ -1,23 +1,23 @@
 {
-  "task_id": "TASK-20260917-067",
-  "status": "completed_local_approval_gate",
-  "branch": "codex/TASK-20260917-067",
-  "implementation_commit": "484c46e",
-  "summary": "Prediction decision persistence now uses a checkpoint-aware semantic identity and deterministic conflict-safe UUID; production-clone replay inserted zero predictions on both runs.",
+  "task_id": "TASK-20260920-069",
+  "status": "stopped_at_zero_cost_canary_gate",
+  "branch": "codex/TASK-20260920-069",
+  "summary": "Paid-calling DailyProductionRun disabled; isolated zero-cost collector and bounded Canary validated, but no production five-league fixture matched and no lawful bookmaker-identified free odds source was verified.",
   "verification": {
-    "focused": "11 passed",
-    "unit": "692 passed",
-    "integration": "107 passed",
-    "quality": "Ruff, Black, MyPy CI parameters, and git diff --check passed",
-    "clone_replay": "first new predictions=0; second new predictions=0; duplicates=0"
+    "focused": "23 passed",
+    "unit": "715 passed",
+    "integration": "107 passed on disposable football_task069_test",
+    "quality": "Ruff, Black, MyPy and git diff --check passed",
+    "canary": "10 public fixture candidates; 0 production matches; production cutover not ready"
   },
   "production_database_writes": 0,
   "production_jobs_run": 0,
-  "external_api_calls": 0,
-  "scheduler_changes": 0,
+  "paid_api_calls": 0,
+  "public_http_calls": 5,
+  "scheduler_changes": "DailyProductionRun disabled for containment; no task definition changed",
   "schema_changes": 0,
   "frozen_unchanged": true,
-  "ready_for_controlled_daily_replay": true,
-  "approval_gate": "STOP_BEFORE_PRODUCTION_REPLAY",
-  "next_action": "Review the branch; do not run another production DailyProductionRun until merge/deployment and a separate controlled replay approval."
+  "production_cutover_ready": false,
+  "approval_gate": "STOP_BEFORE_ZERO_COST_PRODUCTION_CUTOVER",
+  "next_action": "Keep four writer tasks disabled and acquire lawful exact-time fixture and bookmaker-identified odds sources before a positive isolated Canary."
 }

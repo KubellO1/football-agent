@@ -1,0 +1,56 @@
+{
+  "task_id": "TASK-20260920-069",
+  "title": "Immediate Zero-Cost Data Migration",
+  "status": "stopped_at_zero_cost_canary_gate",
+  "branch": "codex/TASK-20260920-069",
+  "foundation_cherry_pick": "1e6d9263d41b39403a03c39fcba67c99e04d669c",
+  "production_cutover": false,
+  "production_db_writes": 0,
+  "production_jobs_run": 0,
+  "scheduler_change": "DailyProductionRun disabled for safety; three other writer tasks stayed disabled; no task definition changed",
+  "paid_api_requests_by_task": 0,
+  "public_http_requests": 5,
+  "public_http_requests_on_cache_replay": 0,
+  "new_paid_subscription": false,
+  "api_keys_changed_or_exposed": false,
+  "sources_approved": ["OpenFootball CC0 fixtures/results", "MET Norway weather with terms", "manual user-supplied evidence"],
+  "sources_rejected": ["Premier League site automation", "Lega Serie A site automation", "Bundesliga registered-content automation", "SkipOdds consensus as bookmaker odds", "paid odds/lineup add-ons"],
+  "sources_conditional": ["LALIGA website", "Ligue 1 and club-specific terms", "football-data.org free fixtures requiring token", "BSD free account consensus-only odds"],
+  "live_openfootball_future_entries": {
+    "Premier League": {"future": 334, "exact_time": 334},
+    "La Liga": {"future": 315, "exact_time": 25},
+    "Serie A Italy": {"future": 335, "exact_time": 75},
+    "Bundesliga Germany": {"future": 273, "exact_time": 75},
+    "Ligue 1 France": {"future": 264, "exact_time": 72}
+  },
+  "production_future_five_league_fixtures": 0,
+  "canary": {
+    "fixture_limit": 10,
+    "candidate_fixtures_evaluated": 10,
+    "matched_fixtures": 0,
+    "inserted_observations": 0,
+    "reason_codes": {"CANARY_LIMIT": 571, "KICKOFF_TIME_UNKNOWN": 941, "NO_EXACT_FIXTURE_MATCH": 10},
+    "raw_payloads_archived": 5,
+    "replay_new_http_requests": 0,
+    "replay_new_observations": 0,
+    "full_canary_pass": false
+  },
+  "validation": {
+    "focused": "23 passed",
+    "full_unit": "715 passed",
+    "integration": "107 passed on disposable football_task069_test",
+    "ruff": "PASS",
+    "black": "PASS",
+    "mypy": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "production_schema_changes": 0,
+  "frozen_diff": 0,
+  "blockers": [
+    "No future country-qualified five-league fixtures in recovered production database",
+    "OpenFootball has date-only future fixtures and no guaranteed upstream update cadence",
+    "No verified license-compliant automated five-league injury, suspension or confirmed-lineup source",
+    "No verified zero-cost bookmaker-identified current odds source compatible with production validation"
+  ],
+  "next_action": "Keep paid-calling writer jobs disabled. Obtain usable exact-time fixtures and lawful bookmaker-identified odds, then repeat a positive isolated canary before any production PR, cutover or scheduler re-enable."
+}

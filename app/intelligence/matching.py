@@ -7,14 +7,23 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from app.intelligence.contracts import utc_datetime
+
 
 @dataclass(frozen=True, slots=True)
 class FixtureIdentity:
     fixture_id: str
     competition: str
-    kickoff: datetime
+    country: str
+    kickoff: datetime | None
     home_team: str
     away_team: str
+
+    def __post_init__(self) -> None:
+        if not self.country.strip() or not self.competition.strip():
+            raise ValueError("competition and country are required")
+        if self.kickoff is not None:
+            object.__setattr__(self, "kickoff", utc_datetime(self.kickoff, field="kickoff"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,12 +49,16 @@ class FixtureMatcher:
         candidate: FixtureIdentity,
         fixtures: tuple[FixtureIdentity, ...],
     ) -> MatchResult:
+        if candidate.kickoff is None:
+            return MatchResult(None, "KICKOFF_TIME_UNKNOWN")
         matching = [
             fixture
             for fixture in fixtures
             if canonical_name(fixture.competition) == canonical_name(candidate.competition)
+            and canonical_name(fixture.country) == canonical_name(candidate.country)
             and canonical_name(fixture.home_team) == canonical_name(candidate.home_team)
             and canonical_name(fixture.away_team) == canonical_name(candidate.away_team)
+            and fixture.kickoff is not None
             and abs(fixture.kickoff - candidate.kickoff) <= self._kickoff_tolerance
         ]
         if not matching:

@@ -22,7 +22,7 @@ from app.intelligence.contracts import (
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-OPENFOOTBALL_PARSER_VERSION = "openfootball-json-v1"
+OPENFOOTBALL_PARSER_VERSION = "openfootball-json-v2"
 MET_NO_PARSER_VERSION = "met-no-locationforecast-v1"
 MANUAL_PARSER_VERSION = "manual-official-evidence-v1"
 
@@ -30,6 +30,7 @@ MANUAL_PARSER_VERSION = "manual-official-evidence-v1"
 @dataclass(frozen=True, slots=True)
 class OpenFootballLeague:
     competition: str
+    country: str
     code: str
     timezone: str
 
@@ -41,11 +42,11 @@ class OpenFootballLeague:
 
 
 FIVE_LEAGUES: tuple[OpenFootballLeague, ...] = (
-    OpenFootballLeague("Premier League", "en.1", "Europe/London"),
-    OpenFootballLeague("La Liga", "es.1", "Europe/Madrid"),
-    OpenFootballLeague("Serie A", "it.1", "Europe/Rome"),
-    OpenFootballLeague("Bundesliga", "de.1", "Europe/Berlin"),
-    OpenFootballLeague("Ligue 1", "fr.1", "Europe/Paris"),
+    OpenFootballLeague("Premier League", "England", "en.1", "Europe/London"),
+    OpenFootballLeague("La Liga", "Spain", "es.1", "Europe/Madrid"),
+    OpenFootballLeague("Serie A", "Italy", "it.1", "Europe/Rome"),
+    OpenFootballLeague("Bundesliga", "Germany", "de.1", "Europe/Berlin"),
+    OpenFootballLeague("Ligue 1", "France", "fr.1", "Europe/Paris"),
 )
 
 
@@ -71,11 +72,14 @@ class OpenFootballJsonAdapter:
             home = _required_text(record, "team1")
             away = _required_text(record, "team2")
             kickoff = _openfootball_kickoff(record, league.timezone)
-            fixture_id = _fixture_id(league.competition, kickoff, home, away)
+            fixture_id = _fixture_id(league.competition, league.country, season, home, away)
             payload: dict[str, object] = {
                 "competition": league.competition,
+                "country": league.country,
                 "season": season,
-                "kickoff": kickoff.isoformat(),
+                "match_date": _required_text(record, "date"),
+                "kickoff": kickoff.isoformat() if kickoff is not None else None,
+                "kickoff_precision": "EXACT_LOCAL" if kickoff is not None else "DATE_ONLY",
                 "home_team": home,
                 "away_team": away,
                 "round": record.get("round"),
@@ -180,6 +184,13 @@ class ManualObservationAdapter:
 
         if data_type not in self._allowed:
             raise ValueError("unsupported manual observation data type")
+        if data_type is DataType.LINEUP and (
+            published_at is None
+            or payload.get("confirmed") is not True
+            or payload.get("predicted") is True
+            or str(payload.get("status", "")).casefold() == "predicted"
+        ):
+            raise ValueError("confirmed lineup requires explicit published evidence")
         return Observation(
             fixture_id=fixture_id,
             source=source,
@@ -227,9 +238,11 @@ def _required_text(record: Mapping[str, Any], key: str) -> str:
     return value.strip()
 
 
-def _openfootball_kickoff(record: Mapping[str, Any], timezone: str) -> datetime:
+def _openfootball_kickoff(record: Mapping[str, Any], timezone: str) -> datetime | None:
     date = _required_text(record, "date")
-    time = record.get("time", "12:00")
+    time = record.get("time")
+    if time is None or time == "":
+        return None
     if not isinstance(time, str):
         raise ValueError("OpenFootball time must be a string")
     return (
@@ -237,9 +250,15 @@ def _openfootball_kickoff(record: Mapping[str, Any], timezone: str) -> datetime:
     )
 
 
-def _fixture_id(competition: str, kickoff: datetime, home: str, away: str) -> str:
+def _fixture_id(competition: str, country: str, season: str, home: str, away: str) -> str:
     identity = canonical_json(
-        {"competition": competition, "kickoff": kickoff.isoformat(), "home": home, "away": away}
+        {
+            "competition": competition,
+            "country": country,
+            "season": season,
+            "home": home,
+            "away": away,
+        }
     )
     return f"openfootball:{hashlib.sha256(identity).hexdigest()[:24]}"
 

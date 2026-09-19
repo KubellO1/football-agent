@@ -99,11 +99,20 @@ def test_health_and_staleness_are_auditable() -> None:
 
 def test_fixture_matcher_is_conservative() -> None:
     kickoff = datetime(2026, 9, 20, 14, tzinfo=UTC)
-    stored = FixtureIdentity("fixture-1", "Ligue 1", kickoff, "Paris SG", "Lille")
-    candidate = FixtureIdentity("source-1", "Ligue 1", kickoff, "Paris SG", "Lille")
+    stored = FixtureIdentity("fixture-1", "Ligue 1", "France", kickoff, "Paris SG", "Lille")
+    candidate = FixtureIdentity("source-1", "Ligue 1", "France", kickoff, "Paris SG", "Lille")
     assert FixtureMatcher().match(candidate, (stored,)).fixture_id == "fixture-1"
     assert (
         FixtureMatcher().match(candidate, (stored, stored)).reason_code == "AMBIGUOUS_FIXTURE_MATCH"
     )
-    alias = FixtureIdentity("source-2", "Ligue 1", kickoff, "PSG", "Lille")
+    alias = FixtureIdentity("source-2", "Ligue 1", "France", kickoff, "PSG", "Lille")
     assert FixtureMatcher().match(alias, (stored,)).reason_code == "NO_EXACT_FIXTURE_MATCH"
+
+
+def test_fixture_matcher_rejects_cross_country_name_collision_and_unknown_time() -> None:
+    kickoff = datetime(2026, 9, 20, 20, tzinfo=UTC)
+    italian = FixtureIdentity("italy", "Serie A", "Italy", kickoff, "Milan", "Inter")
+    brazilian = FixtureIdentity("brazil", "Serie A", "Brazil", kickoff, "Milan", "Inter")
+    assert FixtureMatcher().match(italian, (brazilian,)).reason_code == "NO_EXACT_FIXTURE_MATCH"
+    untimed = FixtureIdentity("unknown", "Serie A", "Italy", None, "Milan", "Inter")
+    assert FixtureMatcher().match(untimed, (italian,)).reason_code == "KICKOFF_TIME_UNKNOWN"
