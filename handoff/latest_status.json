@@ -1,23 +1,14 @@
 {
-  "task_id": "TASK-20260917-067",
-  "status": "completed_local_approval_gate",
-  "branch": "codex/TASK-20260917-067",
-  "implementation_commit": "484c46e",
-  "summary": "Prediction decision persistence now uses a checkpoint-aware semantic identity and deterministic conflict-safe UUID; production-clone replay inserted zero predictions on both runs.",
-  "verification": {
-    "focused": "11 passed",
-    "unit": "692 passed",
-    "integration": "107 passed",
-    "quality": "Ruff, Black, MyPy CI parameters, and git diff --check passed",
-    "clone_replay": "first new predictions=0; second new predictions=0; duplicates=0"
-  },
+  "task_id": "TASK-20260920-070",
+  "status": "stopped_at_source_rights_and_account_gate",
+  "branch": "codex/TASK-20260920-070",
+  "summary": "Official free-tier audit completed; isolated no-network Pinnacle 1X2 parser tested. No source is production-qualified or wired.",
   "production_database_writes": 0,
   "production_jobs_run": 0,
   "external_api_calls": 0,
   "scheduler_changes": 0,
   "schema_changes": 0,
   "frozen_unchanged": true,
-  "ready_for_controlled_daily_replay": true,
-  "approval_gate": "STOP_BEFORE_PRODUCTION_REPLAY",
-  "next_action": "Review the branch; do not run another production DailyProductionRun until merge/deployment and a separate controlled replay approval."
+  "approval_gate": "SOURCE_RIGHTS_AND_FREE_ACCOUNT_EVIDENCE",
+  "next_action": "Confirm rights/free-account terms and obtain personal free keys locally; then validate five-league coverage and observation-time ingestion in isolation before any production canary."
 }
