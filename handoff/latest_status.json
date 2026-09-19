@@ -2,6 +2,7 @@
   "task_id": "TASK-20260920-070",
   "status": "stopped_at_source_rights_and_account_gate",
   "branch": "codex/TASK-20260920-070",
+  "implementation_commit": "9bd6cce",
   "summary": "Official free-tier audit completed; isolated no-network Pinnacle 1X2 parser tested. No source is production-qualified or wired.",
   "production_database_writes": 0,
   "production_jobs_run": 0,
