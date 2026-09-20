@@ -1,0 +1,59 @@
+{
+  "task_id": "TASK-20260921-076",
+  "title": "Final Odds Freshness 80-Minute Policy",
+  "branch": "codex/TASK-20260921-076",
+  "base_commit": "23f4a21ee3b288b8f37a305a6d355269a464e0cb",
+  "implementation_commit": "84cd039",
+  "status": "IMPLEMENTED_AND_TESTED_PRODUCTION_RELEASE_BLOCKED",
+  "frozen_diff": {
+    "FINAL_ODDS_MAX_AGE_MINUTES": {"before": 30, "after": 80},
+    "preliminary_max_age_minutes": {"before": null, "after": 180, "authorized": true},
+    "other_frozen_items_changed": 0
+  },
+  "policy": {
+    "0_to_80_inclusive": "FINAL_ELIGIBLE_SUBJECT_TO_ALL_EXISTING_GATES",
+    "over_80_to_180_inclusive": "PRELIMINARY_WATCH_NO_FORMAL_EV_KELLY_OR_BET",
+    "over_180": "ODDS_TOO_STALE",
+    "minimum_bookmakers": 2,
+    "snapshot_time_source": "provider market last_update persisted as captured_at"
+  },
+  "tests": {
+    "focused": "50 passed before final additional regression test; subsequent full unit passed",
+    "full_unit": "702 passed, 2 dependency deprecation warnings",
+    "full_integration": "110 passed on disposable football_integration_test PostgreSQL",
+    "ruff_changed_files": "PASS",
+    "black_changed_files": "PASS",
+    "mypy_ci_parameters": "PASS: 8 source files",
+    "git_diff_check": "PASS"
+  },
+  "historical_replay": {
+    "source": "read-only TASK-067 isolated clone football_task067_clone_test",
+    "clone_revision": "0021",
+    "odds_snapshots": 276,
+    "decision_contexts": 571,
+    "contexts_with_point_in_time_odds": 2,
+    "basic_1x2_two_bookmaker_coverage_at_30_minutes": 2,
+    "basic_1x2_two_bookmaker_coverage_at_80_minutes": 2,
+    "additional_final_eligible_contexts": 0,
+    "limitation": "Only two contexts overlap odds; this is not a production-wide or betting-outcome estimate. No other threshold was changed."
+  },
+  "production_read_only_finding": {
+    "database": "football",
+    "api_container_database_host": "postgres",
+    "alembic_revision": "0021",
+    "non_system_tables_seen": ["public.alembic_version"],
+    "business_tables_seen": 0,
+    "classification": "CRITICAL_DATABASE_TOPOLOGY_MISMATCH_REQUIRES_SEPARATE_INCIDENT_RECONCILIATION"
+  },
+  "production_db_writes": 0,
+  "external_api_calls": 0,
+  "production_jobs_run": 0,
+  "scheduler_changes": 0,
+  "schema_changes": 0,
+  "deployment": "NOT_PERFORMED",
+  "blockers": [
+    "Current API-targeted football database exposes only alembic_version, not canonical 0021 business tables.",
+    "Available historical decision/odds overlap is too small for a reliable production impact estimate."
+  ],
+  "recommended_next_action": "Review branch/PR without merging or deploying; reconcile production DB identity and canonical 0021 health under a separate incident procedure before any release."
+}
