@@ -1,0 +1,11 @@
+{
+  "task_id": "TASK-20260920-075",
+  "selected_at_europe_paris": "2026-09-20",
+  "fixtures": [
+    {"fixture_id": 1575176, "league_id": 78, "competition": "Bundesliga", "home": "Borussia Dortmund", "away": "Werder Bremen", "kickoff_utc": "2026-10-09T18:30:00+00:00"},
+    {"fixture_id": 1552775, "league_id": 61, "competition": "Ligue 1", "home": "Lens", "away": "Lyon", "kickoff_utc": "2026-10-09T18:45:00+00:00"},
+    {"fixture_id": 1570408, "league_id": 140, "competition": "La Liga", "home": "Malaga", "away": "Espanyol", "kickoff_utc": "2026-10-09T19:00:00+00:00"},
+    {"fixture_id": 1557417, "league_id": 39, "competition": "Premier League", "home": "Arsenal", "away": "Leeds", "kickoff_utc": "2026-10-10T11:30:00+00:00"},
+    {"fixture_id": 1550140, "league_id": 135, "competition": "Serie A", "home": "Genoa", "away": "Fiorentina", "kickoff_utc": "2026-10-10T13:00:00+00:00"}
+  ]
+}
