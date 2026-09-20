@@ -398,6 +398,36 @@ async def observe(slot: str) -> dict[str, Any]:
     return {"status": record["status"], "checkpoint": slot, "error": record["error"]}
 
 
+def mark_unavailable(slot: str, reason: str) -> dict[str, Any]:
+    """Preserve a skipped checkpoint when unattended network permission fails."""
+    selected = manifest()
+    fixture_id = int(selected["fixture_id"])
+    path = checkpoint_path(fixture_id, slot)
+    if path.exists():
+        return {"status": "CHECKPOINT_ALREADY_RECORDED", "checkpoint": slot}
+    write_preflight()
+    kickoff = parse_time(selected["kickoff_utc"])
+    assert kickoff is not None
+    eligible = eligible_slot(kickoff, now_utc()) == slot
+    record = {
+        "fixture_id": fixture_id,
+        "checkpoint": slot,
+        "scheduled_at": selected[slot],
+        "started_at": now_utc().isoformat(),
+        "request_attempted": False,
+        "request_completed": False,
+        "http_status": None,
+        "provider_timestamp": None,
+        "captured_at": None,
+        "Bet365": {"freshness": "UNAVAILABLE"},
+        "Pinnacle": {"freshness": "UNAVAILABLE"},
+        "error": reason if eligible else "NOT_NATURALLY_ELIGIBLE",
+        "status": "CHECKPOINT_SKIPPED",
+    }
+    atomic_json(path, record)
+    return {"status": record["status"], "checkpoint": slot, "error": record["error"]}
+
+
 def summarize() -> dict[str, Any]:
     selected = manifest()
     fixture_id = int(selected["fixture_id"])
@@ -464,9 +494,18 @@ def summarize() -> dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "command", choices=("preflight", "discover", "network-check", "checkpoint", "summarize")
+        "command",
+        choices=(
+            "preflight",
+            "discover",
+            "network-check",
+            "checkpoint",
+            "mark-unavailable",
+            "summarize",
+        ),
     )
     parser.add_argument("--slot", choices=CHECKPOINTS)
+    parser.add_argument("--reason", choices=("NETWORK_PERMISSION_UNAVAILABLE",))
     args = parser.parse_args()
     if args.command == "preflight":
         result = write_preflight()
@@ -478,6 +517,12 @@ def main() -> None:
         if args.slot is None:
             parser.error("--slot is required for checkpoint")
         result = asyncio.run(observe(args.slot))
+        if args.slot == "T30":
+            result["consolidated"] = summarize()
+    elif args.command == "mark-unavailable":
+        if args.slot is None or args.reason is None:
+            parser.error("--slot and --reason are required for mark-unavailable")
+        result = mark_unavailable(args.slot, args.reason)
         if args.slot == "T30":
             result["consolidated"] = summarize()
     else:

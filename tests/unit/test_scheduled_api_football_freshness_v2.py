@@ -211,3 +211,28 @@ async def test_natural_checkpoint_persists_two_named_bookmakers(
     assert record["Pinnacle"]["freshness"] == "FRESH"
     assert record["Bet365"]["timestamp_scope"] == "event"
     assert len(module.read_json(module.LEDGER)["requests"]) == 2
+
+
+def test_permission_denied_checkpoint_is_recorded_without_request(
+    evidence_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    kickoff = datetime(2026, 9, 20, 16, 30, tzinfo=UTC)
+    monkeypatch.setattr(module, "now_utc", lambda: kickoff - timedelta(minutes=55))
+    module.atomic_json(
+        module.MANIFEST,
+        {
+            "fixture_id": 1570402,
+            "home": "Villarreal",
+            "away": "Levante",
+            "kickoff_utc": kickoff.isoformat(),
+            "kickoff_europe_paris": kickoff.astimezone(module.PARIS).isoformat(),
+            "T60": (kickoff - timedelta(minutes=60)).astimezone(module.PARIS).isoformat(),
+        },
+    )
+    result = module.mark_unavailable("T60", "NETWORK_PERMISSION_UNAVAILABLE")
+    assert result["status"] == "CHECKPOINT_SKIPPED"
+    assert result["error"] == "NETWORK_PERMISSION_UNAVAILABLE"
+    record = module.read_json(module.checkpoint_path(1570402, "T60"))
+    assert record["request_attempted"] is False
+    assert record["Bet365"]["freshness"] == "UNAVAILABLE"
+    assert module.read_json(module.LEDGER, {"requests": []})["requests"] == []
