@@ -285,6 +285,28 @@ async def discover() -> dict[str, Any]:
     return {"status": "FIXTURE_SELECTED", **selected, "candidate_count": len(candidates)}
 
 
+async def network_check() -> dict[str, Any]:
+    """One ledgered fixture lookup, without querying odds or rewriting checkpoints."""
+    write_preflight()
+    selected = manifest()
+    settings = Settings()
+    if not settings.api_football_key:
+        raise RuntimeError("API_FOOTBALL_KEY_NOT_CONFIGURED")
+    fixture_id = int(selected["fixture_id"])
+    async with httpx.AsyncClient(
+        base_url=settings.api_football_base_url,
+        timeout=20.0,
+        headers={"x-apisports-key": settings.api_football_key},
+    ) as client:
+        payload = await AuditedReader(client, fixture_id, "NETWORK_CHECK").get(
+            "/fixtures", {"id": fixture_id}
+        )
+    rows = payload.get("response") or []
+    if len(rows) != 1 or (rows[0].get("fixture") or {}).get("id") != fixture_id:
+        raise RuntimeError("NETWORK_CHECK_FIXTURE_MISMATCH")
+    return {"status": "NETWORK_CHECK_PASS", "fixture_id": fixture_id}
+
+
 def manifest() -> dict[str, Any]:
     selected = read_json(MANIFEST)
     if (
@@ -441,13 +463,17 @@ def summarize() -> dict[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=("preflight", "discover", "checkpoint", "summarize"))
+    parser.add_argument(
+        "command", choices=("preflight", "discover", "network-check", "checkpoint", "summarize")
+    )
     parser.add_argument("--slot", choices=CHECKPOINTS)
     args = parser.parse_args()
     if args.command == "preflight":
         result = write_preflight()
     elif args.command == "discover":
         result = asyncio.run(discover())
+    elif args.command == "network-check":
+        result = asyncio.run(network_check())
     elif args.command == "checkpoint":
         if args.slot is None:
             parser.error("--slot is required for checkpoint")
