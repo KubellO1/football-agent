@@ -256,6 +256,9 @@ def test_summary_counts_unavailable_and_never_calls_it_suitable(
                 },
             )
     summary = collector.summarize()
+    assert summary["FIXTURES_SELECTED"] == 5
+    assert summary["FIXTURES_TESTED"] == 5
+    assert summary["LEAGUES_TESTED"] == ["Premier League"]
     assert summary["BET365_T60_FRESH_RATE"] == 1.0
     assert summary["BET365_T30_FRESH_RATE"] == 0.0
     assert summary["PINNACLE_T60_FRESH_RATE"] == 0.0
@@ -263,6 +266,9 @@ def test_summary_counts_unavailable_and_never_calls_it_suitable(
     assert summary["MEDIAN_ODDS_AGE_T30"] == 45.0
     assert summary["MAX_ODDS_AGE"] == 45.0
     assert summary["TIMESTAMP_UPDATE_RATE"] == 0.0
+    assert summary["FRESH_OBSERVATIONS"] == 5
+    assert summary["STALE_OBSERVATIONS"] == 5
+    assert summary["UNAVAILABLE_OBSERVATIONS"] == 10
     assert summary["API_FOOTBALL_ODDS_PRODUCTION_SUITABLE"] is False
     assert len(summary["OBSERVATIONS"]) == 20
     assert json.loads((isolated / "consolidated.json").read_text(encoding="utf-8")) == summary

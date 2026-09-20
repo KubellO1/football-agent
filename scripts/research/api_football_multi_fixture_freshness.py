@@ -373,8 +373,8 @@ def summarize() -> dict[str, Any]:
     rows = manifest()
     result: dict[str, Any] = {
         "TASK_ID": "TASK-20260920-075",
-        "FIXTURES_TESTED": len(rows),
-        "LEAGUES_TESTED": sorted({row["competition"] for row in rows}),
+        "FIXTURES_SELECTED": len(rows),
+        "LEAGUES_SELECTED": sorted({row["competition"] for row in rows}),
         "OBSERVATIONS": [],
     }
     age_by_slot: dict[str, list[float]] = {slot: [] for slot in SLOTS}
@@ -385,8 +385,14 @@ def summarize() -> dict[str, Any]:
     updated = 0
     all_fresh = True
     all_bookmaker_timestamps = True
+    tested_ids: set[int] = set()
+    tested_leagues: set[str] = set()
+    classifications: dict[str, int] = {"FRESH": 0, "STALE": 0, "UNAVAILABLE": 0}
     for row in rows:
         records = {slot: read_json(evidence_path(row["fixture_id"], slot), {}) for slot in SLOTS}
+        if any(record.get("status") == "CHECKPOINT_RECORDED" for record in records.values()):
+            tested_ids.add(row["fixture_id"])
+            tested_leagues.add(row["competition"])
         for name in BOOKMAKERS:
             first = (records["T60"].get("bookmakers") or {}).get(name) or {}
             second = (records["T30"].get("bookmakers") or {}).get(name) or {}
@@ -399,6 +405,7 @@ def summarize() -> dict[str, Any]:
                 record = records[slot]
                 quote = (record.get("bookmakers") or {}).get(name) or {}
                 freshness = quote.get("freshness", "UNAVAILABLE")
+                classifications[freshness] = classifications.get(freshness, 0) + 1
                 age = quote.get("odds_age_minutes")
                 if isinstance(age, (int, float)):
                     age_by_slot[slot].append(float(age))
@@ -438,6 +445,11 @@ def summarize() -> dict[str, Any]:
     result["TIMESTAMP_UPDATE_RATE"] = updated / comparable if comparable else None
     result["TIMESTAMP_UPDATE_COMPARABLE_PAIRS"] = comparable
     result["BOOKMAKER_TIMESTAMP_COVERAGE"] = all_bookmaker_timestamps
+    result["FIXTURES_TESTED"] = len(tested_ids)
+    result["LEAGUES_TESTED"] = sorted(tested_leagues)
+    result["FRESH_OBSERVATIONS"] = classifications["FRESH"]
+    result["STALE_OBSERVATIONS"] = classifications["STALE"]
+    result["UNAVAILABLE_OBSERVATIONS"] = classifications["UNAVAILABLE"]
     ledger = _ledger()
     requests = ledger["requests"]
     result["HTTP_REQUESTS_ATTEMPTED"] = len(requests)
