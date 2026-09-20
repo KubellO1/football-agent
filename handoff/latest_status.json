@@ -17,6 +17,8 @@
   "schema_changes": 0,
   "frozen_unchanged": true,
   "api_football_odds_fresh_enough": "undetermined",
-  "approval_gate": "STOP_NO_ELIGIBLE_FIXTURES",
-  "next_action": "No automatic continuation. A separate naturally timed read-only observation is required to test odds freshness; preserve the 30-minute rule."
+  "approval_gate": "SCHEDULED_READ_ONLY_FOLLOWUP",
+  "scheduled_automation_id": "api-football-fixture-1550130-odds-freshness",
+  "scheduled_times_europe_paris": ["2026-09-20 11:00", "2026-09-20 11:30", "2026-09-20 12:00"],
+  "next_action": "The user-authorized local Codex automation will collect read-only natural-checkpoint evidence and report once after T-30; preserve the 30-minute rule."
 }

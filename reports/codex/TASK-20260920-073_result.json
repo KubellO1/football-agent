@@ -63,5 +63,14 @@
   "purchases_or_upgrades": 0,
   "paid_odds_api_requests": 0,
   "frozen_changes": 0,
-  "credential_leakage_found": 0
+  "credential_leakage_found": 0,
+  "scheduled_followup": {
+    "automation_id": "api-football-fixture-1550130-odds-freshness",
+    "execution_environment": "local project C:\\Users\\ruowa\\Projects\\football-agent",
+    "times_europe_paris": ["2026-09-20T11:00:00+02:00", "2026-09-20T11:30:00+02:00", "2026-09-20T12:00:00+02:00"],
+    "script": "scripts/research/scheduled_api_football_freshness.py",
+    "evidence": "C:\\Users\\ruowa\\Projects\\football-agent-task-artifacts\\TASK-20260920-073\\fixture_1550130_checkpoints.json",
+    "production_windows_scheduler_changes": 0,
+    "status": "scheduled; no checkpoint results yet"
+  }
 }
