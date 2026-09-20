@@ -116,6 +116,14 @@ def consolidate(data: dict[str, Any]) -> dict[str, Any]:
         for earlier, later in (("T90", "T60"), ("T60", "T30")):
             first = quote_at(data, earlier, bookmaker)
             second = quote_at(data, later, bookmaker)
+            comparable = bool(
+                first
+                and second
+                and first.get("provider_odds_update_at")
+                and second.get("provider_odds_update_at")
+                and all(first.get(key) is not None for key in ("home", "draw", "away"))
+                and all(second.get(key) is not None for key in ("home", "draw", "away"))
+            )
             pairs.append(
                 {
                     "from": earlier,
@@ -123,13 +131,13 @@ def consolidate(data: dict[str, Any]) -> dict[str, Any]:
                     "timestamp_updated": (
                         first.get("provider_odds_update_at")
                         != second.get("provider_odds_update_at")
-                        if first and second
+                        if comparable and first and second
                         else None
                     ),
                     "price_moved": (
                         (first.get("home"), first.get("draw"), first.get("away"))
                         != (second.get("home"), second.get("draw"), second.get("away"))
-                        if first and second
+                        if comparable and first and second
                         else None
                     ),
                 }
@@ -223,6 +231,11 @@ async def run() -> None:
             ):
                 raise RuntimeError("FIXTURE_OR_CHECKPOINT_MISMATCH")
             odds_payload = await reader.get("/odds", {"fixture": FIXTURE_ID, "bet": 1})
+            for event in odds_payload.get("response") or []:
+                if isinstance(event, dict) and isinstance(event.get("fixture"), dict):
+                    returned_id = event["fixture"].get("id")
+                    if returned_id is not None and returned_id != FIXTURE_ID:
+                        raise RuntimeError("ODDS_FIXTURE_ID_MISMATCH")
             captured_at = reader.timeline[-1]["captured_at"]
             selected = {
                 "fixture_id": FIXTURE_ID,
