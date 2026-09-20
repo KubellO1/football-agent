@@ -4,7 +4,10 @@
   "branch": "codex/TASK-20260921-076",
   "base_commit": "23f4a21ee3b288b8f37a305a6d355269a464e0cb",
   "implementation_commit": "84cd039",
-  "status": "IMPLEMENTED_AND_TESTED_PRODUCTION_RELEASE_BLOCKED",
+  "status": "IMPLEMENTED_TESTED_BRANCH_PUSHED_PRODUCTION_RELEASE_BLOCKED",
+  "branch_pushed": true,
+  "pull_request": "NOT_CREATED_GITHUB_CLI_UNAVAILABLE",
+  "github_required_checks": "NOT_TRIGGERED_WITHOUT_PR",
   "frozen_diff": {
     "FINAL_ODDS_MAX_AGE_MINUTES": {"before": 30, "after": 80},
     "preliminary_max_age_minutes": {"before": null, "after": 180, "authorized": true},
@@ -55,5 +58,5 @@
     "Current API-targeted football database exposes only alembic_version, not canonical 0021 business tables.",
     "Available historical decision/odds overlap is too small for a reliable production impact estimate."
   ],
-  "recommended_next_action": "Review branch/PR without merging or deploying; reconcile production DB identity and canonical 0021 health under a separate incident procedure before any release."
+  "recommended_next_action": "Create a review PR from the pushed branch when permitted; do not merge or deploy until a separate incident procedure reconciles production DB identity and canonical 0021 health."
 }

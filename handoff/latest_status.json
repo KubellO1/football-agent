@@ -18,6 +18,9 @@
   "schema_changes": 0,
   "frozen_change": "FINAL_ODDS_MAX_AGE_MINUTES 30→80 only; preliminary maximum 180 separately authorized",
   "deployment": "not performed",
+  "branch_pushed": false,
+  "pull_request": "not created after rebase",
+  "github_required_checks": "not triggered after rebase",
   "approval_gate": "REVALIDATE_ON_CURRENT_MASTER",
   "next_action": "Complete rebase, run full validation, create PR, merge after CI, then deploy and execute one controlled DailyProductionRun Canary with all recurring writers initially Disabled."
 }
