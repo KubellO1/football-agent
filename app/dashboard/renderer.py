@@ -121,6 +121,13 @@ class DashboardRenderer:
             self._head(f"每日比赛看板 | {data.date}"),
             '<div class="container">',
             self._daily_hero(data),
+            (
+                '<p class="info-text">赔率时效：'
+                f"≤{data.final_odds_max_age_minutes} 分钟可进入 FINAL 审核；"
+                f">{data.final_odds_max_age_minutes}–"
+                f"{data.preliminary_odds_max_age_minutes} 分钟仅 PRELIMINARY/WATCH；"
+                f">{data.preliminary_odds_max_age_minutes} 分钟 ODDS_TOO_STALE。</p>"
+            ),
             # ── Provider Health Section ──
             self._provider_health_section(),
             # ── Enhancement 3: Run Timeline ──

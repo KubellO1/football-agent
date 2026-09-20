@@ -498,4 +498,6 @@ async def build_daily_dashboard(
             if recommendations_min_ev is None
             else recommendations_min_ev
         ),
+        final_odds_max_age_minutes=get_settings().analysis_odds_max_age_minutes,
+        preliminary_odds_max_age_minutes=(get_settings().analysis_odds_preliminary_max_age_minutes),
     )

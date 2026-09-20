@@ -25,6 +25,7 @@ from app.repositories.sqlalchemy.models import (
 )
 from app.services.fixture_analysis import (
     NO_ODDS_MESSAGE,
+    ODDS_TOO_STALE_MESSAGE,
     DetailedAnalysis,
     SelectionAnalysis,
 )
@@ -278,7 +279,11 @@ async def log_fixture_predictions(
     if not result.selections:
         # 无 selection：区分"无赔率"与"数据不足"
         is_no_odds = (result.message or "").strip() == NO_ODDS_MESSAGE.strip()
-        if is_no_odds:
+        is_too_stale = (result.message or "").strip() == ODDS_TOO_STALE_MESSAGE.strip()
+        if is_too_stale:
+            final_decision = "ODDS_TOO_STALE"
+            why_not = "Latest supported odds are older than the configured preliminary limit."
+        elif is_no_odds:
             # 细分 NO_ODDS 子类型（优先级依次递减）
             killer = (result.confidence_killer or "").lower()
             # ── Odds-API.io specific classifications ──
@@ -336,7 +341,7 @@ async def log_fixture_predictions(
         )
         report.inserted = int(inserted)
         report.reused = int(not inserted)
-        if is_no_odds:
+        if is_no_odds or is_too_stale:
             report.no_bet_count = 1
         else:
             report.watch_count = 1

@@ -79,7 +79,8 @@ def _snapshot(
 def _service(
     snapshots: list[OddsSnapshot],
     *,
-    maximum_age: timedelta = timedelta(minutes=30),
+    maximum_age: timedelta = timedelta(minutes=80),
+    preliminary_maximum_age: timedelta = timedelta(minutes=180),
     minimum_bookmakers: int = 2,
     maximum_relative_deviation: float = 0.2,
 ) -> tuple[VerifiedMarketQuoteService, InMemoryOddsSnapshotRepository]:
@@ -89,6 +90,7 @@ def _service(
             repository=repository,
             policy=VerifiedMarketQuotePolicy(
                 maximum_age=maximum_age,
+                preliminary_maximum_age=preliminary_maximum_age,
                 minimum_bookmakers=minimum_bookmakers,
                 maximum_relative_deviation=maximum_relative_deviation,
             ),
@@ -114,6 +116,14 @@ def _complete_market() -> list[OddsSnapshot]:
 def test_policy_rejects_unsafe_boundaries() -> None:
     with pytest.raises(ValueError, match="maximum_age must be positive"):
         VerifiedMarketQuotePolicy(maximum_age=timedelta(0))
+    with pytest.raises(ValueError, match="preliminary_maximum_age must be positive"):
+        VerifiedMarketQuotePolicy(
+            maximum_age=timedelta(minutes=80), preliminary_maximum_age=timedelta(0)
+        )
+    with pytest.raises(ValueError, match="preliminary_maximum_age must exceed maximum_age"):
+        VerifiedMarketQuotePolicy(
+            maximum_age=timedelta(minutes=80), preliminary_maximum_age=timedelta(minutes=80)
+        )
     with pytest.raises(ValueError, match="minimum_bookmakers"):
         VerifiedMarketQuotePolicy(maximum_age=timedelta(minutes=1), minimum_bookmakers=1)
     with pytest.raises(ValueError, match="maximum_relative_deviation"):
@@ -203,21 +213,97 @@ async def test_verify_fails_closed_when_selection_is_missing() -> None:
 
 
 @pytest.mark.unit
-async def test_verify_rejects_stale_selection_relative_to_as_of() -> None:
+async def test_verify_classifies_preliminary_selection_relative_to_as_of() -> None:
     snapshots = _complete_market()
     for snapshot in snapshots:
         snapshot.captured_at = AS_OF - timedelta(hours=2)
-    service, _ = _service(snapshots, maximum_age=timedelta(minutes=30))
+    service, _ = _service(snapshots, maximum_age=timedelta(minutes=80))
+
+    result = await service.verify(FIXTURE_ID, as_of=AS_OF)
+
+    assert result.status is MarketQuoteVerificationStatus.PRELIMINARY
+    assert result.quotes == ()
+    assert result.issues[0].reason is MarketQuoteRejectionReason.PRELIMINARY_ONLY
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("age", "expected_status", "expected_reason"),
+    [
+        (
+            timedelta(minutes=79, seconds=59, milliseconds=400),
+            MarketQuoteVerificationStatus.VERIFIED,
+            None,
+        ),
+        (timedelta(minutes=80), MarketQuoteVerificationStatus.VERIFIED, None),
+        (
+            timedelta(minutes=80, milliseconds=600),
+            MarketQuoteVerificationStatus.PRELIMINARY,
+            MarketQuoteRejectionReason.PRELIMINARY_ONLY,
+        ),
+        (
+            timedelta(minutes=179, seconds=59, milliseconds=400),
+            MarketQuoteVerificationStatus.PRELIMINARY,
+            MarketQuoteRejectionReason.PRELIMINARY_ONLY,
+        ),
+        (
+            timedelta(minutes=180),
+            MarketQuoteVerificationStatus.PRELIMINARY,
+            MarketQuoteRejectionReason.PRELIMINARY_ONLY,
+        ),
+        (
+            timedelta(minutes=180, milliseconds=600),
+            MarketQuoteVerificationStatus.TOO_STALE,
+            MarketQuoteRejectionReason.ODDS_TOO_STALE,
+        ),
+    ],
+)
+async def test_final_preliminary_and_too_stale_exact_boundaries(
+    age: timedelta,
+    expected_status: MarketQuoteVerificationStatus,
+    expected_reason: MarketQuoteRejectionReason | None,
+) -> None:
+    snapshots = _complete_market()
+    for snapshot in snapshots:
+        snapshot.captured_at = AS_OF - age
+    service, _ = _service(snapshots, maximum_age=timedelta(minutes=80))
+
+    result = await service.verify(FIXTURE_ID, as_of=AS_OF)
+
+    assert result.status is expected_status
+    assert result.accepted is (expected_status is MarketQuoteVerificationStatus.VERIFIED)
+    assert len(result.market_quotes) == (3 if result.accepted else 0)
+    if expected_reason is not None:
+        assert result.issues[0].reason is expected_reason
+
+
+@pytest.mark.unit
+async def test_preliminary_never_bypasses_bookmaker_or_selection_contract() -> None:
+    snapshots = [
+        snapshot for snapshot in _complete_market() if snapshot.bookmaker_id == BOOKMAKER_IDS[0]
+    ]
+    for snapshot in snapshots:
+        snapshot.captured_at = AS_OF - timedelta(minutes=100)
+    service, _ = _service(snapshots, maximum_age=timedelta(minutes=80))
 
     result = await service.verify(FIXTURE_ID, as_of=AS_OF)
 
     assert result.status is MarketQuoteVerificationStatus.REJECTED
-    assert result.quotes == ()
-    assert [issue.reason for issue in result.issues] == [
-        MarketQuoteRejectionReason.STALE_SELECTION,
-        MarketQuoteRejectionReason.STALE_SELECTION,
-        MarketQuoteRejectionReason.STALE_SELECTION,
-    ]
+    assert result.market_quotes == ()
+
+
+@pytest.mark.unit
+async def test_one_older_selection_prevents_whole_market_from_becoming_final() -> None:
+    snapshots = _complete_market()
+    for snapshot in snapshots:
+        age = 81 if snapshot.selection.code == "draw" else 60
+        snapshot.captured_at = AS_OF - timedelta(minutes=age)
+    service, _ = _service(snapshots)
+
+    result = await service.verify(FIXTURE_ID, as_of=AS_OF)
+
+    assert result.status is MarketQuoteVerificationStatus.PRELIMINARY
+    assert result.market_quotes == ()
 
 
 @pytest.mark.unit

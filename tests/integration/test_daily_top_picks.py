@@ -104,6 +104,7 @@ def _picks_service(
         form_window=10,
         market_quote_policy=VerifiedMarketQuotePolicy(
             maximum_age=timedelta(days=36500),
+            preliminary_maximum_age=timedelta(days=36501),
         ),
     )
     analysis = FixtureAnalysisService(builder=builder, model=EnsembleMatchModel(), gate=gate)

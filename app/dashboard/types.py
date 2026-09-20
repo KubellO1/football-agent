@@ -698,6 +698,8 @@ class DailyDashboardData:
     generated_at: datetime | None = None
     pipeline_version: str | None = None
     recommendations_min_ev: float = 0.05
+    final_odds_max_age_minutes: int = 80
+    preliminary_odds_max_age_minutes: int = 180
 
 
 # Legacy alias for backward compatibility
