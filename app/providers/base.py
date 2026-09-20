@@ -59,6 +59,17 @@ class BaseHTTPProvider:
     async def _observe_response(self, response: httpx.Response) -> None:
         """允许具体提供器读取响应头；默认不执行任何操作。"""
 
+    async def _before_request(self) -> None:
+        """Provider-specific request admission; default has no restrictions."""
+
+    async def _is_rate_limited_payload(self, payload: Any, response: httpx.Response) -> bool:
+        """Provider-specific application-level rate limit detector."""
+        return False
+
+    def _retry_429_without_reset(self) -> bool:
+        """Keep existing default: do not retry 429 without a reset hint."""
+        return False
+
     @staticmethod
     def _rate_limit_delay(response: httpx.Response) -> float | None:
         """从标准或供应商响应头计算真实限流等待秒数。"""
@@ -106,6 +117,7 @@ class BaseHTTPProvider:
         # Total attempts = 1 initial + max_retries retries.
         last_error: Exception | None = None
         last_status: int | None = None
+        last_reason: str | None = None
         retry_delay: float | None = None
         for attempt in range(self._max_retries + 1):
             if attempt > 0:
@@ -121,10 +133,12 @@ class BaseHTTPProvider:
                 await asyncio.sleep(delay)
 
             try:
+                await self._before_request()
                 response = await self._client.get(path, params=params, headers=headers)
             except httpx.TransportError as exc:  # timeouts, connection/read errors
                 last_error = exc
-                logger.warning("Provider transport error for %s: %s", path, exc)
+                # Exception text can include a credential-bearing request URL.
+                logger.warning("Provider transport error for %s: %s", path, type(exc).__name__)
                 continue
 
             await self._observe_response(response)
@@ -138,6 +152,8 @@ class BaseHTTPProvider:
                 )
                 if response.status_code == 429:
                     retry_delay = self._rate_limit_delay(response)
+                    if retry_delay is None and self._retry_429_without_reset():
+                        retry_delay = self._backoff_delay(attempt)
                     if retry_delay is None or attempt >= self._max_retries:
                         logger.warning(
                             "Provider rate limit status 429 for %s without retryable reset",
@@ -159,10 +175,9 @@ class BaseHTTPProvider:
 
             if response.is_error:  # non-retryable 4xx (bad key, bad request, ...)
                 logger.error(
-                    "Provider error status %d for %s: %s",
+                    "Provider error status %d for %s",
                     response.status_code,
                     path,
-                    response.text[:500],
                 )
                 # Detect quota exhaustion on 401 (The Odds API returns 401 instead of 429)
                 detail = f"failed with status {response.status_code}"
@@ -179,12 +194,21 @@ class BaseHTTPProvider:
                 raise ExternalServiceError(f"provider request to {path} {detail}")
 
             try:
-                return response.json()
+                payload = response.json()
             except ValueError as exc:  # malformed JSON body
                 raise ExternalServiceError(f"provider returned invalid JSON for {path}") from exc
+            if await self._is_rate_limited_payload(payload, response):
+                last_error = ExternalServiceError("APPLICATION_RATE_LIMIT")
+                last_reason = " APPLICATION_RATE_LIMIT"
+                retry_delay = self._rate_limit_delay(response)
+                if attempt >= self._max_retries:
+                    break
+                continue
+            return payload
 
         status_detail = f" with status {last_status}" if last_status is not None else ""
+        reason_detail = last_reason or ""
         raise ExternalServiceError(
-            f"provider request to {path} failed{status_detail} "
+            f"provider request to {path} failed{status_detail}{reason_detail} "
             f"after {self._max_retries + 1} attempts"
         ) from last_error

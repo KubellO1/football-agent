@@ -7,20 +7,24 @@ per-request ``x-apisports-key`` header. Responses wrap the payload in a
 
 from __future__ import annotations
 
-from datetime import date
-from typing import Any
-
-import httpx
+from typing import TYPE_CHECKING, Any
 
 from app.core.logging import get_logger
-from app.providers.base import BaseHTTPProvider
+from app.providers.api_football_http import ApiFootballHTTPProvider
 from app.providers.interfaces.fixtures_provider import FixturesProvider
 from app.providers.schemas.fixtures import ProviderFixture, ProviderTeam
 
 logger = get_logger(__name__)
 
+if TYPE_CHECKING:
+    from datetime import date
 
-class ApiFootballProvider(BaseHTTPProvider, FixturesProvider):
+    import httpx
+
+    from app.providers.api_football_rate_limit import ApiFootballRequestLimiter
+
+
+class ApiFootballProvider(ApiFootballHTTPProvider, FixturesProvider):
     """Fixtures feed backed by API-Football v3."""
 
     def __init__(
@@ -32,6 +36,7 @@ class ApiFootballProvider(BaseHTTPProvider, FixturesProvider):
         max_retries: int,
         backoff_base_seconds: float,
         client: httpx.AsyncClient | None = None,
+        rate_limiter: ApiFootballRequestLimiter | None = None,
     ) -> None:
         super().__init__(
             base_url=base_url,
@@ -40,6 +45,7 @@ class ApiFootballProvider(BaseHTTPProvider, FixturesProvider):
             backoff_base_seconds=backoff_base_seconds,
             headers={"x-apisports-key": api_key},
             client=client,
+            rate_limiter=rate_limiter,
         )
 
     async def get_fixtures(

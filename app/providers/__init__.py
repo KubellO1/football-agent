@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from app.providers.api_football_rate_limit import ApiFootballRequestLimiter
 from app.providers.impl.api_football_fixture_lineup_provider import (
     ApiFootballFixtureLineupProvider,
 )
@@ -45,6 +46,21 @@ if TYPE_CHECKING:
 
 # Module-level rate limiter (shared across worker restarts via optional Redis)
 rate_limiter: TokenBucketRateLimiter | None = None
+api_football_rate_limiter: ApiFootballRequestLimiter | None = None
+
+
+def _api_football_limiter(settings: Settings) -> ApiFootballRequestLimiter:
+    """Share pacing and request budgets across all API-Football adapters."""
+    global api_football_rate_limiter
+    if api_football_rate_limiter is None:
+        api_football_rate_limiter = ApiFootballRequestLimiter(
+            min_interval_seconds=settings.api_football_min_request_interval_seconds,
+            per_minute_budget=settings.api_football_per_minute_request_budget,
+            daily_budget=settings.api_football_daily_request_budget,
+            run_budget=settings.api_football_run_request_budget,
+            circuit_cooldown_seconds=settings.api_football_circuit_cooldown_seconds,
+        )
+    return api_football_rate_limiter
 
 
 def build_fixtures_provider(settings: Settings) -> FixturesProvider:
@@ -55,6 +71,7 @@ def build_fixtures_provider(settings: Settings) -> FixturesProvider:
         timeout_seconds=settings.provider_timeout_seconds,
         max_retries=settings.provider_max_retries,
         backoff_base_seconds=settings.provider_backoff_base_seconds,
+        rate_limiter=_api_football_limiter(settings),
     )
 
 
@@ -124,6 +141,7 @@ def build_injury_provider(settings: Settings) -> InjuryProvider:
         timeout_seconds=settings.provider_timeout_seconds,
         max_retries=settings.provider_max_retries,
         backoff_base_seconds=settings.provider_backoff_base_seconds,
+        rate_limiter=_api_football_limiter(settings),
     )
 
 
@@ -137,6 +155,7 @@ def build_player_availability_provider(
         timeout_seconds=settings.provider_timeout_seconds,
         max_retries=settings.provider_max_retries,
         backoff_base_seconds=settings.provider_backoff_base_seconds,
+        rate_limiter=_api_football_limiter(settings),
     )
 
 
@@ -148,6 +167,7 @@ def build_player_squad_provider(settings: Settings) -> PlayerSquadProvider:
         timeout_seconds=settings.provider_timeout_seconds,
         max_retries=settings.provider_max_retries,
         backoff_base_seconds=settings.provider_backoff_base_seconds,
+        rate_limiter=_api_football_limiter(settings),
     )
 
 
@@ -159,6 +179,7 @@ def build_fixture_lineup_provider(settings: Settings) -> FixtureLineupProvider:
         timeout_seconds=settings.provider_timeout_seconds,
         max_retries=settings.provider_max_retries,
         backoff_base_seconds=settings.provider_backoff_base_seconds,
+        rate_limiter=_api_football_limiter(settings),
     )
 
 

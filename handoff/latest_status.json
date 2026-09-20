@@ -1,23 +1,21 @@
 {
-  "task_id": "TASK-20260917-067",
-  "status": "completed_local_approval_gate",
-  "branch": "codex/TASK-20260917-067",
-  "implementation_commit": "484c46e",
-  "summary": "Prediction decision persistence now uses a checkpoint-aware semantic identity and deterministic conflict-safe UUID; production-clone replay inserted zero predictions on both runs.",
+  "task_id": "TASK-20260920-072",
+  "status": "completed_research_not_production_ready",
+  "branch": "codex/TASK-20260920-072",
+  "summary": "Paced API-Football Canary: 25 HTTP-200 responses, zero body rateLimit errors, 8/8 fixtures with named 1X2, but all sampled provider odds updates older than the unchanged 30-minute freshness rule.",
   "verification": {
-    "focused": "11 passed",
-    "unit": "692 passed",
-    "integration": "107 passed",
-    "quality": "Ruff, Black, MyPy CI parameters, and git diff --check passed",
-    "clone_replay": "first new predictions=0; second new predictions=0; duplicates=0"
+    "focused": "48 passed",
+    "unit": "706 passed",
+    "integration": "107 passed against disposable database",
+    "quality": "Ruff, Black, task-scope MyPy, and git diff --check passed"
   },
   "production_database_writes": 0,
   "production_jobs_run": 0,
-  "external_api_calls": 0,
+  "external_api_calls": 25,
   "scheduler_changes": 0,
   "schema_changes": 0,
   "frozen_unchanged": true,
-  "ready_for_controlled_daily_replay": true,
-  "approval_gate": "STOP_BEFORE_PRODUCTION_REPLAY",
-  "next_action": "Review the branch; do not run another production DailyProductionRun until merge/deployment and a separate controlled replay approval."
+  "production_ready": false,
+  "approval_gate": "STOP_BEFORE_PRODUCTION_SOURCE_SWITCH",
+  "next_action": "Validate provider freshness at natural pre-kickoff checkpoints and cross-process quota safety before any source switch or deployment; preserve existing betting rules."
 }

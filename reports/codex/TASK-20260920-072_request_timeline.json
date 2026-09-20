@@ -1,0 +1,409 @@
+{
+  "phase3_requests": 15,
+  "phase4_requests": 10,
+  "body_rate_limit_errors": 0,
+  "http_429": 0,
+  "phase3_pass": true,
+  "timeline": [
+    {
+      "phase": 3,
+      "endpoint": "fixtures",
+      "started_at": "2026-09-20T00:20:30.678599+00:00",
+      "duration_seconds": 0.234,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149999",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "899",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 3,
+      "endpoint": "fixtures",
+      "started_at": "2026-09-20T00:20:30.906866+00:00",
+      "duration_seconds": 1.797,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149998",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "898",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 3,
+      "endpoint": "fixtures",
+      "started_at": "2026-09-20T00:20:32.718204+00:00",
+      "duration_seconds": 2,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149997",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "897",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 3,
+      "endpoint": "fixtures",
+      "started_at": "2026-09-20T00:20:34.713330+00:00",
+      "duration_seconds": 2.016,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149996",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "896",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 3,
+      "endpoint": "fixtures",
+      "started_at": "2026-09-20T00:20:36.721410+00:00",
+      "duration_seconds": 2,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149995",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "895",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 3,
+      "endpoint": "fixtures/statistics",
+      "started_at": "2026-09-20T00:20:38.723748+00:00",
+      "duration_seconds": 2.015,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149994",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "894",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 3,
+      "endpoint": "fixtures/statistics",
+      "started_at": "2026-09-20T00:20:40.737068+00:00",
+      "duration_seconds": 2,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149993",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "893",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 3,
+      "endpoint": "fixtures/statistics",
+      "started_at": "2026-09-20T00:20:42.738870+00:00",
+      "duration_seconds": 2.016,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149992",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "892",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 3,
+      "endpoint": "fixtures/statistics",
+      "started_at": "2026-09-20T00:20:44.749244+00:00",
+      "duration_seconds": 2,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149999",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "899",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 3,
+      "endpoint": "fixtures/statistics",
+      "started_at": "2026-09-20T00:20:46.758366+00:00",
+      "duration_seconds": 2.031,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149998",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "898",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 3,
+      "endpoint": "fixtures/lineups",
+      "started_at": "2026-09-20T00:20:48.793197+00:00",
+      "duration_seconds": 1.985,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149997",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "897",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 3,
+      "endpoint": "fixtures/lineups",
+      "started_at": "2026-09-20T00:20:50.777922+00:00",
+      "duration_seconds": 2.031,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149996",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "896",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 3,
+      "endpoint": "injuries",
+      "started_at": "2026-09-20T00:20:52.798666+00:00",
+      "duration_seconds": 2.031,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149995",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "895",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 3,
+      "endpoint": "injuries",
+      "started_at": "2026-09-20T00:20:54.838105+00:00",
+      "duration_seconds": 1.985,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149994",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "894",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 3,
+      "endpoint": "standings",
+      "started_at": "2026-09-20T00:20:56.814724+00:00",
+      "duration_seconds": 2,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149993",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "893",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 4,
+      "endpoint": "odds/bets",
+      "started_at": "2026-09-20T00:20:58.811725+00:00",
+      "duration_seconds": 2,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149992",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "892",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 4,
+      "endpoint": "odds/bookmakers",
+      "started_at": "2026-09-20T00:21:00.813683+00:00",
+      "duration_seconds": 2,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149991",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "891",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 4,
+      "endpoint": "odds",
+      "started_at": "2026-09-20T00:21:02.814859+00:00",
+      "duration_seconds": 2,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149990",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "890",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 4,
+      "endpoint": "odds",
+      "started_at": "2026-09-20T00:21:04.822631+00:00",
+      "duration_seconds": 2.015,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149989",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "889",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 4,
+      "endpoint": "odds",
+      "started_at": "2026-09-20T00:21:06.835310+00:00",
+      "duration_seconds": 2,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149988",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "888",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 4,
+      "endpoint": "odds",
+      "started_at": "2026-09-20T00:21:08.837048+00:00",
+      "duration_seconds": 21.922,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149987",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "887",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 4,
+      "endpoint": "odds",
+      "started_at": "2026-09-20T00:21:30.762141+00:00",
+      "duration_seconds": 1.984,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149978",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "886",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 4,
+      "endpoint": "odds",
+      "started_at": "2026-09-20T00:21:32.741216+00:00",
+      "duration_seconds": 2.016,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149977",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "885",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 4,
+      "endpoint": "odds",
+      "started_at": "2026-09-20T00:21:34.751459+00:00",
+      "duration_seconds": 2,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149976",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "884",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    },
+    {
+      "phase": 4,
+      "endpoint": "odds",
+      "started_at": "2026-09-20T00:21:36.751082+00:00",
+      "duration_seconds": 2,
+      "http_status": 200,
+      "physical_requests": 1,
+      "quota_headers": {
+        "x-ratelimit-requests-limit": "150000",
+        "x-ratelimit-requests-remaining": "149975",
+        "x-ratelimit-limit": "900",
+        "x-ratelimit-remaining": "883",
+        "retry-after": null,
+        "x-ratelimit-reset": null
+      }
+    }
+  ]
+}
