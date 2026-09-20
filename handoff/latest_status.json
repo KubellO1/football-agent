@@ -2,6 +2,7 @@
   "task_id": "TASK-20260920-073",
   "status": "NO_ELIGIBLE_FIXTURES",
   "branch": "codex/TASK-20260920-073",
+  "implementation_commit": "43fa8b20457252230fb3ae11d790b15dd55f161b",
   "summary": "At 2026-09-20 09:37 Europe/Paris no five-league fixture was naturally in T-90/T-60/T-30; stopped before any odds request. Near-kickoff freshness remains untested.",
   "verification": {
     "checkpoint_contract": "PASS",
