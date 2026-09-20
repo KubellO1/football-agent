@@ -2,6 +2,7 @@
   "task_id": "TASK-20260920-072",
   "status": "completed_research_not_production_ready",
   "branch": "codex/TASK-20260920-072",
+  "implementation_commit": "f85ec0e8f86dc8abee8482d7421bd6e1a6c95d0c",
   "summary": "Paced API-Football Canary: 25 HTTP-200 responses, zero body rateLimit errors, 8/8 fixtures with named 1X2, but all sampled provider odds updates older than the unchanged 30-minute freshness rule.",
   "verification": {
     "focused": "48 passed",

@@ -3,6 +3,7 @@
   "title": "API-Football Rate-Limit Hardening + Odds Capability Validation",
   "branch": "codex/TASK-20260920-072",
   "base_commit": "23f4a21ee3b288b8f37a305a6d355269a464e0cb",
+  "implementation_commit": "f85ec0e8f86dc8abee8482d7421bd6e1a6c95d0c",
   "status": "completed_research_not_production_ready",
   "rate_limit": {
     "previous_canary": "30 requests in approximately 12 seconds; 12 HTTP-200 response-body errors.rateLimit results; precise per-request timing and quota headers not retained",
