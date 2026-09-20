@@ -1,0 +1,66 @@
+{
+  "task_id": "TASK-20260920-073",
+  "title": "API-Football Near-Kickoff Odds Freshness Validation",
+  "branch": "codex/TASK-20260920-073",
+  "base_commit": "23f4a21ee3b288b8f37a305a6d355269a464e0cb",
+  "result": "NO_ELIGIBLE_FIXTURES",
+  "checked_at_utc": "2026-09-20T07:37:32.225707+00:00",
+  "checked_at_europe_paris": "2026-09-20T09:37:32.225707+02:00",
+  "league_fixture_checks": 5,
+  "fixtures_tested_for_odds": 0,
+  "naturally_eligible_fixtures": 0,
+  "nearest_future_fixture": {
+    "provider_fixture_id": 1550130,
+    "competition": "Serie A",
+    "kickoff_utc": "2026-09-20T10:30:00+00:00",
+    "kickoff_europe_paris": "2026-09-20T12:30:00+02:00",
+    "minutes_to_kickoff_at_check": 172.39,
+    "t90_europe_paris": "2026-09-20T11:00:00+02:00",
+    "t60_europe_paris": "2026-09-20T11:30:00+02:00",
+    "t30_europe_paris": "2026-09-20T12:00:00+02:00"
+  },
+  "requests": {
+    "fixture_endpoint": 5,
+    "odds_endpoint": 0,
+    "total": 5,
+    "http_200": 5,
+    "body_rate_limit_errors": 0,
+    "http_429": 0,
+    "retries": 0,
+    "pacing": "at least two seconds between request starts by task script; no concurrent requests",
+    "response_observations": [
+      {"captured_at_utc": "2026-09-20T07:37:32.727903+00:00", "status": 200, "daily_remaining": 149974},
+      {"captured_at_utc": "2026-09-20T07:37:34.513209+00:00", "status": 200, "daily_remaining": 149973},
+      {"captured_at_utc": "2026-09-20T07:37:36.497362+00:00", "status": 200, "daily_remaining": 149972},
+      {"captured_at_utc": "2026-09-20T07:37:38.529070+00:00", "status": 200, "daily_remaining": 149971},
+      {"captured_at_utc": "2026-09-20T07:37:40.533489+00:00", "status": 200, "daily_remaining": 149970}
+    ]
+  },
+  "checkpoint_results": {
+    "bet365_t90_fresh_rate": "N/A: 0 eligible fixtures",
+    "bet365_t60_fresh_rate": "N/A: 0 eligible fixtures",
+    "bet365_t30_fresh_rate": "N/A: 0 eligible fixtures",
+    "pinnacle_t90_fresh_rate": "N/A: 0 eligible fixtures",
+    "pinnacle_t60_fresh_rate": "N/A: 0 eligible fixtures",
+    "pinnacle_t30_fresh_rate": "N/A: 0 eligible fixtures",
+    "odds_timestamp_updates_observed": "N/A: no odds observations",
+    "max_odds_age_minutes": null,
+    "median_odds_age_minutes": null,
+    "prices": "N/A: no odds observations"
+  },
+  "decision": {
+    "api_football_odds_fresh_enough": "undetermined; not demonstrated",
+    "can_replace_paid_odds_api": false,
+    "point_in_time_production_ready": false,
+    "reason": "The explicit no-eligible-fixture stop condition prevented any odds request. TASK-072 stale early-market evidence remains, but near-kickoff freshness has not been tested."
+  },
+  "tests": {"checkpoint_contract": "PASS", "ruff": "PASS", "black": "PASS", "diff_check": "PASS"},
+  "production_db_reads": 0,
+  "production_db_writes": 0,
+  "production_jobs": 0,
+  "scheduler_changes": 0,
+  "purchases_or_upgrades": 0,
+  "paid_odds_api_requests": 0,
+  "frozen_changes": 0,
+  "credential_leakage_found": 0
+}
