@@ -1,7 +1,7 @@
 {
   "task_id": "TASK-20260921-077",
   "title": "Production Database Recurrence Audit + Permanent Test-DB Safety Containment",
-  "status": "STOPPED_EXTERNAL_ADMIN_AND_GITHUB_ACCESS_REQUIRED",
+  "status": "IN_PROGRESS_SAFETY_PR_AND_PRODUCTION_RECOVERY_PENDING",
   "branch": "codex/TASK-20260921-077",
   "safety_commit": "a1f2f612411498fb74223519339e505452fcc1a8",
   "production_damage_confirmed": true,
@@ -30,7 +30,12 @@
     "bytes": 1681,
     "sha256": "42B95A4C6BCB55E4445B9AF4E3B0E4CC25D376D47FC2882ACF9362E12B4EE8F1",
     "readable": true,
-    "cold_pgdata_copy": "NOT_YET_SAFE_WITHOUT_VERIFIED_WRITER_FREEZE",
+    "fresh_logical_dump": "C:/Users/ruowa/Projects/football-agent-task-artifacts/TASK-20260921-077/damaged_football_pg_dump_20260922.dump",
+    "fresh_logical_dump_sha256": "6AAC5C510C549B1A268A4C56B21A916FB19C94AD95237E30906AF9D9AD37C32A",
+    "cold_pgdata_copy": "C:/Users/ruowa/Projects/football-agent-task-artifacts/TASK-20260921-077/damaged_pgdata_cold_20260922.tar",
+    "cold_pgdata_copy_bytes": 493892096,
+    "cold_pgdata_copy_sha256": "BBBCA97806CFC91421C4C782ECD9C7099FDF0DA6DE54DF3E2F6599005056BD73",
+    "cold_pgdata_copy_readable": true,
     "original_production_volume": "PRESERVED_UNTOUCHED"
   },
   "best_recovery_candidate": "C:/Users/ruowa/Projects/football-agent-task-artifacts/TASK-20260917-067/task067_production_clone.dump",
@@ -64,15 +69,35 @@
     "alembic_check_each": "CLEAN",
     "application_read_only_compatibility_each": "PASS"
   },
+  "isolated_cutover_rehearsal": {
+    "result": "PASS",
+    "container": "football-task077-recovery-r2",
+    "damaged_placeholder_preserved_as": "football_damaged_forensic_task077_test",
+    "validated_recovery_renamed_to": "football",
+    "revision_after": "0021",
+    "tables_after": 18,
+    "fixtures_after": 7800,
+    "predictions_after": 571,
+    "schema_hash_matches_untouched_rehearsal_clone": true,
+    "data_hash_matches_untouched_rehearsal_clone": true
+  },
   "production_recovery": "NOT_STARTED",
   "post_recovery_tables": null,
   "post_recovery_fixtures": null,
   "post_recovery_predictions": null,
   "post_recovery_duplicates": null,
   "post_recovery_orphans": null,
-  "writer_tasks_state": "UNKNOWN_ADMINISTRATOR_INVENTORY_UNAVAILABLE",
-  "administrator_context": "NOT_AVAILABLE_TO_AGENT; net session returned Access denied",
-  "github_pr": "NOT_CREATED; browser requires GitHub sign-in",
+  "writer_tasks_state": "ADMIN_INVENTORY_CONFIRMS_FOUR_DISABLED_AND_NOT_RUNNING",
+  "administrator_inventory": {
+    "path": "C:/Users/ruowa/Projects/football-agent-task-artifacts/TASK-20260921-077/admin_task_inventory.json",
+    "file_timestamp_utc": "2026-09-21T22:50:43.2150179Z",
+    "sha256": "F11868AA96A5449B96641567E7E5B39A15480F8C4AF5EF2747B819EE16833083",
+    "football_agent_tasks": 16,
+    "canonical_writer_tasks_disabled": 4,
+    "canonical_writer_tasks_running": 0
+  },
+  "administrator_context": "INVENTORY_GENERATED_UNDER_ADMINISTRATOR; AGENT_SHELL_REMAINS_NON_ADMIN",
+  "github_pr": "PENDING_CREATION; gh CLI authenticated as KubellO1",
   "local_tests": {
     "focused": "15 passed",
     "unit": "703 passed",
@@ -90,10 +115,8 @@
   "task076_status": "HELD_NOT_DEPLOYED",
   "migration_0022_status": "FROZEN",
   "blockers": [
-    "Administrator Scheduler inventory and writer freeze have not been verified",
-    "Current production volume lacks a fresh cold forensic copy",
-    "Safety branch is not yet a PR or merged into master because GitHub browser requires login",
-    "Production cutover using the newer September 17 backup has not been rehearsed"
+    "Safety branch has not yet passed required PR CI or merged into master",
+    "Production recovery has not yet been performed"
   ],
-  "next_action": "Use Administrator context to run the prepared writer-freeze script and verify its JSON/XML output; authenticate to GitHub without sharing credentials so the safety PR can be created and CI/merge completed; then preserve cold pgdata and rehearse the exact replacement/cutover before any production restore."
+  "next_action": "Create the safety PR with authenticated gh CLI, wait for required CI, merge and verify master guard; only then execute the rehearsed production recovery."
 }

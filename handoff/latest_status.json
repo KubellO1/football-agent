@@ -1,15 +1,17 @@
 {
   "task_id": "TASK-20260921-077",
-  "status": "blocked_external_admin_and_github_access_required",
+  "status": "in_progress_safety_pr_and_production_recovery_pending",
   "branch": "codex/TASK-20260921-077",
   "implementation_commit": "a1f2f612411498fb74223519339e505452fcc1a8",
-  "summary": "Actual API target football has only alembic_version. The test-DB fail-closed fix is validated and pushed but is not in master. Newer healthy production-source backup passed two isolated restores; production restore is blocked on Administrator writer freeze, cold forensic copy, and exact cutover rehearsal.",
+  "summary": "Actual API target football has only alembic_version. The test-DB fail-closed fix is validated and pushed but not yet in master. The Sep-17 backup passed double restore and isolated cutover rehearsal; damaged logical and cold pgdata forensic backups are preserved. Administrator inventory confirms all four canonical writers Disabled and Not Running. GitHub CLI is authenticated for the safety PR.",
   "verification": {
     "focused": "15 passed",
     "unit": "703 passed",
     "integration": "107 passed on isolated Docker volume",
     "quality": "Ruff, Black, MyPy, git diff --check passed",
-    "double_disposable_rehearsal": "schema/data hashes and row counts identical; Alembic check clean"
+    "double_disposable_rehearsal": "schema/data hashes and row counts identical; Alembic check clean",
+    "isolated_cutover_rehearsal": "PASS; damaged placeholder preserved, recovered 0021 renamed to football, hashes unchanged",
+    "damaged_forensics": "fresh logical dump readable; cold pgdata TAR 493892096 bytes and readable"
   },
   "production_database_writes": 0,
   "production_jobs_run": 0,
@@ -18,6 +20,6 @@
   "schema_changes": 0,
   "frozen_unchanged": true,
   "ready_for_controlled_daily_replay": false,
-  "approval_gate": "PRODUCTION_INCIDENT_HARD_STOP_ADMIN_ACCESS_REQUIRED",
-  "next_action": "Run the prepared writer-freeze script under Administrator, sign in to GitHub without sharing credentials, merge the safety PR after CI, then cold-copy pgdata and rehearse exact cutover before production recovery. Keep TASK-076 and 0022 frozen."
+  "approval_gate": "PRODUCTION_RECOVERY_WAITING_FOR_SAFETY_FIX_MERGE",
+  "next_action": "Create the safety PR with gh CLI, pass CI, merge and verify master guard, then execute the rehearsed recovery. Keep TASK-076 and 0022 frozen."
 }
