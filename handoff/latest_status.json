@@ -1,15 +1,15 @@
 {
-  "task_id": "TASK-20260917-067",
-  "status": "completed_local_approval_gate",
-  "branch": "codex/TASK-20260917-067",
-  "implementation_commit": "484c46e",
-  "summary": "Prediction decision persistence now uses a checkpoint-aware semantic identity and deterministic conflict-safe UUID; production-clone replay inserted zero predictions on both runs.",
+  "task_id": "TASK-20260921-077",
+  "status": "blocked_external_admin_and_github_access_required",
+  "branch": "codex/TASK-20260921-077",
+  "implementation_commit": "a1f2f612411498fb74223519339e505452fcc1a8",
+  "summary": "Actual API target football has only alembic_version. The test-DB fail-closed fix is validated and pushed but is not in master. Newer healthy production-source backup passed two isolated restores; production restore is blocked on Administrator writer freeze, cold forensic copy, and exact cutover rehearsal.",
   "verification": {
-    "focused": "11 passed",
-    "unit": "692 passed",
-    "integration": "107 passed",
-    "quality": "Ruff, Black, MyPy CI parameters, and git diff --check passed",
-    "clone_replay": "first new predictions=0; second new predictions=0; duplicates=0"
+    "focused": "15 passed",
+    "unit": "703 passed",
+    "integration": "107 passed on isolated Docker volume",
+    "quality": "Ruff, Black, MyPy, git diff --check passed",
+    "double_disposable_rehearsal": "schema/data hashes and row counts identical; Alembic check clean"
   },
   "production_database_writes": 0,
   "production_jobs_run": 0,
@@ -17,7 +17,7 @@
   "scheduler_changes": 0,
   "schema_changes": 0,
   "frozen_unchanged": true,
-  "ready_for_controlled_daily_replay": true,
-  "approval_gate": "STOP_BEFORE_PRODUCTION_REPLAY",
-  "next_action": "Review the branch; do not run another production DailyProductionRun until merge/deployment and a separate controlled replay approval."
+  "ready_for_controlled_daily_replay": false,
+  "approval_gate": "PRODUCTION_INCIDENT_HARD_STOP_ADMIN_ACCESS_REQUIRED",
+  "next_action": "Run the prepared writer-freeze script under Administrator, sign in to GitHub without sharing credentials, merge the safety PR after CI, then cold-copy pgdata and rehearse exact cutover before production recovery. Keep TASK-076 and 0022 frozen."
 }
