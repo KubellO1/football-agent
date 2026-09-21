@@ -160,6 +160,7 @@ jobs:
 
       - name: Validate migrations
         run: |
+          python -m tests.database_safety
           alembic upgrade head
           alembic check
 
