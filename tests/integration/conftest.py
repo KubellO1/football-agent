@@ -29,7 +29,7 @@ from app.repositories.sqlalchemy import models  # noqa: F401  导入以注册 OR
 from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
 from app.repositories.sqlalchemy.models import CompetitionORM, TeamORM
 from app.repositories.sqlalchemy.player_repository import SqlAlchemyPlayerRepository
-from tests.database_safety import require_test_database_url
+from tests.database_safety import require_test_database_url, run_guarded_metadata_operation
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -43,9 +43,10 @@ def _test_dsn() -> str:
 @pytest_asyncio.fixture
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """建表、交出 session、删表（函数级隔离）。"""
-    engine = create_async_engine(_test_dsn())
+    dsn = _test_dsn()
+    engine = create_async_engine(dsn)
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await run_guarded_metadata_operation(conn, dsn=dsn, operation=Base.metadata.create_all)
 
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:
@@ -53,7 +54,7 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
             yield session
     finally:
         async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
+            await run_guarded_metadata_operation(conn, dsn=dsn, operation=Base.metadata.drop_all)
         await engine.dispose()
 
 
