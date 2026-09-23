@@ -2,12 +2,12 @@
   "task_id": "TASK-20260921-076",
   "title": "Final Odds Freshness 80-Minute Policy",
   "branch": "codex/TASK-20260921-076",
-  "base_commit": "23f4a21ee3b288b8f37a305a6d355269a464e0cb",
-  "implementation_commit": "84cd039",
-  "status": "IMPLEMENTED_TESTED_BRANCH_PUSHED_PRODUCTION_RELEASE_BLOCKED",
-  "branch_pushed": true,
-  "pull_request": "NOT_CREATED_GITHUB_CLI_UNAVAILABLE",
-  "github_required_checks": "NOT_TRIGGERED_WITHOUT_PR",
+  "base_commit": "01d94eb18c3a8e007cd5dcafe15bdfca6df8c992",
+  "implementation_commit": "90763f883502c8e27c2d0abf42be913fd5dd49eb",
+  "status": "REBASED_VALIDATED_READY_FOR_PR",
+  "branch_pushed": false,
+  "pull_request": "PENDING",
+  "github_required_checks": "PENDING",
   "frozen_diff": {
     "FINAL_ODDS_MAX_AGE_MINUTES": {"before": 30, "after": 80},
     "preliminary_max_age_minutes": {"before": null, "after": 180, "authorized": true},
@@ -21,8 +21,8 @@
     "snapshot_time_source": "provider market last_update persisted as captured_at"
   },
   "tests": {
-    "focused": "50 passed before final additional regression test; subsequent full unit passed",
-    "full_unit": "702 passed, 2 dependency deprecation warnings",
+    "focused": "PASS: odds policy, analysis, prediction replay, daily and committee paths",
+    "full_unit": "713 passed, 2 dependency deprecation warnings",
     "full_integration": "110 passed on disposable football_integration_test PostgreSQL",
     "ruff_changed_files": "PASS",
     "black_changed_files": "PASS",
@@ -40,23 +40,13 @@
     "additional_final_eligible_contexts": 0,
     "limitation": "Only two contexts overlap odds; this is not a production-wide or betting-outcome estimate. No other threshold was changed."
   },
-  "production_read_only_finding": {
-    "database": "football",
-    "api_container_database_host": "postgres",
-    "alembic_revision": "0021",
-    "non_system_tables_seen": ["public.alembic_version"],
-    "business_tables_seen": 0,
-    "classification": "CRITICAL_DATABASE_TOPOLOGY_MISMATCH_REQUIRES_SEPARATE_INCIDENT_RECONCILIATION"
-  },
+  "database_incident_status": "TASK-20260921-077_ACCEPTED_CLOSED_PRODUCTION_INTEGRITY_RESTORED",
   "production_db_writes": 0,
   "external_api_calls": 0,
   "production_jobs_run": 0,
   "scheduler_changes": 0,
   "schema_changes": 0,
   "deployment": "NOT_PERFORMED",
-  "blockers": [
-    "Current API-targeted football database exposes only alembic_version, not canonical 0021 business tables.",
-    "Available historical decision/odds overlap is too small for a reliable production impact estimate."
-  ],
-  "recommended_next_action": "Create a review PR from the pushed branch when permitted; do not merge or deploy until a separate incident procedure reconciles production DB identity and canonical 0021 health."
+  "blockers": [],
+  "recommended_next_action": "Create PR, require Quality/Unit/Integration PASS, merge, deploy a clean 0021-compatible release, then run exactly one controlled DailyProductionRun Canary."
 }

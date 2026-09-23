@@ -1,14 +1,14 @@
 {
   "task_id": "TASK-20260921-076",
-  "status": "implemented_tested_pending_revalidation_on_recovered_master",
+  "status": "rebased_validated_ready_for_pr",
   "branch": "codex/TASK-20260921-076",
-  "implementation_commit": "84cd039",
+  "implementation_commit": "90763f883502c8e27c2d0abf42be913fd5dd49eb",
   "summary": "Explicitly approved final-odds freshness 30→80 minutes, with >80–180 preliminary/WATCH and >180 ODDS_TOO_STALE; no other Frozen change. TASK-077 restored production integrity and the branch is being updated onto master 01d94eb for full revalidation.",
   "verification": {
-    "prior_focused": "50 passed before final additional unit regression; full suite includes it",
-    "prior_unit": "702 passed",
-    "prior_integration": "110 passed on disposable PostgreSQL",
-    "prior_quality": "Ruff, Black, MyPy CI parameters, and git diff --check passed",
+    "focused": "PASS",
+    "full_unit": "713 passed",
+    "full_integration": "110 passed on disposable PostgreSQL",
+    "quality": "Ruff, Black, MyPy CI parameters, and git diff --check passed",
     "read_only_clone_replay": "2 of 571 contexts overlap point-in-time odds; FINAL 30=2, FINAL 80=2, additional=0"
   },
   "production_database_writes": 0,
@@ -21,6 +21,6 @@
   "branch_pushed": false,
   "pull_request": "not created after rebase",
   "github_required_checks": "not triggered after rebase",
-  "approval_gate": "REVALIDATE_ON_CURRENT_MASTER",
-  "next_action": "Complete rebase, run full validation, create PR, merge after CI, then deploy and execute one controlled DailyProductionRun Canary with all recurring writers initially Disabled."
+  "approval_gate": "PR_CI_AND_AUTONOMOUS_RELEASE",
+  "next_action": "Push rebased branch, create PR, require Quality/Unit/Integration PASS, merge, deploy clean release, and execute the authorized controlled DailyProductionRun Canary."
 }
