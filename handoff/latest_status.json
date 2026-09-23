@@ -1,9 +1,9 @@
 {
   "task_id": "TASK-20260921-077",
-  "status": "in_progress_safety_pr_and_production_recovery_pending",
-  "branch": "codex/TASK-20260921-077",
+  "status": "completed_production_recovery_pass",
+  "branch": "codex/TASK-20260921-077-closure",
   "implementation_commit": "a1f2f612411498fb74223519339e505452fcc1a8",
-  "summary": "Actual API target football has only alembic_version. The test-DB fail-closed fix is validated and pushed but not yet in master. The Sep-17 backup passed double restore and isolated cutover rehearsal; damaged logical and cold pgdata forensic backups are preserved. Administrator inventory confirms all four canonical writers Disabled and Not Running. GitHub CLI is authenticated for the safety PR.",
+  "summary": "PR #74 merged the fail-closed TEST_DATABASE_URL guard into master 792620a. Production was restored from the verified Sep-17 backup through a validated staging/rename cutover. The damaged ledger-only DB and cold/logical forensic backups are preserved. Production is canonical 0021 with 18 tables, 7800 fixtures, 571 predictions, exact hashes, zero duplicates/orphans, clean Alembic check, and healthy API readiness.",
   "verification": {
     "focused": "15 passed",
     "unit": "703 passed",
@@ -11,15 +11,17 @@
     "quality": "Ruff, Black, MyPy, git diff --check passed",
     "double_disposable_rehearsal": "schema/data hashes and row counts identical; Alembic check clean",
     "isolated_cutover_rehearsal": "PASS; damaged placeholder preserved, recovered 0021 renamed to football, hashes unchanged",
-    "damaged_forensics": "fresh logical dump readable; cold pgdata TAR 493892096 bytes and readable"
+    "damaged_forensics": "fresh logical dump readable; cold pgdata TAR 493892096 bytes and readable; damaged DB retained as football_damaged_forensic_20260922_task077",
+    "safety_pr": "#74 Quality/Unit/Integration PASS; squash merged as 792620aeb0b3d47582d383962e731238d6d35b79",
+    "production": "0021; 18 tables; fixtures=7800; predictions=571; schema/data hashes match; duplicates=0; FK orphans=0; health/ready PASS"
   },
-  "production_database_writes": 0,
+  "production_database_writes": "approved recovery staging restore and rename cutover only",
   "production_jobs_run": 0,
   "external_api_calls": 0,
   "scheduler_changes": 0,
   "schema_changes": 0,
   "frozen_unchanged": true,
   "ready_for_controlled_daily_replay": false,
-  "approval_gate": "PRODUCTION_RECOVERY_WAITING_FOR_SAFETY_FIX_MERGE",
-  "next_action": "Create the safety PR with gh CLI, pass CI, merge and verify master guard, then execute the rehearsed recovery. Keep TASK-076 and 0022 frozen."
+  "approval_gate": "TASK_077_CLOSED_WRITERS_REMAIN_DISABLED",
+  "next_action": "Keep all four production writers Disabled. TASK-076 remains held and 0022 remains frozen pending a separate decision."
 }
