@@ -12,6 +12,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import pytest
+from sqlalchemy import select
 
 from app.models.entities.bookmaker import Bookmaker
 from app.models.entities.competition import Competition
@@ -24,6 +25,7 @@ from app.models.value_objects.money import Money
 from app.models.value_objects.odds import Odds
 from app.models.value_objects.score import Score
 from app.repositories.sqlalchemy.fixture_repository import SqlAlchemyFixtureRepository
+from app.repositories.sqlalchemy.models import PredictionORM
 from app.repositories.sqlalchemy.odds_snapshot_repository import (
     SqlAlchemyOddsSnapshotRepository,
 )
@@ -35,10 +37,13 @@ from app.repositories.sqlalchemy.reference_repositories import (
 from app.services.fixture_analysis import (
     INSUFFICIENT_DATA_MESSAGE,
     NO_ODDS_MESSAGE,
+    ODDS_TOO_STALE_MESSAGE,
+    PRELIMINARY_ODDS_MESSAGE,
     FixtureAnalysisService,
     MatchAnalysisInputBuilder,
 )
 from app.services.models.ensemble import EnsembleMatchModel
+from app.services.prediction_logger import log_fixture_predictions
 from app.services.recommendation_gate import RecommendationGate
 
 if TYPE_CHECKING:
@@ -90,7 +95,12 @@ async def _scheduled(session: AsyncSession, comp: UUID, home: UUID, away: UUID) 
     )
 
 
-async def _add_odds(session: AsyncSession, fixture_id: UUID) -> tuple[UUID, UUID]:
+async def _add_odds(
+    session: AsyncSession,
+    fixture_id: UUID,
+    *,
+    captured_at: datetime = KICKOFF - timedelta(minutes=70),
+) -> tuple[UUID, UUID]:
     bookmakers = [
         await SqlAlchemyBookmakerRepository(session).add(Bookmaker(name=name))
         for name in ("BM-A", "BM-B")
@@ -104,7 +114,7 @@ async def _add_odds(session: AsyncSession, fixture_id: UUID) -> tuple[UUID, UUID
                     bookmaker_id=bookmaker.id,
                     selection=Selection(market=MarketType.MATCH_RESULT, code=code),
                     odds=Odds(Decimal(price)),
-                    captured_at=KICKOFF - timedelta(minutes=70),
+                    captured_at=captured_at,
                 )
             )
     return bookmakers[0].id, bookmakers[1].id
@@ -203,6 +213,21 @@ async def test_analysis_rejects_single_bookmaker_market(db_session: AsyncSession
 
 
 @pytest.mark.integration
+async def test_60_minute_complete_market_enters_formal_analysis(db_session: AsyncSession) -> None:
+    fixture = await _seed_with_history(db_session)
+    as_of = KICKOFF - timedelta(minutes=30)
+    await _add_odds(db_session, fixture.id, captured_at=as_of - timedelta(minutes=60))
+
+    detailed = await _service(db_session).analyze_detailed(fixture, as_of=as_of)
+
+    assert detailed.model_input is not None
+    assert len(detailed.model_input.quotes) == 3
+    assert len(detailed.result.selections) == 3
+    assert all(selection.expected_value is not None for selection in detailed.result.selections)
+    assert all(selection.kelly_fraction >= 0 for selection in detailed.result.selections)
+
+
+@pytest.mark.integration
 async def test_analysis_rejects_naive_as_of(db_session: AsyncSession) -> None:
     fixture = await _seed_with_history(db_session)
 
@@ -240,3 +265,52 @@ async def test_sufficient_history_but_no_odds(db_session: AsyncSession) -> None:
     assert result.message == NO_ODDS_MESSAGE
     assert set(result.probabilities) == {"home", "draw", "away"}  # 仍给出概率
     assert result.selections == []
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("age_minutes", "expected_message", "expected_decision"),
+    [
+        (100, PRELIMINARY_ODDS_MESSAGE, "WATCH"),
+        (181, ODDS_TOO_STALE_MESSAGE, "ODDS_TOO_STALE"),
+    ],
+)
+async def test_aged_odds_never_create_formal_ev_kelly_or_bet_and_replay_is_idempotent(
+    db_session: AsyncSession,
+    age_minutes: int,
+    expected_message: str,
+    expected_decision: str,
+) -> None:
+    fixture = await _seed_with_history(db_session)
+    as_of = KICKOFF - timedelta(minutes=30)
+    await _add_odds(
+        db_session,
+        fixture.id,
+        captured_at=as_of - timedelta(minutes=age_minutes),
+    )
+
+    detailed = await _service(db_session).analyze_detailed(fixture, as_of=as_of)
+
+    assert set(detailed.result.probabilities) == {"home", "draw", "away"}
+    assert detailed.result.message == expected_message
+    assert detailed.model_input is not None and detailed.model_input.quotes == []
+    assert detailed.reviewed == []
+    assert detailed.result.selections == []
+
+    first = await log_fixture_predictions(detailed, session=db_session, model_version="age-test")
+    second = await log_fixture_predictions(detailed, session=db_session, model_version="age-test")
+    persisted = (
+        (
+            await db_session.execute(
+                select(PredictionORM).where(PredictionORM.fixture_id == fixture.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    assert first.inserted == 1 and second.inserted == 0 and second.reused == 1
+    assert len(persisted) == 1
+    assert persisted[0].final_decision == expected_decision
+    assert persisted[0].kelly_stake is None
+    assert persisted[0].expected_value is None

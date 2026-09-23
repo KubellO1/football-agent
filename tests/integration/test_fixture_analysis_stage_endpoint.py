@@ -163,7 +163,7 @@ def _test_container() -> Container:
     container = Container(
         Settings(
             analysis_form_window=10,
-            analysis_odds_max_age_minutes=30,
+            analysis_odds_max_age_minutes=80,
             analysis_odds_min_bookmakers=2,
         )
     )

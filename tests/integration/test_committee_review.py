@@ -120,6 +120,7 @@ def _service(
     odds_snapshots = SqlAlchemyOddsSnapshotRepository(session)
     market_quote_policy = VerifiedMarketQuotePolicy(
         maximum_age=timedelta(days=36500),
+        preliminary_maximum_age=timedelta(days=36501),
     )
     builder = MatchAnalysisInputBuilder(
         fixtures=SqlAlchemyFixtureRepository(session),

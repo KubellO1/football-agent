@@ -54,6 +54,8 @@ if TYPE_CHECKING:
 
 INSUFFICIENT_DATA_MESSAGE = "历史数据不足，无法建模分析（缺少双方近期完赛记录或联赛基准）。"
 NO_ODDS_MESSAGE = "缺少可用赔率，只能给出概率，无法评估价值。"
+PRELIMINARY_ODDS_MESSAGE = "赔率仅供初步观察（WATCH），不生成正式 EV、Kelly 或 BET。"
+ODDS_TOO_STALE_MESSAGE = "ODDS_TOO_STALE：赔率超过预览时效上限，不用于正式投注决策。"
 NO_VALUE_MESSAGE = "本场无满足准入门槛的价值投注。"
 
 # 采集数据来自 API-Football（专业统计源），证据等级记为 B。
@@ -62,7 +64,8 @@ _EVIDENCE_LEVEL = EvidenceLevel.B
 # 赔率去噪参数：某盘口最新快照晚于「最新 - 该窗口」才视为新鲜（否则丢弃为过期）；
 # 相对中位数偏离超过该倍数的赔率视为极端离群点丢弃。
 _DEFAULT_MARKET_QUOTE_POLICY = VerifiedMarketQuotePolicy(
-    maximum_age=timedelta(minutes=30),
+    maximum_age=timedelta(minutes=80),
+    preliminary_maximum_age=timedelta(minutes=180),
     minimum_bookmakers=2,
     maximum_relative_deviation=0.2,
 )
@@ -374,7 +377,12 @@ class FixtureAnalysisService:
         }
         message: str | None = None
         if not model_input.quotes:
-            message = NO_ODDS_MESSAGE
+            if "preliminary_only" in model_input.quote_issues:
+                message = PRELIMINARY_ODDS_MESSAGE
+            elif "odds_too_stale" in model_input.quote_issues:
+                message = ODDS_TOO_STALE_MESSAGE
+            else:
+                message = NO_ODDS_MESSAGE
         elif not any(s.recommended for s in selections):
             message = NO_VALUE_MESSAGE
 

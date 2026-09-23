@@ -27,6 +27,8 @@ class MarketQuoteVerificationStatus(StrEnum):
     """完整市场报价的验证状态。"""
 
     VERIFIED = "verified"
+    PRELIMINARY = "preliminary"
+    TOO_STALE = "too_stale"
     REJECTED = "rejected"
     NOT_FOUND = "not_found"
 
@@ -38,6 +40,8 @@ class MarketQuoteRejectionReason(StrEnum):
     NO_SUPPORTED_MARKET = "no_supported_market"
     MISSING_SELECTION = "missing_selection"
     STALE_SELECTION = "stale_selection"
+    PRELIMINARY_ONLY = "preliminary_only"
+    ODDS_TOO_STALE = "odds_too_stale"
     OUTLIER_FILTER_EMPTY = "outlier_filter_empty"
     INSUFFICIENT_BOOKMAKERS = "insufficient_bookmakers"
 
@@ -47,12 +51,17 @@ class VerifiedMarketQuotePolicy:
     """赔率新鲜度、交叉验证数量和异常值阈值。"""
 
     maximum_age: timedelta
+    preliminary_maximum_age: timedelta = timedelta(minutes=180)
     minimum_bookmakers: int = 2
     maximum_relative_deviation: float = 0.2
 
     def __post_init__(self) -> None:
         if self.maximum_age <= timedelta(0):
             raise ValueError("maximum_age must be positive")
+        if self.preliminary_maximum_age <= timedelta(0):
+            raise ValueError("preliminary_maximum_age must be positive")
+        if self.preliminary_maximum_age <= self.maximum_age:
+            raise ValueError("preliminary_maximum_age must exceed maximum_age")
         if (
             not isinstance(self.minimum_bookmakers, int)
             or isinstance(self.minimum_bookmakers, bool)
@@ -186,10 +195,62 @@ class VerifiedMarketQuoteService:
             )
 
         latest = self._latest_by_selection_and_bookmaker(supported)
+        quotes, issues, eligible_count = self._evaluate_latest(
+            latest, as_of=as_of, maximum_age=self._policy.maximum_age
+        )
+        if not issues:
+            return VerifiedMarketQuoteResult(
+                status=MarketQuoteVerificationStatus.VERIFIED,
+                as_of=as_of,
+                quotes=tuple(quotes),
+                observed_snapshot_count=len(snapshots),
+                eligible_snapshot_count=eligible_count,
+            )
+
+        # An older complete market is informational only. Its quotes never enter
+        # ModelInput, so EV/Kelly/RecommendationGate cannot turn it into a BET.
+        _, preliminary_issues, _ = self._evaluate_latest(
+            latest, as_of=as_of, maximum_age=self._policy.preliminary_maximum_age
+        )
+        if not preliminary_issues:
+            return self._failure(
+                MarketQuoteVerificationStatus.PRELIMINARY,
+                as_of,
+                (MarketQuoteIssue(MarketQuoteRejectionReason.PRELIMINARY_ONLY),),
+                observed_snapshot_count=len(snapshots),
+                eligible_snapshot_count=eligible_count,
+            )
+
+        if all(
+            snapshot.captured_at < as_of - self._policy.preliminary_maximum_age
+            for snapshot in latest.values()
+        ):
+            return self._failure(
+                MarketQuoteVerificationStatus.TOO_STALE,
+                as_of,
+                (MarketQuoteIssue(MarketQuoteRejectionReason.ODDS_TOO_STALE),),
+                observed_snapshot_count=len(snapshots),
+                eligible_snapshot_count=eligible_count,
+            )
+        return self._failure(
+            MarketQuoteVerificationStatus.REJECTED,
+            as_of,
+            tuple(issues),
+            observed_snapshot_count=len(snapshots),
+            eligible_snapshot_count=eligible_count,
+        )
+
+    def _evaluate_latest(
+        self,
+        latest: dict[tuple[str, UUID], OddsSnapshot],
+        *,
+        as_of: datetime,
+        maximum_age: timedelta,
+    ) -> tuple[list[VerifiedSelectionQuote], list[MarketQuoteIssue], int]:
         quotes: list[VerifiedSelectionQuote] = []
         issues: list[MarketQuoteIssue] = []
         eligible_count = 0
-        freshness_boundary = as_of - self._policy.maximum_age
+        freshness_boundary = as_of - maximum_age
 
         for code in _MATCH_RESULT_CODES:
             selection_snapshots = [
@@ -247,21 +308,7 @@ class VerifiedMarketQuoteService:
                 continue
             quotes.append(self._build_quote(kept))
 
-        if issues:
-            return self._failure(
-                MarketQuoteVerificationStatus.REJECTED,
-                as_of,
-                tuple(issues),
-                observed_snapshot_count=len(snapshots),
-                eligible_snapshot_count=eligible_count,
-            )
-        return VerifiedMarketQuoteResult(
-            status=MarketQuoteVerificationStatus.VERIFIED,
-            as_of=as_of,
-            quotes=tuple(quotes),
-            observed_snapshot_count=len(snapshots),
-            eligible_snapshot_count=eligible_count,
-        )
+        return quotes, issues, eligible_count
 
     @staticmethod
     def _latest_by_selection_and_bookmaker(

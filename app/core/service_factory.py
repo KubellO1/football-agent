@@ -271,6 +271,9 @@ def build_market_quote_policy(settings: Settings) -> VerifiedMarketQuotePolicy:
     """从类型安全配置构造所有分析入口共享的赔率验证策略。"""
     return VerifiedMarketQuotePolicy(
         maximum_age=timedelta(minutes=settings.analysis_odds_max_age_minutes),
+        preliminary_maximum_age=timedelta(
+            minutes=settings.analysis_odds_preliminary_max_age_minutes
+        ),
         minimum_bookmakers=settings.analysis_odds_min_bookmakers,
         maximum_relative_deviation=settings.analysis_odds_max_relative_deviation,
     )

@@ -1,0 +1,52 @@
+{
+  "task_id": "TASK-20260921-076",
+  "title": "Final Odds Freshness 80-Minute Policy",
+  "branch": "codex/TASK-20260921-076",
+  "base_commit": "01d94eb18c3a8e007cd5dcafe15bdfca6df8c992",
+  "implementation_commit": "90763f883502c8e27c2d0abf42be913fd5dd49eb",
+  "status": "REBASED_VALIDATED_READY_FOR_PR",
+  "branch_pushed": false,
+  "pull_request": "PENDING",
+  "github_required_checks": "PENDING",
+  "frozen_diff": {
+    "FINAL_ODDS_MAX_AGE_MINUTES": {"before": 30, "after": 80},
+    "preliminary_max_age_minutes": {"before": null, "after": 180, "authorized": true},
+    "other_frozen_items_changed": 0
+  },
+  "policy": {
+    "0_to_80_inclusive": "FINAL_ELIGIBLE_SUBJECT_TO_ALL_EXISTING_GATES",
+    "over_80_to_180_inclusive": "PRELIMINARY_WATCH_NO_FORMAL_EV_KELLY_OR_BET",
+    "over_180": "ODDS_TOO_STALE",
+    "minimum_bookmakers": 2,
+    "snapshot_time_source": "provider market last_update persisted as captured_at"
+  },
+  "tests": {
+    "focused": "PASS: odds policy, analysis, prediction replay, daily and committee paths",
+    "full_unit": "713 passed, 2 dependency deprecation warnings",
+    "full_integration": "110 passed on disposable football_integration_test PostgreSQL",
+    "ruff_changed_files": "PASS",
+    "black_changed_files": "PASS",
+    "mypy_ci_parameters": "PASS: 8 source files",
+    "git_diff_check": "PASS"
+  },
+  "historical_replay": {
+    "source": "read-only TASK-067 isolated clone football_task067_clone_test",
+    "clone_revision": "0021",
+    "odds_snapshots": 276,
+    "decision_contexts": 571,
+    "contexts_with_point_in_time_odds": 2,
+    "basic_1x2_two_bookmaker_coverage_at_30_minutes": 2,
+    "basic_1x2_two_bookmaker_coverage_at_80_minutes": 2,
+    "additional_final_eligible_contexts": 0,
+    "limitation": "Only two contexts overlap odds; this is not a production-wide or betting-outcome estimate. No other threshold was changed."
+  },
+  "database_incident_status": "TASK-20260921-077_ACCEPTED_CLOSED_PRODUCTION_INTEGRITY_RESTORED",
+  "production_db_writes": 0,
+  "external_api_calls": 0,
+  "production_jobs_run": 0,
+  "scheduler_changes": 0,
+  "schema_changes": 0,
+  "deployment": "NOT_PERFORMED",
+  "blockers": [],
+  "recommended_next_action": "Create PR, require Quality/Unit/Integration PASS, merge, deploy a clean 0021-compatible release, then run exactly one controlled DailyProductionRun Canary."
+}

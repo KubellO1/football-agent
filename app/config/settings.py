@@ -99,7 +99,8 @@ class Settings(BaseSettings):
     analysis_default_bankroll: float = 1000.0
     analysis_currency: str = "EUR"
     analysis_form_window: int = 10
-    analysis_odds_max_age_minutes: int = Field(default=30, gt=0)
+    analysis_odds_max_age_minutes: int = Field(default=80, gt=0)
+    analysis_odds_preliminary_max_age_minutes: int = Field(default=180, gt=0)
     analysis_odds_min_bookmakers: int = Field(default=2, ge=2)
     analysis_odds_max_relative_deviation: float = Field(default=0.2, gt=0.0, lt=1.0)
     analysis_market_movement_lookback_hours: int = Field(default=24, gt=0)

@@ -126,6 +126,7 @@ async def container():
         database_url=dsn,
         openai_api_key="test",
         analysis_odds_max_age_minutes=52_560_000,
+        analysis_odds_preliminary_max_age_minutes=52_560_001,
     )
     ctx = Container(settings)
     ctx.init_resources()
