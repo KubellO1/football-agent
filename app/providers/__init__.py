@@ -9,9 +9,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from app.providers.api_football_rate_limit import ApiFootballRequestLimiter
 from app.providers.impl.api_football_fixture_lineup_provider import (
     ApiFootballFixtureLineupProvider,
 )
+from app.providers.impl.api_football_odds_provider import ApiFootballOddsProvider
 from app.providers.impl.api_football_player_availability_provider import (
     ApiFootballPlayerAvailabilityProvider,
 )
@@ -37,14 +39,26 @@ from app.providers.interfaces.player_squad_provider import PlayerSquadProvider
 
 # from app.providers.interfaces.sportmonks_provider import SportmonksProvider  # DEPRECATED: 2026-07-17
 from app.providers.interfaces.weather_provider import WeatherProvider
-from app.utils.rate_limiter import TokenBucketRateLimiter
 
 if TYPE_CHECKING:
     from app.config.settings import Settings
     from app.database.redis import RedisConnection
 
-# Module-level rate limiter (shared across worker restarts via optional Redis)
-rate_limiter: TokenBucketRateLimiter | None = None
+api_football_rate_limiter: ApiFootballRequestLimiter | None = None
+
+
+def _api_football_limiter(settings: Settings) -> ApiFootballRequestLimiter:
+    """Share pacing and request budgets across all API-Football adapters."""
+    global api_football_rate_limiter
+    if api_football_rate_limiter is None:
+        api_football_rate_limiter = ApiFootballRequestLimiter(
+            min_interval_seconds=settings.api_football_min_request_interval_seconds,
+            per_minute_budget=settings.api_football_per_minute_request_budget,
+            daily_budget=settings.api_football_daily_request_budget,
+            run_budget=settings.api_football_run_request_budget,
+            circuit_cooldown_seconds=settings.api_football_circuit_cooldown_seconds,
+        )
+    return api_football_rate_limiter
 
 
 def build_fixtures_provider(settings: Settings) -> FixturesProvider:
@@ -55,6 +69,7 @@ def build_fixtures_provider(settings: Settings) -> FixturesProvider:
         timeout_seconds=settings.provider_timeout_seconds,
         max_retries=settings.provider_max_retries,
         backoff_base_seconds=settings.provider_backoff_base_seconds,
+        rate_limiter=_api_football_limiter(settings),
     )
 
 
@@ -62,35 +77,17 @@ def build_odds_provider(
     settings: Settings,
     redis: RedisConnection | None = None,
 ) -> OddsProvider:
-    """Wire the odds providers: Odds-API.io (primary) → The Odds API (fallback)."""
-    global rate_limiter
-    if rate_limiter is None:
-        rate_limiter = TokenBucketRateLimiter(
-            budget=settings.odds_api_io_hourly_request_limit,
-            daily_budget=settings.odds_api_io_daily_request_limit,
-            dynamic_server_limit=settings.odds_api_io_plan != "free",
-            redis=redis,
-        )
-    primary = OddsApiIoProvider(
-        api_key=settings.odds_api_io_api_key,
-        base_url=settings.odds_api_io_base_url,
+    """Wire API-Football named-bookmaker odds; paid providers stay inactive."""
+    del redis
+    return ApiFootballOddsProvider(
+        api_key=settings.api_football_key,
+        base_url=settings.api_football_base_url,
         timeout_seconds=settings.provider_timeout_seconds,
         max_retries=settings.provider_max_retries,
         backoff_base_seconds=settings.provider_backoff_base_seconds,
-        bookmakers=settings.odds_api_io_bookmakers,
-        rate_limiter=rate_limiter,
-        run_request_budget=settings.odds_api_io_run_request_budget,
-        redis=redis,
-        cache_ttl=300,
+        bookmakers=settings.api_football_odds_bookmakers,
+        rate_limiter=_api_football_limiter(settings),
     )
-    fallback = TheOddsApiProvider(
-        api_key=settings.odds_api_key,
-        base_url=settings.odds_api_base_url,
-        timeout_seconds=settings.provider_timeout_seconds,
-        max_retries=settings.provider_max_retries,
-        backoff_base_seconds=settings.provider_backoff_base_seconds,
-    )
-    return PrioritizedOddsProvider(primary=primary, fallback=fallback)
 
 
 def build_weather_provider(settings: Settings) -> WeatherProvider:
@@ -124,6 +121,7 @@ def build_injury_provider(settings: Settings) -> InjuryProvider:
         timeout_seconds=settings.provider_timeout_seconds,
         max_retries=settings.provider_max_retries,
         backoff_base_seconds=settings.provider_backoff_base_seconds,
+        rate_limiter=_api_football_limiter(settings),
     )
 
 
@@ -137,6 +135,7 @@ def build_player_availability_provider(
         timeout_seconds=settings.provider_timeout_seconds,
         max_retries=settings.provider_max_retries,
         backoff_base_seconds=settings.provider_backoff_base_seconds,
+        rate_limiter=_api_football_limiter(settings),
     )
 
 
@@ -148,6 +147,7 @@ def build_player_squad_provider(settings: Settings) -> PlayerSquadProvider:
         timeout_seconds=settings.provider_timeout_seconds,
         max_retries=settings.provider_max_retries,
         backoff_base_seconds=settings.provider_backoff_base_seconds,
+        rate_limiter=_api_football_limiter(settings),
     )
 
 
@@ -159,12 +159,14 @@ def build_fixture_lineup_provider(settings: Settings) -> FixtureLineupProvider:
         timeout_seconds=settings.provider_timeout_seconds,
         max_retries=settings.provider_max_retries,
         backoff_base_seconds=settings.provider_backoff_base_seconds,
+        rate_limiter=_api_football_limiter(settings),
     )
 
 
 __all__ = [
     "ApiFootballFixtureLineupProvider",
     "ApiFootballInjuryProvider",
+    "ApiFootballOddsProvider",
     "ApiFootballPlayerAvailabilityProvider",
     "ApiFootballPlayerSquadProvider",
     "ApiFootballProvider",

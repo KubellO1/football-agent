@@ -9,19 +9,19 @@ availability checks in the recommendation gate.
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import httpx
-
-from app.core.logging import get_logger
-from app.providers.base import BaseHTTPProvider
+from app.providers.api_football_http import ApiFootballHTTPProvider
 from app.providers.interfaces.injury_provider import InjuryProvider
 from app.providers.schemas.injury import PlayerInjury, TeamInjuries
 
-logger = get_logger(__name__)
+if TYPE_CHECKING:
+    import httpx
+
+    from app.providers.api_football_rate_limit import ApiFootballRequestLimiter
 
 
-class ApiFootballInjuryProvider(BaseHTTPProvider, InjuryProvider):
+class ApiFootballInjuryProvider(ApiFootballHTTPProvider, InjuryProvider):
     """Injury feed backed by API-Football /v3/injuries."""
 
     def __init__(
@@ -33,6 +33,7 @@ class ApiFootballInjuryProvider(BaseHTTPProvider, InjuryProvider):
         max_retries: int,
         backoff_base_seconds: float,
         client: httpx.AsyncClient | None = None,
+        rate_limiter: ApiFootballRequestLimiter | None = None,
     ) -> None:
         super().__init__(
             base_url=base_url,
@@ -41,6 +42,7 @@ class ApiFootballInjuryProvider(BaseHTTPProvider, InjuryProvider):
             backoff_base_seconds=backoff_base_seconds,
             headers={"x-apisports-key": api_key},
             client=client,
+            rate_limiter=rate_limiter,
         )
 
     async def get_injuries(
@@ -50,13 +52,7 @@ class ApiFootballInjuryProvider(BaseHTTPProvider, InjuryProvider):
     ) -> list[TeamInjuries]:
         """Query injuries for a specific fixture, grouped by team."""
         params: dict[str, Any] = {"fixture": fixture_id}
-        try:
-            payload = await self._get_json("/injuries", params=params)
-        except Exception:
-            logger.warning(
-                "Injury fetch failed for fixture=%d", fixture_id, exc_info=True
-            )
-            return []
+        payload = await self._get_json("/injuries", params=params)
 
         response = payload.get("response", []) if isinstance(payload, dict) else []
         if not response:
@@ -65,9 +61,7 @@ class ApiFootballInjuryProvider(BaseHTTPProvider, InjuryProvider):
         return self._group_by_team(response, fixture_id)
 
     @staticmethod
-    def _group_by_team(
-        items: list[dict[str, Any]], fixture_id: int
-    ) -> list[TeamInjuries]:
+    def _group_by_team(items: list[dict[str, Any]], fixture_id: int) -> list[TeamInjuries]:
         """Group injury records by team_id, returning one TeamInjuries per team."""
         players: list[PlayerInjury] = []
         for item in items:

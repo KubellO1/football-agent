@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError
 
 from app.core.exceptions import ExternalServiceError
-from app.providers.base import BaseHTTPProvider
+from app.providers.api_football_http import ApiFootballHTTPProvider
 from app.providers.interfaces.fixture_lineup_provider import FixtureLineupProvider
 from app.providers.schemas.fixture_lineup import (
     ProviderFixtureLineupBatch,
@@ -21,6 +21,8 @@ if TYPE_CHECKING:
 
     import httpx
 
+    from app.providers.api_football_rate_limit import ApiFootballRequestLimiter
+
 SOURCE_API_FOOTBALL = "api-football"
 
 
@@ -28,7 +30,7 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-class ApiFootballFixtureLineupProvider(BaseHTTPProvider, FixtureLineupProvider):
+class ApiFootballFixtureLineupProvider(ApiFootballHTTPProvider, FixtureLineupProvider):
     """通过 API-Football ``/fixtures/lineups`` 读取官方阵容。"""
 
     def __init__(
@@ -41,6 +43,7 @@ class ApiFootballFixtureLineupProvider(BaseHTTPProvider, FixtureLineupProvider):
         backoff_base_seconds: float,
         client: httpx.AsyncClient | None = None,
         clock: Callable[[], datetime] | None = None,
+        rate_limiter: ApiFootballRequestLimiter | None = None,
     ) -> None:
         super().__init__(
             base_url=base_url,
@@ -49,6 +52,7 @@ class ApiFootballFixtureLineupProvider(BaseHTTPProvider, FixtureLineupProvider):
             backoff_base_seconds=backoff_base_seconds,
             headers={"x-apisports-key": api_key},
             client=client,
+            rate_limiter=rate_limiter,
         )
         self._clock = clock or _utcnow
 

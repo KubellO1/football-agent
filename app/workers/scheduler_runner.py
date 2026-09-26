@@ -18,7 +18,7 @@ import uuid
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 from zoneinfo import ZoneInfo
 
 from app.core.logging import RedactingFormatter, configure_logging
@@ -31,6 +31,28 @@ LOG_DIR = PROJECT_ROOT / "app" / "state" / "logs"
 PARIS = ZoneInfo("Europe/Paris")
 
 type JsonObject = dict[str, object]
+
+if TYPE_CHECKING:
+    from app.models.value_objects.analysis_stage import AnalysisStage
+    from app.models.value_objects.pre_kickoff import PreKickoffCheckpoint
+
+
+def _analysis_stage_for_pre_kickoff_checkpoint(
+    checkpoint: PreKickoffCheckpoint,
+) -> AnalysisStage:
+    """Map explicit scheduler checkpoints to the matching admission stage."""
+    from app.models.value_objects.analysis_stage import AnalysisStage
+    from app.models.value_objects.pre_kickoff import PreKickoffCheckpoint
+
+    stages = {
+        PreKickoffCheckpoint.T90: AnalysisStage.INITIAL,
+        PreKickoffCheckpoint.T60: AnalysisStage.POST_LINEUP,
+        PreKickoffCheckpoint.T30: AnalysisStage.FINAL,
+    }
+    try:
+        return stages[checkpoint]
+    except KeyError as exc:
+        raise ValueError(f"unsupported pre-kickoff checkpoint: {checkpoint}") from exc
 
 
 def _passes_pre_kickoff_review_thresholds(
@@ -358,7 +380,11 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
     from app.core.service_factory import (
         build_committee_review_service,
         build_fixture_analysis_service,
+        build_fixture_lineup_ingestion_service,
+        build_fixture_squad_ingestion_service,
+        build_ingestion_service,
         build_odds_ingestion_service,
+        build_player_availability_ingestion_service,
     )
     from app.repositories.sqlalchemy.decision_log_repository import (
         SqlAlchemyDecisionLogRepository,
@@ -403,9 +429,8 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
         async with container.database.session() as session:
             now = datetime.now(UTC)
             window_end = now + timedelta(minutes=100)
-            fixtures = await SqlAlchemyFixtureRepository(session).list_by_kickoff_window(
-                now, window_end
-            )
+            fixture_repo = SqlAlchemyFixtureRepository(session)
+            fixtures = await fixture_repo.list_by_kickoff_window(now, window_end)
 
             triggers = load_triggers()
             whitelist = get_whitelist()
@@ -414,16 +439,123 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
             skipped_unsupported = 0
             checkpoint_resolver = PreKickoffCheckpointResolver()
 
-            due_fixture_ids = {
-                fixture.id
-                for fixture in fixtures
-                if checkpoint_resolver.resolve(
+            comp_repo = SqlAlchemyCompetitionRepository(session)
+            team_repo = SqlAlchemyTeamRepository(session)
+            due_checkpoints = {}
+            for fixture in fixtures:
+                checkpoint = checkpoint_resolver.resolve(
                     kickoff_time=fixture.kickoff,
                     current_time=now,
                     completed=completed_checkpoints(fixture.id, triggers.keys()),
                 )
-                is not None
-            }
+                if checkpoint is None:
+                    continue
+                comp = await comp_repo.get(fixture.competition_id)
+                comp_name = comp.name if comp else str(fixture.competition_id)
+                league_id: int | None = None
+                country = comp.country if comp else None
+                if comp and comp.external_id:
+                    with suppress(ValueError, TypeError):
+                        league_id = int(comp.external_id)
+                if not whitelist.is_allowed(comp_name, league_id=league_id, country=country):
+                    log.info(
+                        "SKIPPED_UNSUPPORTED_COMPETITION fixture=%s competition=%s",
+                        fixture.id,
+                        comp_name,
+                    )
+                    skipped_unsupported += 1
+                    fixture_key = checkpoint_idempotency_key(fixture.id, checkpoint)
+                    triggers = complete_checkpoint(triggers, fixture_key, now_ts)
+                    continue
+                due_checkpoints[fixture.id] = checkpoint
+
+            for fixture in fixtures:
+                if fixture.id not in due_checkpoints:
+                    continue
+                external_id = (
+                    fixture.external_id.strip()
+                    if fixture.external_source == "api-football" and fixture.external_id
+                    else ""
+                )
+                if not external_id:
+                    log.warning("MISSING_PROVIDER_MAPPING fixture=%s", fixture.id)
+                    continue
+                try:
+                    fixture_report = await build_ingestion_service(container, session).sync_fixture(
+                        external_id
+                    )
+                    log.info(
+                        "Pre-kickoff fixture refresh: fixture=%s updated=%d skipped=%d",
+                        fixture.id,
+                        fixture_report.fixtures_updated,
+                        fixture_report.fixtures_skipped,
+                    )
+                except Exception as exc:
+                    log.warning("Pre-kickoff fixture refresh failed for %s: %s", fixture.id, exc)
+                try:
+                    squad_report = await build_fixture_squad_ingestion_service(
+                        container,
+                        session,
+                    ).sync_fixture(fixture_external_id=external_id)
+                    log.info(
+                        "Pre-kickoff squad refresh: fixture=%s received=%d",
+                        fixture.id,
+                        squad_report.records_received,
+                    )
+                except Exception as exc:
+                    log.warning("Pre-kickoff squad refresh failed for %s: %s", fixture.id, exc)
+                try:
+                    availability_report = await build_player_availability_ingestion_service(
+                        container,
+                        session,
+                    ).sync_fixture(fixture_external_id=external_id)
+                    log.info(
+                        "Pre-kickoff availability refresh: fixture=%s received=%d",
+                        fixture.id,
+                        availability_report.records_received,
+                    )
+                except Exception as exc:
+                    log.warning(
+                        "Pre-kickoff availability refresh failed for %s: %s",
+                        fixture.id,
+                        exc,
+                    )
+                try:
+                    lineup_report = await build_fixture_lineup_ingestion_service(
+                        container,
+                        session,
+                    ).sync_fixture(fixture_external_id=external_id)
+                    log.info(
+                        "Pre-kickoff lineup refresh: fixture=%s lineups=%d",
+                        fixture.id,
+                        lineup_report.lineups_received,
+                    )
+                except Exception as exc:
+                    log.warning("Pre-kickoff lineup refresh failed for %s: %s", fixture.id, exc)
+
+            # Re-read fixture clocks and eligibility immediately before the first
+            # odds request. Provider refresh or elapsed time may have changed the
+            # due checkpoint; missed windows are never backdated.
+            request_time = datetime.now(UTC)
+            revalidated_checkpoints = {}
+            for fixture in fixtures:
+                if fixture.id not in due_checkpoints:
+                    continue
+                refreshed_fixture = await fixture_repo.get(fixture.id)
+                if refreshed_fixture is None:
+                    continue
+                checkpoint = checkpoint_resolver.resolve(
+                    kickoff_time=refreshed_fixture.kickoff,
+                    current_time=request_time,
+                    completed=completed_checkpoints(fixture.id, triggers.keys()),
+                )
+                if checkpoint is None:
+                    log.info("NO_LONGER_ELIGIBLE fixture=%s", fixture.id)
+                    continue
+                revalidated_checkpoints[fixture.id] = checkpoint
+            due_checkpoints = revalidated_checkpoints
+
+            due_fixture_ids = set(due_checkpoints)
             if due_fixture_ids:
                 odds_report = await build_odds_ingestion_service(
                     container,
@@ -438,19 +570,13 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
                 )
 
             for fixture in fixtures:
-                checkpoint = checkpoint_resolver.resolve(
-                    kickoff_time=fixture.kickoff,
-                    current_time=now,
-                    completed=completed_checkpoints(fixture.id, triggers.keys()),
-                )
+                checkpoint = due_checkpoints.get(fixture.id)
                 if checkpoint is None:
                     continue
 
                 fixture_key = checkpoint_idempotency_key(fixture.id, checkpoint)
 
                 try:
-                    comp_repo = SqlAlchemyCompetitionRepository(session)
-                    team_repo = SqlAlchemyTeamRepository(session)
                     comp = await comp_repo.get(fixture.competition_id)
                     home = await team_repo.get(fixture.home_team_id)
                     away = await team_repo.get(fixture.away_team_id)
@@ -459,25 +585,14 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
                     home_name = home.name if home else str(fixture.home_team_id)
                     away_name = away.name if away else str(fixture.away_team_id)
 
-                    # Whitelist gate — must match DailyTopPicksService to prevent leakage
-                    # Resolve league_id + country for exact-match whitelist
-                    league_id: int | None = None
-                    country = comp.country if comp else None
-                    if comp and comp.external_id:
-                        with suppress(ValueError, TypeError):
-                            league_id = int(comp.external_id)
-                    if not whitelist.is_allowed(comp_name, league_id=league_id, country=country):
-                        log.info(
-                            "SKIPPED_UNSUPPORTED_COMPETITION fixture=%s competition=%s",
-                            fixture.id,
-                            comp_name,
-                        )
-                        skipped_unsupported += 1
-                        triggers = complete_checkpoint(triggers, fixture_key, now_ts)
-                        continue
-
                     analysis = build_fixture_analysis_service(container, session)
-                    detailed = await analysis.analyze_detailed(fixture)
+                    refreshed_fixture = await fixture_repo.get(fixture.id)
+                    if refreshed_fixture is None:
+                        raise RuntimeError("fixture disappeared after pre-kickoff refresh")
+                    detailed = await analysis.analyze_detailed(
+                        refreshed_fixture,
+                        stage=_analysis_stage_for_pre_kickoff_checkpoint(checkpoint),
+                    )
 
                     await log_fixture_predictions(
                         detailed,

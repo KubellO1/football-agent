@@ -87,6 +87,7 @@ class _Counters:
 class _CandidateBatch:
     candidates: list[MatchCandidate]
     sport_keys_by_fixture: dict[UUID, str]
+    external_ids_by_fixture: dict[UUID, str]
     requested_fixtures: int
     reason_counts: dict[str, int]
 
@@ -137,6 +138,9 @@ class OddsIngestionService:
         targets = [
             ProviderOddsTarget(
                 fixture_id=candidate.fixture_id,
+                provider_fixture_id=candidate_batch.external_ids_by_fixture.get(
+                    candidate.fixture_id
+                ),
                 home_team=candidate.home_norm,
                 away_team=candidate.away_norm,
                 kickoff=candidate.kickoff,
@@ -165,10 +169,15 @@ class OddsIngestionService:
             bookmaker_cache=bookmaker_cache,
         )
 
-        primary_provider_hits = sum(1 for e in all_events if e.source == "odds-api.io")
+        primary_provider_hits = sum(
+            1 for e in all_events if e.source in {"api-football", "odds-api.io"}
+        )
         fallback_provider_hits = sum(1 for e in all_events if e.source == "the-odds-api")
 
-        if primary_provider_hits > 0 and fallback_provider_hits == 0:
+        api_football_hits = sum(1 for e in all_events if e.source == "api-football")
+        if api_football_hits > 0 and fallback_provider_hits == 0:
+            source_label = "api-football"
+        elif primary_provider_hits > 0 and fallback_provider_hits == 0:
             source_label = "odds-api.io"
         elif primary_provider_hits == 0 and fallback_provider_hits > 0:
             source_label = "the-odds-api"
@@ -436,6 +445,7 @@ class OddsIngestionService:
 
         candidates: list[MatchCandidate] = []
         sport_keys_by_fixture: dict[UUID, str] = {}
+        external_ids_by_fixture: dict[UUID, str] = {}
         for f in fixtures:
             home = team_names.get(f.home_team_id)
             away = team_names.get(f.away_team_id)
@@ -452,12 +462,19 @@ class OddsIngestionService:
                     kickoff=f.kickoff,
                 )
             )
+            if f.external_source == "api-football" and f.external_id:
+                external_ids_by_fixture[f.id] = f.external_id
+            else:
+                reason_counts["MISSING_PROVIDER_MAPPING"] = (
+                    reason_counts.get("MISSING_PROVIDER_MAPPING", 0) + 1
+                )
             sport_key = candidate_sport_keys.get(f.competition_id)
             if sport_key is not None:
                 sport_keys_by_fixture[f.id] = sport_key
         return _CandidateBatch(
             candidates=candidates,
             sport_keys_by_fixture=sport_keys_by_fixture,
+            external_ids_by_fixture=external_ids_by_fixture,
             requested_fixtures=requested_fixtures,
             reason_counts=reason_counts,
         )
