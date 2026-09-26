@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError
 
 from app.core.exceptions import ExternalServiceError
-from app.providers.base import BaseHTTPProvider
+from app.providers.api_football_http import ApiFootballHTTPProvider
 from app.providers.interfaces.player_squad_provider import PlayerSquadProvider
 from app.providers.schemas.player_squad import ProviderSquadBatch, ProviderSquadPlayer
 
@@ -17,6 +17,8 @@ if TYPE_CHECKING:
 
     import httpx
 
+    from app.providers.api_football_rate_limit import ApiFootballRequestLimiter
+
 SOURCE_API_FOOTBALL = "api-football"
 
 
@@ -24,7 +26,7 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-class ApiFootballPlayerSquadProvider(BaseHTTPProvider, PlayerSquadProvider):
+class ApiFootballPlayerSquadProvider(ApiFootballHTTPProvider, PlayerSquadProvider):
     """通过 API-Football ``/players/squads`` 读取球队当前阵容。"""
 
     def __init__(
@@ -37,6 +39,7 @@ class ApiFootballPlayerSquadProvider(BaseHTTPProvider, PlayerSquadProvider):
         backoff_base_seconds: float,
         client: httpx.AsyncClient | None = None,
         clock: Callable[[], datetime] | None = None,
+        rate_limiter: ApiFootballRequestLimiter | None = None,
     ) -> None:
         super().__init__(
             base_url=base_url,
@@ -45,6 +48,7 @@ class ApiFootballPlayerSquadProvider(BaseHTTPProvider, PlayerSquadProvider):
             backoff_base_seconds=backoff_base_seconds,
             headers={"x-apisports-key": api_key},
             client=client,
+            rate_limiter=rate_limiter,
         )
         self._clock = clock or _utcnow
 

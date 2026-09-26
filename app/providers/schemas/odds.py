@@ -19,6 +19,10 @@ class ProviderOddsTarget(BaseModel):
     model_config = {"frozen": True}
 
     fixture_id: UUID
+    provider_fixture_id: str | None = Field(
+        default=None,
+        description="Provider-scoped fixture id for targeted odds endpoints.",
+    )
     home_team: str
     away_team: str
     kickoff: datetime

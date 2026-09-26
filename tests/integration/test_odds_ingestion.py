@@ -84,7 +84,13 @@ class FakeOddsProvider(OddsProvider):
 
 
 async def _insert_fixture(
-    session: AsyncSession, *, home: str, away: str, kickoff: datetime = KICKOFF
+    session: AsyncSession,
+    *,
+    home: str,
+    away: str,
+    kickoff: datetime = KICKOFF,
+    external_id: str | None = None,
+    external_source: str | None = None,
 ) -> Fixture:
     competition = await SqlAlchemyCompetitionRepository(session).add(
         Competition(name="League", country="Country")
@@ -97,6 +103,8 @@ async def _insert_fixture(
             home_team_id=home_team.id,
             away_team_id=away_team.id,
             kickoff=kickoff,
+            external_id=external_id,
+            external_source=external_source,
         )
     )
 
@@ -182,6 +190,30 @@ async def test_matched_event_creates_snapshots(db_session: AsyncSession) -> None
         "the-odds-api", "pinnacle"
     )
     assert bookmaker is not None
+
+
+@pytest.mark.integration
+async def test_targeted_request_carries_api_football_fixture_identity(
+    db_session: AsyncSession,
+) -> None:
+    fixture = await _insert_fixture(
+        db_session,
+        home="Alpha",
+        away="Beta",
+        external_id="1550130",
+        external_source="api-football",
+    )
+    provider = FakeOddsProvider([])
+
+    report = await _service(db_session, provider).sync_odds_today(
+        TARGET,
+        fixture_ids={fixture.id},
+    )
+
+    assert report.events_fetched == 0
+    assert len(provider.requested_targets) == 1
+    assert provider.requested_targets[0].fixture_id == fixture.id
+    assert provider.requested_targets[0].provider_fixture_id == "1550130"
 
 
 @pytest.mark.integration

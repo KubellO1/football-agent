@@ -14,8 +14,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from app.core.logging import get_logger
 from app.models.entities.competition import Competition
@@ -23,11 +22,16 @@ from app.models.entities.enums import MatchStatus
 from app.models.entities.fixture import Fixture
 from app.models.entities.team import Team
 from app.models.value_objects.score import Score
-from app.providers.interfaces.fixtures_provider import FixturesProvider
-from app.providers.schemas.fixtures import ProviderFixture, ProviderTeam
-from app.repositories.interfaces.fixture_repository import FixtureRepository
-from app.repositories.interfaces.reference import CompetitionRepository, TeamRepository
 from app.schemas.sync import SyncReport
+
+if TYPE_CHECKING:
+    from datetime import date
+    from uuid import UUID
+
+    from app.providers.interfaces.fixtures_provider import FixturesProvider
+    from app.providers.schemas.fixtures import ProviderFixture, ProviderTeam
+    from app.repositories.interfaces.fixture_repository import FixtureRepository
+    from app.repositories.interfaces.reference import CompetitionRepository, TeamRepository
 
 logger = get_logger(__name__)
 
@@ -99,6 +103,28 @@ class IngestionService:
         """采集某联赛某赛季的全部比赛并写库（按 league+season，不按日期）。可安全重复运行。"""
         provider_fixtures = await self._provider.get_fixtures(league=league_id, season=season)
         return await self._process(provider_fixtures, scope=f"league={league_id} season={season}")
+
+    async def sync_fixture(self, provider_id: str) -> SyncReport:
+        """Refresh one provider-scoped fixture without scanning a league or date."""
+        normalized_id = provider_id.strip()
+        if not normalized_id:
+            raise ValueError("provider_id cannot be empty")
+        provider_fixture = await self._provider.get_fixture(normalized_id)
+        if provider_fixture is None:
+            return SyncReport(
+                source=self._source,
+                date=f"fixture={normalized_id}",
+                fixtures_processed=0,
+                fixtures_created=0,
+                fixtures_updated=0,
+                fixtures_skipped=1,
+                competitions_created=0,
+                teams_created=0,
+            )
+        return await self._process(
+            [provider_fixture],
+            scope=f"fixture={normalized_id}",
+        )
 
     async def _process(self, provider_fixtures: list[ProviderFixture], *, scope: str) -> SyncReport:
         """把一批 ProviderFixture 幂等写入（赛事/球队/比赛/比分/状态），返回统计。"""

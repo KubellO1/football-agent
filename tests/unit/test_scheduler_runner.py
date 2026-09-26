@@ -8,10 +8,34 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from app.models.value_objects.analysis_stage import AnalysisStage
+from app.models.value_objects.pre_kickoff import PreKickoffCheckpoint
 from app.workers import scheduler_runner
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("checkpoint", "expected"),
+    [
+        (PreKickoffCheckpoint.T90, AnalysisStage.INITIAL),
+        (PreKickoffCheckpoint.T60, AnalysisStage.POST_LINEUP),
+        (PreKickoffCheckpoint.T30, AnalysisStage.FINAL),
+    ],
+)
+def test_pre_kickoff_checkpoint_uses_explicit_analysis_stage(
+    checkpoint: PreKickoffCheckpoint,
+    expected: AnalysisStage,
+) -> None:
+    assert scheduler_runner._analysis_stage_for_pre_kickoff_checkpoint(checkpoint) is expected
+
+
+@pytest.mark.unit
+def test_post_t30_is_not_silently_mapped_to_a_production_stage() -> None:
+    with pytest.raises(ValueError, match="unsupported pre-kickoff checkpoint"):
+        scheduler_runner._analysis_stage_for_pre_kickoff_checkpoint(PreKickoffCheckpoint.POST_T30)
 
 
 @pytest.mark.unit

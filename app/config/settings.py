@@ -61,6 +61,13 @@ class Settings(BaseSettings):
     # API-Football (fixtures / results / league data).
     api_football_key: str = ""
     api_football_base_url: str = "https://v3.football.api-sports.io"
+    # Conservative API-Football admission; server headers can tighten these.
+    api_football_min_request_interval_seconds: float = Field(default=2.0, ge=0.0, le=60.0)
+    api_football_per_minute_request_budget: int = Field(default=20, ge=1, le=900)
+    api_football_daily_request_budget: int = Field(default=1000, ge=1, le=150_000)
+    api_football_run_request_budget: int = Field(default=100, ge=1, le=10_000)
+    api_football_circuit_cooldown_seconds: float = Field(default=60.0, ge=1.0, le=3600.0)
+    api_football_odds_bookmakers: list[str] = ["Bet365", "Pinnacle"]
     # The Odds API (bookmaker odds across markets).
     odds_api_key: str = ""
     odds_api_base_url: str = "https://api.the-odds-api.com/v4"
