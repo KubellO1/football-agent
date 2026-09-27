@@ -1,0 +1,27 @@
+# Credentials and local environment overrides must never enter image layers.
+.env
+.env.*
+!.env.example
+
+# Database/forensic artifacts are sensitive and are not application inputs.
+*.dump
+*.sql
+*.tar
+*.backup
+*.bak
+
+# Local runtime and tool state.
+.git
+.venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.pytest-tmp
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# Runtime outputs are mounted or generated outside the image.
+logs
+reports
