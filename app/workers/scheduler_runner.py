@@ -626,7 +626,12 @@ async def _run_pre_kickoff(log: logging.Logger) -> None:
                                 session,
                                 analysis=analysis,
                             )
-                            result = await review.review_detailed(detailed)
+                            result = await review.review_detailed(
+                                detailed,
+                                decision_context=PredictionDecisionContext.pre_kickoff(
+                                    checkpoint.value
+                                ),
+                            )
                             log.info(
                                 "Pre-kickoff reviewed fixture %s: %d value bets",
                                 fixture.id,
@@ -652,21 +657,33 @@ async def _run_settlement(log: logging.Logger) -> None:
     from app.core.container import container
     from app.core.service_factory import build_settlement_service
 
-    container.init_resources()
+    # Share the pre-kickoff command lock so settlement cannot overlap a live
+    # checkpoint refresh. A pre-kickoff invocation also sees this lock and
+    # fails closed while settlement owns it.
+    pre_kickoff_lock = acquire_lock("pre_kickoff")
+    if pre_kickoff_lock is None:
+        raise RuntimeError("settlement deferred: pre_kickoff execution lock is active")
+
     try:
-        async with container.database.session() as session:
-            svc = build_settlement_service(container, session)
-            report = await svc.settle_all()
-            log.info(
-                "Settlement complete: checked=%d eligible=%d settled=%d skipped=%d total_pl=%s",
-                report.fixtures_checked,
-                report.bets_eligible,
-                report.bets_settled,
-                report.bets_skipped,
-                report.total_pl,
-            )
+        container.init_resources()
+        try:
+            async with container.database.session() as session:
+                svc = build_settlement_service(container, session)
+                report = await svc.settle_all()
+                log.info(
+                    "Settlement complete: checked=%d eligible=%d settled=%d "
+                    "skipped=%d provider_requests=%d total_pl=%s",
+                    report.fixtures_checked,
+                    report.bets_eligible,
+                    report.bets_settled,
+                    report.bets_skipped,
+                    report.provider_requests,
+                    report.total_pl,
+                )
+        finally:
+            await container.shutdown_resources()
     finally:
-        await container.shutdown_resources()
+        release_lock(pre_kickoff_lock)
 
 
 async def _run_provider_health(log: logging.Logger) -> None:

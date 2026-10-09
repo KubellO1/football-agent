@@ -44,7 +44,8 @@ function New-FootballTask {
         [string]$TriggerType,       # "Daily", "Repetition", "Weekly"
         [string]$StartTime = "",    # HH:MM for Daily/Weekly
         [int]$IntervalMinutes = 0,  # for Repetition
-        [string]$DaysOfWeek = ""    # for Weekly, e.g. "Monday"
+        [string]$DaysOfWeek = "",   # for Weekly, e.g. "Monday"
+        [int]$ExecutionTimeLimitMinutes = 4320
     )
 
     $argument = "-m app.workers.scheduler_runner --command $TaskId --trigger-source scheduler"
@@ -65,6 +66,7 @@ function New-FootballTask {
         -StartWhenAvailable `
         -RestartCount 3 `
         -RestartInterval (New-TimeSpan -Minutes 5) `
+        -ExecutionTimeLimit (New-TimeSpan -Minutes $ExecutionTimeLimitMinutes) `
         -MultipleInstances IgnoreNew
 
     $trigger = switch ($TriggerType) {
@@ -132,11 +134,12 @@ New-FootballTask -TaskName "FootballAgent-PreKickoffValidation" `
     -Description "Refresh odds, lineups, injuries, weather for T-90 and T-30 fixtures" `
     -TriggerType "Repetition" -IntervalMinutes 30
 
-Write-Host "[5/9] SettlementFallback — Daily 23:00" -ForegroundColor White
+Write-Host "[5/9] SettlementFallback — Daily 23:15" -ForegroundColor White
 New-FootballTask -TaskName "FootballAgent-SettlementFallback" `
     -TaskId "settlement" `
     -Description "Settle all eligible paper bets (idempotent); update bankroll/ROI/CLV/performance" `
-    -TriggerType "Daily" -StartTime "23:00"
+    -TriggerType "Daily" -StartTime "23:15" `
+    -ExecutionTimeLimitMinutes 10
 
 Write-Host "[6/9] DailyPerformanceReport — Daily 23:30" -ForegroundColor White
 New-FootballTask -TaskName "FootballAgent-DailyPerformanceReport" `

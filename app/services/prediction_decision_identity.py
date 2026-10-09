@@ -126,6 +126,12 @@ def _fingerprint(value: Any) -> str:
     return hashlib.sha256(_canonical_json(value).encode("utf-8")).hexdigest()
 
 
+def stable_identity_fingerprint(value: Any) -> str:
+    """Return the canonical SHA-256 used by persisted semantic identities."""
+
+    return _fingerprint(value)
+
+
 def analysis_input_fingerprint(detailed: DetailedAnalysis) -> str:
     """Hash material model/lineup inputs while excluding analysis wall-clock time."""
 

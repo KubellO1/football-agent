@@ -25,3 +25,11 @@ class ValueBetRepository(Repository[ValueBet]):
     async def list_created_between(self, start: datetime, end: datetime) -> list[ValueBet]:
         """获取创建时间落在 [start, end) 区间内的推荐（用于每日报告、赛后复盘）。"""
         ...
+
+    async def add_if_absent(self, entity: ValueBet) -> tuple[ValueBet, bool]:
+        """Insert a semantic-ID row once; in-memory repositories may use this fallback."""
+
+        existing = await self.get(entity.id)
+        if existing is not None:
+            return existing, False
+        return await self.add(entity), True

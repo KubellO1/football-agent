@@ -372,6 +372,7 @@ def build_daily_recommendations_reader(
 def build_settlement_service(container: Container, session: AsyncSession) -> SettlementService:
     s = container.settings
     return SettlementService(
+        fixtures_provider=container.resolve(FixturesProvider),
         fixtures=SqlAlchemyFixtureRepository(session),
         value_bets=SqlAlchemyValueBetRepository(session),
         settlements=SqlAlchemySettlementRepository(session),

@@ -198,7 +198,10 @@ class DailyTopPicksService:
             if await self._decision_logs.list_by_fixture(fixture_id):
                 skipped += 1
                 continue
-            result = await self._review.review_detailed(detailed_by_id[fixture_id])
+            result = await self._review.review_detailed(
+                detailed_by_id[fixture_id],
+                decision_context=PredictionDecisionContext.daily(on_date),
+            )
             reviewed += 1
             reviewed_ids.append(fixture_id)
             value_bets += len(result.value_bet_ids)

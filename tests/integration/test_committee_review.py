@@ -52,6 +52,7 @@ from app.services.committee_review import (
 )
 from app.services.fixture_analysis import FixtureAnalysisService, MatchAnalysisInputBuilder
 from app.services.models.ensemble import EnsembleMatchModel
+from app.services.prediction_decision_identity import PredictionDecisionContext
 from app.services.recommendation_gate import RecommendationGate
 from app.services.verified_market_movement import VerifiedMarketMovementService
 from app.services.verified_market_quote import (
@@ -381,3 +382,32 @@ async def test_insufficient_history_skips_reviewer(db_session: AsyncSession) -> 
     assert reviewer.calls == 0
     assert result.decision_log_id is None
     assert await _count(db_session, DecisionLogORM) == 0
+
+
+@pytest.mark.integration
+async def test_value_bet_replay_is_idempotent_but_checkpoints_remain_distinct(
+    db_session: AsyncSession,
+) -> None:
+    fixture = await _seed(db_session, with_odds=True)
+    service = _service(db_session, FakeReviewer(), permissive_gate=True)
+    as_of = KICKOFF - timedelta(hours=1)
+    t90 = PredictionDecisionContext.pre_kickoff("T90")
+
+    first = await service.review(fixture, as_of=as_of, decision_context=t90)
+    replay = await service.review(fixture, as_of=as_of, decision_context=t90)
+    after_replay = await _count(db_session, ValueBetORM)
+
+    assert first.value_bet_ids
+    assert replay.value_bet_ids == first.value_bet_ids
+    assert after_replay == len(first.value_bet_ids)
+
+    t60 = await service.review(
+        fixture,
+        as_of=as_of,
+        decision_context=PredictionDecisionContext.pre_kickoff("T60"),
+    )
+
+    assert set(t60.value_bet_ids).isdisjoint(first.value_bet_ids)
+    assert await _count(db_session, ValueBetORM) == len(first.value_bet_ids) + len(
+        t60.value_bet_ids
+    )

@@ -34,4 +34,16 @@ class ProviderFixture(BaseModel):
     season: int | None = None
     home_score: int | None = None
     away_score: int | None = None
+    regulation_home_score: int | None = Field(
+        default=None,
+        description="Score at the end of regulation time, when supplied separately.",
+    )
+    regulation_away_score: int | None = Field(
+        default=None,
+        description="Score at the end of regulation time, when supplied separately.",
+    )
+    extra_time_home_score: int | None = None
+    extra_time_away_score: int | None = None
+    penalty_home_score: int | None = None
+    penalty_away_score: int | None = None
     venue: str | None = None

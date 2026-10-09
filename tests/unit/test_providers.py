@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import UTC, date, datetime
 from uuid import UUID
 
@@ -116,6 +117,31 @@ async def test_api_football_get_fixture_returns_none_when_empty() -> None:
 
     provider = ApiFootballProvider(**_provider_kwargs(_client(handler)))
     assert await provider.get_fixture("999") is None
+
+
+@pytest.mark.unit
+async def test_api_football_preserves_regulation_extra_time_and_penalty_scores() -> None:
+    payload = deepcopy(_FIXTURES_PAYLOAD)
+    item = payload["response"][0]
+    item["fixture"]["status"] = {"short": "PEN"}
+    item["goals"] = {"home": 5, "away": 4}
+    item["score"] = {
+        "fulltime": {"home": 1, "away": 1},
+        "extratime": {"home": 0, "away": 0},
+        "penalty": {"home": 4, "away": 3},
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=payload)
+
+    provider = ApiFootballProvider(**_provider_kwargs(_client(handler)))
+    fixture = await provider.get_fixture("12345")
+
+    assert fixture is not None
+    assert (fixture.home_score, fixture.away_score) == (5, 4)
+    assert (fixture.regulation_home_score, fixture.regulation_away_score) == (1, 1)
+    assert (fixture.extra_time_home_score, fixture.extra_time_away_score) == (0, 0)
+    assert (fixture.penalty_home_score, fixture.penalty_away_score) == (4, 3)
 
 
 @pytest.mark.unit

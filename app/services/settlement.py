@@ -1,27 +1,17 @@
-"""自动结算服务：将已完赛比赛与未结算 value_bets 匹配，计算 P&L 并记录。
-
-数据流：
-  1. 查询所有 FINISHED + score NOT NULL 的 fixtures
-  2. 找出这些 fixture 下所有未结算的 value_bets
-  3. 逐条判定 W/L/P（基于 selection vs 实际比分）
-  4. 计算 P&L，更新 bankroll
-  5. 写入 settlements + bankroll_entries
-"""
+"""Fail-closed settlement of value bets from authoritative final results."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from app.core.logging import get_logger
-from app.models.entities.settlement import (
-    BankrollEntry,
-    Settlement,
-    SettlementResult,
-)
+from app.models.entities.settlement import BankrollEntry, Settlement, SettlementResult
 from app.models.value_objects.markets import MarketType
+from app.models.value_objects.score import Score
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -29,6 +19,8 @@ if TYPE_CHECKING:
     from app.models.entities.fixture import Fixture
     from app.models.entities.value_bet import ValueBet
     from app.models.value_objects.money import Money
+    from app.providers.interfaces.fixtures_provider import FixturesProvider
+    from app.providers.schemas.fixtures import ProviderFixture
     from app.repositories.interfaces.fixture_repository import FixtureRepository
     from app.repositories.interfaces.settlement_repository import (
         BankrollRepository,
@@ -39,10 +31,43 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+class FixtureLifecycle(StrEnum):
+    """Settlement-relevant lifecycle, stricter than the persisted 0021 enum."""
+
+    NOT_STARTED = "NOT_STARTED"
+    LIVE = "LIVE"
+    FT = "FT"
+    AET = "AET"
+    PEN = "PEN"
+    POSTPONED = "POSTPONED"
+    CANCELLED = "CANCELLED"
+    ABANDONED = "ABANDONED"
+    AWARDED_WALKOVER = "AWARDED_WALKOVER"
+    UNKNOWN = "UNKNOWN"
+
+
+@dataclass(frozen=True, slots=True)
+class AuthoritativeSettlementState:
+    lifecycle: FixtureLifecycle
+    regulation_score: Score | None
+    score_basis: str | None
+    reason: str | None = None
+
+    @property
+    def can_settle(self) -> bool:
+        return (
+            self.lifecycle
+            in {
+                FixtureLifecycle.FT,
+                FixtureLifecycle.AET,
+                FixtureLifecycle.PEN,
+            }
+            and self.regulation_score is not None
+        )
+
+
 @dataclass
 class SettlementResult_:
-    """单条结算结果（内部报告用，避免与实体 SettlementResult 冲突）。"""
-
     value_bet_id: UUID
     fixture_id: UUID
     result: SettlementResult
@@ -57,39 +82,30 @@ class SettlementResult_:
 
 @dataclass
 class SettlementReport:
-    """一次结算运行的汇总报告。"""
-
     fixtures_checked: int
     bets_eligible: int
     bets_settled: int
-    bets_skipped: int  # already settled or unsupported market
+    bets_skipped: int
     total_pl: Decimal
     details: list[SettlementResult_] = field(default_factory=list)
+    provider_requests: int = 0
+    deferred_fixtures: dict[str, str] = field(default_factory=dict)
 
 
 class SettlementService:
-    """自动结算服务。
-
-    结算判定逻辑：
-      - 1x2:home   → score_home > score_away = W, < = L, == = P
-      - 1x2:draw   → score_home == score_away = W
-      - 1x2:away   → score_away > score_home = W
-      - over_under:over@line  → total_goals > line = W, == line = P
-      - over_under:under@line → total_goals < line = W, == line = P
-      - btts:yes → both scored = W
-      - btts:no  → at least one didn't score = W
-      - 其他市场 → 跳过（标记为未支持）
-    """
+    """Settle only unresolved bets after targeted final-state validation."""
 
     def __init__(
         self,
         *,
+        fixtures_provider: FixturesProvider,
         fixtures: FixtureRepository,
         value_bets: ValueBetRepository,
         settlements: SettlementRepository,
         bankroll: BankrollRepository,
         initial_bankroll: Money | None = None,
     ) -> None:
+        self._fixtures_provider = fixtures_provider
         self._fixtures = fixtures
         self._value_bets = value_bets
         self._settlements = settlements
@@ -97,198 +113,290 @@ class SettlementService:
         self._initial_bankroll = initial_bankroll
 
     async def settle_all(self) -> SettlementReport:
-        """结算所有已完赛但未结算的比赛。"""
-        # 1. 获取所有已完赛且有比分的比赛
-        finished = await self._fixtures.list_finished()
-        scored = [f for f in finished if f.score is not None]
+        """Settle all currently eligible bets, failing closed per fixture."""
+        initial_unsettled = await self._settlements.list_unsettled_value_bet_ids()
+        if not initial_unsettled:
+            return SettlementReport(0, 0, 0, 0, Decimal("0"))
 
-        if not scored:
-            return SettlementReport(
-                fixtures_checked=len(finished),
-                bets_eligible=0,
-                bets_settled=0,
-                bets_skipped=0,
-                total_pl=Decimal("0"),
-            )
+        candidates: list[tuple[ValueBet, Fixture]] = []
+        fixtures_by_id: dict[UUID, Fixture] = {}
+        for value_bet_id in initial_unsettled:
+            value_bet = await self._value_bets.get(value_bet_id)
+            if value_bet is None:
+                logger.warning("Unsettled value bet %s is missing; deferring", value_bet_id)
+                continue
+            fixture = fixtures_by_id.get(value_bet.fixture_id)
+            if fixture is None:
+                fixture = await self._fixtures.get(value_bet.fixture_id)
+                if fixture is None:
+                    logger.warning(
+                        "Fixture %s for unsettled value bet %s is missing; deferring",
+                        value_bet.fixture_id,
+                        value_bet.id,
+                    )
+                    continue
+                fixtures_by_id[fixture.id] = fixture
+            candidates.append((value_bet, fixture))
 
-        # 2. 先锁定资金账本，再读取未结算列表。等待锁的并发任务会在锁释放后
-        #    重新读取已提交状态，避免使用过期列表重复结算。
+        states: dict[UUID, AuthoritativeSettlementState] = {}
+        deferred: dict[str, str] = {}
+        provider_requests = 0
+        for fixture in fixtures_by_id.values():
+            if fixture.external_source != "api-football" or not fixture.external_id:
+                reason = "missing API-Football fixture identity"
+                states[fixture.id] = AuthoritativeSettlementState(
+                    FixtureLifecycle.UNKNOWN, None, None, reason
+                )
+                deferred[str(fixture.id)] = reason
+                continue
+            provider_requests += 1
+            refreshed = await self._fixtures_provider.get_fixture(fixture.external_id)
+            state = self._authoritative_state(fixture, refreshed)
+            states[fixture.id] = state
+            if not state.can_settle:
+                deferred[str(fixture.id)] = state.reason or state.lifecycle.value
+
+        # Provider reads finish before any mutation. The xact lock then makes a
+        # concurrent waiter re-read rows committed by the first transaction.
         default_balance = (
             self._initial_bankroll.amount if self._initial_bankroll is not None else Decimal("0")
         )
         running_balance = await self._bankroll.lock_and_get_latest_balance(default_balance)
-        unsettled_ids = set(await self._settlements.list_unsettled_value_bet_ids())
+        still_unsettled = set(await self._settlements.list_unsettled_value_bet_ids())
 
-        # 3. 按 fixture 匹配
         details: list[SettlementResult_] = []
         bets_eligible = 0
         bets_settled = 0
         bets_skipped = 0
+        for value_bet, fixture in candidates:
+            if value_bet.id not in still_unsettled:
+                continue
+            bets_eligible += 1
+            state = states[fixture.id]
+            if not state.can_settle:
+                bets_skipped += 1
+                continue
+            assert state.regulation_score is not None
+            result = self._resolve(value_bet, fixture, state.regulation_score)
+            if not result.settled:
+                bets_skipped += 1
+                details.append(result)
+                continue
 
-        for fixture in scored:
-            vbs = await self._value_bets.list_by_fixture(fixture.id)
-            for vb in vbs:
-                if vb.id not in unsettled_ids:
-                    continue
-                bets_eligible += 1
-                sr = self._resolve(vb, fixture)
-                if not sr.settled:
-                    bets_skipped += 1
-                    details.append(sr)
-                    continue
-
-                # 写入结算记录
-                br_before = running_balance
-                new_balance = br_before + sr.profit_loss
-                settlement = Settlement(
-                    value_bet_id=vb.id,
+            bankroll_before = running_balance
+            bankroll_after = bankroll_before + result.profit_loss
+            await self._settlements.add(
+                Settlement(
+                    value_bet_id=value_bet.id,
                     fixture_id=fixture.id,
-                    result=sr.result,
-                    score_home=sr.score_home,
-                    score_away=sr.score_away,
-                    profit_loss=sr.profit_loss,
-                    bankroll_before=br_before,
-                    bankroll_after=new_balance,
+                    result=result.result,
+                    score_home=result.score_home,
+                    score_away=result.score_away,
+                    profit_loss=result.profit_loss,
+                    bankroll_before=bankroll_before,
+                    bankroll_after=bankroll_after,
                     settlement_timestamp=datetime.now(UTC),
                 )
-                await self._settlements.add(settlement)
-
-                # 记录 bankroll 变动
-                entry = BankrollEntry(
-                    amount=sr.profit_loss,
-                    balance_after=new_balance,
-                    reason=f"Settlement: {fixture.id} | {vb.selection.label} → {sr.result.value}",
+            )
+            await self._bankroll.add(
+                BankrollEntry(
+                    amount=result.profit_loss,
+                    balance_after=bankroll_after,
+                    reason=(
+                        f"Settlement: {fixture.id} | {value_bet.selection.label} "
+                        f"→ {result.result.value} | basis={state.score_basis}"
+                    ),
                 )
-                await self._bankroll.add(entry)
-                running_balance = new_balance
+            )
+            running_balance = bankroll_after
+            result.bankroll_before = bankroll_before
+            result.bankroll_after = bankroll_after
+            bets_settled += 1
+            details.append(result)
 
-                sr.bankroll_before = br_before
-                sr.bankroll_after = new_balance
-                bets_settled += 1
-                details.append(sr)
-
-        total_pl = sum((d.profit_loss for d in details if d.settled), Decimal("0"))
+        total_pl = sum((item.profit_loss for item in details if item.settled), Decimal("0"))
         return SettlementReport(
-            fixtures_checked=len(finished),
+            fixtures_checked=len(fixtures_by_id),
             bets_eligible=bets_eligible,
             bets_settled=bets_settled,
             bets_skipped=bets_skipped,
             total_pl=total_pl,
             details=details,
+            provider_requests=provider_requests,
+            deferred_fixtures=deferred,
         )
 
-    def _resolve(self, vb: ValueBet, fixture: Fixture) -> SettlementResult_:
-        """判定单条 value_bet 的结算结果。"""
-        assert fixture.score is not None
-        home = fixture.score.home
-        away = fixture.score.away
+    @classmethod
+    def _authoritative_state(
+        cls,
+        fixture: Fixture,
+        refreshed: ProviderFixture | None,
+    ) -> AuthoritativeSettlementState:
+        if refreshed is None:
+            return AuthoritativeSettlementState(
+                FixtureLifecycle.UNKNOWN, None, None, "provider fixture missing"
+            )
+        if refreshed.provider_id != fixture.external_id:
+            return AuthoritativeSettlementState(
+                FixtureLifecycle.UNKNOWN, None, None, "provider fixture identity mismatch"
+            )
+        lifecycle = cls._lifecycle(refreshed.status)
+        if lifecycle not in {FixtureLifecycle.FT, FixtureLifecycle.AET, FixtureLifecycle.PEN}:
+            return AuthoritativeSettlementState(
+                lifecycle, None, None, f"fixture lifecycle {lifecycle.value} is not settleable"
+            )
+        regulation = cls._score_pair(
+            refreshed.regulation_home_score,
+            refreshed.regulation_away_score,
+        )
+        if regulation is not None:
+            return AuthoritativeSettlementState(lifecycle, regulation, "provider.score.fulltime")
+        # Aggregate goals are regulation-time only for a plain FT fixture.
+        if lifecycle is FixtureLifecycle.FT:
+            aggregate = cls._score_pair(refreshed.home_score, refreshed.away_score)
+            if aggregate is not None:
+                return AuthoritativeSettlementState(lifecycle, aggregate, "provider.goals")
+        return AuthoritativeSettlementState(
+            lifecycle, None, None, "authoritative regulation-time score unavailable"
+        )
+
+    @staticmethod
+    def _score_pair(home: int | None, away: int | None) -> Score | None:
+        if home is None or away is None or home < 0 or away < 0:
+            return None
+        return Score(home=home, away=away)
+
+    @staticmethod
+    def _lifecycle(raw_status: str) -> FixtureLifecycle:
+        status = raw_status.strip().upper()
+        if status in {"TBD", "NS"}:
+            return FixtureLifecycle.NOT_STARTED
+        if status in {"1H", "HT", "2H", "ET", "BT", "P", "SUSP", "INT", "LIVE"}:
+            return FixtureLifecycle.LIVE
+        if status == "FT":
+            return FixtureLifecycle.FT
+        if status == "AET":
+            return FixtureLifecycle.AET
+        if status == "PEN":
+            return FixtureLifecycle.PEN
+        if status == "PST":
+            return FixtureLifecycle.POSTPONED
+        if status == "CANC":
+            return FixtureLifecycle.CANCELLED
+        if status == "ABD":
+            return FixtureLifecycle.ABANDONED
+        if status in {"AWD", "WO"}:
+            return FixtureLifecycle.AWARDED_WALKOVER
+        return FixtureLifecycle.UNKNOWN
+
+    def _resolve(self, value_bet: ValueBet, fixture: Fixture, score: Score) -> SettlementResult_:
+        home, away = score.home, score.away
         total = home + away
-
-        market = vb.selection.market
-        code = vb.selection.code
-
-        # 1x2
+        market = value_bet.selection.market
+        code = value_bet.selection.code
         if market == MarketType.MATCH_RESULT:
             if code == "home":
                 return self._result(
-                    vb,
+                    value_bet,
                     fixture,
-                    (
-                        SettlementResult.WIN
-                        if home > away
-                        else (SettlementResult.PUSH if home == away else SettlementResult.LOSS)
-                    ),
+                    score,
+                    SettlementResult.WIN if home > away else SettlementResult.LOSS,
                 )
-            elif code == "draw":
+            if code == "draw":
                 return self._result(
-                    vb, fixture, SettlementResult.WIN if home == away else SettlementResult.LOSS
-                )
-            elif code == "away":
-                return self._result(
-                    vb,
+                    value_bet,
                     fixture,
-                    (
-                        SettlementResult.WIN
-                        if away > home
-                        else (SettlementResult.PUSH if away == home else SettlementResult.LOSS)
-                    ),
+                    score,
+                    SettlementResult.WIN if home == away else SettlementResult.LOSS,
                 )
-
-        # Over/Under
+            if code == "away":
+                return self._result(
+                    value_bet,
+                    fixture,
+                    score,
+                    SettlementResult.WIN if away > home else SettlementResult.LOSS,
+                )
         if market == MarketType.OVER_UNDER:
-            line = vb.selection.line
+            line = value_bet.selection.line
             if line is None:
-                return self._skip(vb, fixture, "Over/Under without line")
+                return self._skip(value_bet, fixture, score, "Over/Under without line")
             if code == "over":
-                if total > line:
-                    return self._result(vb, fixture, SettlementResult.WIN)
-                elif total == line:
-                    return self._result(vb, fixture, SettlementResult.PUSH)
-                else:
-                    return self._result(vb, fixture, SettlementResult.LOSS)
-            elif code == "under":
-                if total < line:
-                    return self._result(vb, fixture, SettlementResult.WIN)
-                elif total == line:
-                    return self._result(vb, fixture, SettlementResult.PUSH)
-                else:
-                    return self._result(vb, fixture, SettlementResult.LOSS)
-
-        # BTTS
+                outcome = (
+                    SettlementResult.WIN
+                    if total > line
+                    else SettlementResult.PUSH if total == line else SettlementResult.LOSS
+                )
+                return self._result(value_bet, fixture, score, outcome)
+            if code == "under":
+                outcome = (
+                    SettlementResult.WIN
+                    if total < line
+                    else SettlementResult.PUSH if total == line else SettlementResult.LOSS
+                )
+                return self._result(value_bet, fixture, score, outcome)
         if market == MarketType.BOTH_TEAMS_TO_SCORE:
             both_scored = home > 0 and away > 0
             if code == "yes":
                 return self._result(
-                    vb, fixture, SettlementResult.WIN if both_scored else SettlementResult.LOSS
+                    value_bet,
+                    fixture,
+                    score,
+                    SettlementResult.WIN if both_scored else SettlementResult.LOSS,
                 )
-            elif code == "no":
+            if code == "no":
                 return self._result(
-                    vb, fixture, SettlementResult.WIN if not both_scored else SettlementResult.LOSS
+                    value_bet,
+                    fixture,
+                    score,
+                    SettlementResult.WIN if not both_scored else SettlementResult.LOSS,
                 )
+        return self._skip(value_bet, fixture, score, f"Unsupported market: {market.value}")
 
-        return self._skip(vb, fixture, f"Unsupported market: {market.value}")
-
-    def _result(self, vb: ValueBet, fixture: Fixture, sr: SettlementResult) -> SettlementResult_:
-        """计算 P&L。"""
-        stake = vb.stake
+    @staticmethod
+    def _result(
+        value_bet: ValueBet,
+        fixture: Fixture,
+        score: Score,
+        outcome: SettlementResult,
+    ) -> SettlementResult_:
+        stake = value_bet.stake
         if stake is None:
-            return self._skip(vb, fixture, "No stake defined")
-
+            return SettlementService._skip(value_bet, fixture, score, "No stake defined")
         amount = stake.amount.amount
-        odds = vb.odds.decimal
-
-        if sr == SettlementResult.WIN:
-            pl = amount * (odds - Decimal("1"))
-        elif sr == SettlementResult.PUSH:
-            pl = Decimal("0")
+        if outcome == SettlementResult.WIN:
+            profit_loss = amount * (value_bet.odds.decimal - Decimal("1"))
+        elif outcome == SettlementResult.PUSH:
+            profit_loss = Decimal("0")
         else:
-            pl = -amount
-
-        assert fixture.score is not None
+            profit_loss = -amount
         return SettlementResult_(
-            value_bet_id=vb.id,
-            fixture_id=fixture.id,
-            result=sr,
-            score_home=fixture.score.home,
-            score_away=fixture.score.away,
-            profit_loss=pl,
-            bankroll_before=Decimal("0"),
-            bankroll_after=Decimal("0"),
-            settled=True,
+            value_bet.id,
+            fixture.id,
+            outcome,
+            score.home,
+            score.away,
+            profit_loss,
+            Decimal("0"),
+            Decimal("0"),
+            True,
         )
 
     @staticmethod
-    def _skip(vb: ValueBet, fixture: Fixture, reason: str) -> SettlementResult_:
-        assert fixture.score is not None
+    def _skip(
+        value_bet: ValueBet,
+        fixture: Fixture,
+        score: Score,
+        reason: str,
+    ) -> SettlementResult_:
         return SettlementResult_(
-            value_bet_id=vb.id,
-            fixture_id=fixture.id,
-            result=SettlementResult.PUSH,
-            score_home=fixture.score.home,
-            score_away=fixture.score.away,
-            profit_loss=Decimal("0"),
-            bankroll_before=Decimal("0"),
-            bankroll_after=Decimal("0"),
-            settled=False,
-            message=reason,
+            value_bet.id,
+            fixture.id,
+            SettlementResult.PUSH,
+            score.home,
+            score.away,
+            Decimal("0"),
+            Decimal("0"),
+            Decimal("0"),
+            False,
+            reason,
         )
