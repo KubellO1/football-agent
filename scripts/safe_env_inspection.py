@@ -1,8 +1,8 @@
 """Inspect container environment configuration without revealing values.
 
 This utility is the only supported way to inspect sensitive environment names in
-Docker runtime configuration.  It captures ``docker inspect`` output in memory
-and emits presence/redaction markers only.
+Docker runtime configuration. It captures ``docker inspect`` output in memory
+and emits ``REDACTED`` or ``EMPTY`` markers only.
 """
 
 from __future__ import annotations
@@ -44,14 +44,10 @@ def redact_environment(entries: Iterable[str], names: Sequence[str]) -> dict[str
     result: dict[str, str] = {}
     for name in requested:
         values = values_by_name.get(name, [])
-        if not values:
-            result[name] = "<missing>"
-        elif len(values) > 1:
-            result[name] = f"******** (duplicate definitions={len(values)})"
-        elif values[0]:
-            result[name] = "********"
+        if not values or not any(values):
+            result[name] = "EMPTY"
         else:
-            result[name] = "<empty>"
+            result[name] = "REDACTED"
     return result
 
 
