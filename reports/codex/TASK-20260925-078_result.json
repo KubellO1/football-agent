@@ -1,0 +1,38 @@
+{
+  "task_id": "TASK-20260925-078",
+  "status": "COMPLETED_ARCHIVED",
+  "fixture": {
+    "provider": "api-football",
+    "provider_fixture_id": "1575176",
+    "home": "Borussia Dortmund",
+    "away": "Werder Bremen"
+  },
+  "checkpoint": "T-90",
+  "scheduled_at_europe_paris": "2026-10-09T19:00:00+02:00",
+  "windows_task_started_at_europe_paris": "2026-10-09T19:05:23+02:00",
+  "evidence_run_started_at_europe_paris": "2026-10-09T19:05:48+02:00",
+  "execution": "PASS",
+  "odds": {
+    "bet365_complete_1x2": true,
+    "pinnacle_complete_1x2": true,
+    "age_minutes": 196.919,
+    "classification": "ODDS_TOO_STALE",
+    "legacy_evidence_classification": "STALE"
+  },
+  "formal_gate_executed": false,
+  "recommendations_created": 0,
+  "forced_bet": false,
+  "replay_additional_rows": 0,
+  "idempotency": "PASS",
+  "database_integrity": "PASS",
+  "canonical_duplicate_groups": 0,
+  "fk_orphans": 0,
+  "unexpected_deletes": 0,
+  "http_403": 0,
+  "http_429_or_body_rate_limit": 0,
+  "pipeline_tracebacks": 0,
+  "windows_gbk_traceback_like_mentions": 5,
+  "api_key_leakage": 0,
+  "conclusion": "SUCCESSFUL_SAFETY_CANARY_WITH_STALE_PROVIDER_ODDS",
+  "immutable_evidence_path": "C:\\Users\\ruowa\\Projects\\football-agent-task-artifacts\\TASK-20260925-078\\controlled-prekickoff-canary-1575176"
+}
