@@ -42,6 +42,7 @@ if TYPE_CHECKING:
         FixtureAnalysisService,
         ReviewedSelection,
     )
+    from app.services.prediction_decision_identity import PredictionDecisionContext
     from app.services.verified_market_movement import VerifiedMarketMovementService
 
 logger = get_logger(__name__)
@@ -90,13 +91,30 @@ class CommitteeReviewService:
         fixture: Fixture,
         *,
         as_of: datetime | None = None,
+        decision_context: PredictionDecisionContext | None = None,
     ) -> CommitteeReviewResult:
         """跑确定性分析后交给 LLM 评审并落库。"""
         detailed = await self._analysis.analyze_detailed(fixture, as_of=as_of)
-        return await self.review_detailed(detailed)
+        from app.services.prediction_decision_identity import PredictionDecisionContext
 
-    async def review_detailed(self, detailed: DetailedAnalysis) -> CommitteeReviewResult:
+        return await self.review_detailed(
+            detailed,
+            decision_context=(
+                decision_context or PredictionDecisionContext.daily(detailed.analysis_as_of.date())
+            ),
+        )
+
+    async def review_detailed(
+        self,
+        detailed: DetailedAnalysis,
+        *,
+        decision_context: PredictionDecisionContext | None = None,
+    ) -> CommitteeReviewResult:
         """基于**已算好**的确定性分析做评审并落库（供每日批处理复用，避免重复计算）。"""
+        if decision_context is None:
+            from app.services.prediction_decision_identity import PredictionDecisionContext
+
+            decision_context = PredictionDecisionContext.daily(detailed.analysis_as_of.date())
         fixture = detailed.fixture
 
         # 无法建模或没有候选（无赔率）→ 无可评审内容，不调用 LLM、不落库。
@@ -110,7 +128,12 @@ class CommitteeReviewService:
         context = await self._build_context(detailed)
         review = await self._reviewer.review(context)
 
-        value_bet_ids = await self._persist_value_bets(fixture, detailed, review)
+        value_bet_ids = await self._persist_value_bets(
+            fixture,
+            detailed,
+            review,
+            decision_context=decision_context,
+        )
         decision_log = await self._persist_decision_log(fixture, detailed, context, review)
 
         logger.info(
@@ -240,8 +263,15 @@ class CommitteeReviewService:
     # --- 落库 --------------------------------------------------------------
 
     async def _persist_value_bets(
-        self, fixture: Fixture, detailed: DetailedAnalysis, review: CommitteeReview
+        self,
+        fixture: Fixture,
+        detailed: DetailedAnalysis,
+        review: CommitteeReview,
+        *,
+        decision_context: PredictionDecisionContext,
     ) -> list[UUID]:
+        from app.services.value_bet_identity import build_value_bet_identity
+
         rationale_by_label = {sr.selection_label: sr.explanation for sr in review.selection_reviews}
         ids: list[UUID] = []
         for reviewed in detailed.reviewed:
@@ -261,7 +291,13 @@ class CommitteeReviewService:
                 confidence=candidate.decision_score.value / 100.0,
                 rationale=rationale_by_label.get(label, review.betting_recommendation_explanation),
             )
-            saved = await self._value_bets.add(value_bet)
+            value_bet.id = build_value_bet_identity(
+                value_bet=value_bet,
+                detailed=detailed,
+                context=decision_context,
+                model_version=self._model_version,
+            )
+            saved, _inserted = await self._value_bets.add_if_absent(value_bet)
             ids.append(saved.id)
         return ids
 

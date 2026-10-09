@@ -80,6 +80,10 @@ class ApiFootballProvider(ApiFootballHTTPProvider, FixturesProvider):
         league = item.get("league", {})
         teams = item.get("teams", {})
         goals = item.get("goals", {})
+        score = item.get("score") or {}
+        fulltime = score.get("fulltime") or {}
+        extra_time = score.get("extratime") or {}
+        penalty = score.get("penalty") or {}
         home = teams.get("home", {})
         away = teams.get("away", {})
 
@@ -95,5 +99,11 @@ class ApiFootballProvider(ApiFootballHTTPProvider, FixturesProvider):
             season=league.get("season"),
             home_score=goals.get("home"),
             away_score=goals.get("away"),
+            regulation_home_score=fulltime.get("home"),
+            regulation_away_score=fulltime.get("away"),
+            extra_time_home_score=extra_time.get("home"),
+            extra_time_away_score=extra_time.get("away"),
+            penalty_home_score=penalty.get("home"),
+            penalty_away_score=penalty.get("away"),
             venue=(fixture.get("venue") or {}).get("name"),
         )
