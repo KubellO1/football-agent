@@ -1,0 +1,85 @@
+{
+  "task_id": "TASK-20261010-085",
+  "title": "Official Five-League Team Intelligence Collection Platform",
+  "status": "IMPLEMENTED_ISOLATED_CANARY_COMPLETE",
+  "branch": "codex/TASK-20261010-085",
+  "base_sha": "feb04bf7c0c3c3ba494e311070f370d08033e760",
+  "implementation_commit": "3879a5ae5fc1038b84883e3d3767b4511ebadac9",
+  "sources": {
+    "evaluated": 17,
+    "approved": 2,
+    "rejected": 8,
+    "license_unclear": 7,
+    "not_approved_for_automated_production": 15,
+    "league_sources": 5,
+    "club_sources": 10,
+    "approved_names": [
+      "API-Football",
+      "Manual official evidence"
+    ]
+  },
+  "coverage": {
+    "injury": "5/5 API endpoint coverage; fixture-level availability varies",
+    "suspension": "5/5 API endpoint capability; 0 suspension observations in this Canary",
+    "training": "0/5 approved automated official-web sources; manual official evidence only",
+    "press_conference": "0/5 approved automated official-web sources; manual official evidence only",
+    "squad_list": "0/5 approved automated official-web sources; manual official evidence only",
+    "confirmed_lineup": "5/5 API endpoint capability near kickoff; 0 lineup observations in this early Canary"
+  },
+  "canary": {
+    "external_requests": 25,
+    "fixtures": 10,
+    "leagues": 5,
+    "raw_normalized_rows": 146,
+    "unique_observations": 73,
+    "unique_injury_observations": 72,
+    "unique_illness_observations": 1,
+    "lineup_observations": 0,
+    "upstream_exact_duplicates_detected": 73,
+    "persisted_duplicate_observations": 0,
+    "offline_replay_external_requests": 0,
+    "offline_replay_new_observations": 0,
+    "mapping_failures": 0,
+    "source_conflicts": 0,
+    "source_provenance_percent": 100,
+    "raw_archive": "reports/codex/TASK-20261010-085_canary/raw",
+    "observation_archive": "reports/codex/TASK-20261010-085_canary/observations",
+    "replay_summary": "reports/codex/TASK-20261010-085_canary/replay_summary.json"
+  },
+  "collection_windows": [
+    "DAILY",
+    "T-24H",
+    "T-6H",
+    "T-90",
+    "T-60",
+    "T-30",
+    "T-15",
+    "POST_MATCH"
+  ],
+  "schema": {
+    "current_production_head": "settlement_void_0022",
+    "proposed_revision": "0023_team_intelligence_observations",
+    "topology": "settlement_void_0022 -> 0023_team_intelligence_observations",
+    "migration_created": false,
+    "migration_applied": false,
+    "historical_task_060_reused": false
+  },
+  "validation": {
+    "focused_tests": "PASS (27)",
+    "full_unit": "PASS",
+    "integration": "PASS against explicit football_test DSN",
+    "ruff": "PASS",
+    "black": "PASS",
+    "mypy_task_scope_strict": "PASS (13 source files)",
+    "git_diff_check": "PASS",
+    "secret_value_hits": 0,
+    "global_mypy_note": "Existing unrelated app/services/odds_matching.py name-defined debt remains outside task scope"
+  },
+  "production_db_reads": 0,
+  "production_db_writes": 0,
+  "production_scheduler_changes": 0,
+  "production_model_changes": 0,
+  "ready_for_team_intelligence_canary": true,
+  "production_persistence_ready": false,
+  "next_gate": "PR review, then separate 0023 schema/rehearsal approval before any production persistence"
+}

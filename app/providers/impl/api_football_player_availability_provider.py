@@ -157,8 +157,10 @@ class ApiFootballPlayerAvailabilityProvider(
                     field="player.id",
                 ),
                 player_name=player.get("name") or "",
-                raw_status=item.get("type"),
-                reason=cls._optional_text(item.get("reason")),
+                # Current v3 responses nest these fields under ``player``.
+                # Preserve the top-level fallback for older saved payloads.
+                raw_status=player.get("type") or item.get("type"),
+                reason=cls._optional_text(player.get("reason") or item.get("reason")),
             )
         except ValidationError as exc:
             raise ExternalServiceError(

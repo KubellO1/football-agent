@@ -1,11 +1,11 @@
 {
-  "task_id": "TASK-20260925-078",
-  "status": "COMPLETED_ARCHIVED",
-  "summary": "Natural T-90 PreKickoff safety Canary passed execution, fail-closed behavior, idempotency, and database integrity; API-Football named-bookmaker 1X2 odds were approximately 196.9 minutes old and therefore ODDS_TOO_STALE.",
-  "formal_gate_executed": false,
-  "recommendations_created": 0,
-  "production_alembic": "0021",
-  "alembic_0022": "FROZEN",
-  "evidence_path": "C:\\Users\\ruowa\\Projects\\football-agent-task-artifacts\\TASK-20260925-078\\controlled-prekickoff-canary-1575176",
-  "next_gate": "SECURITY_REMEDIATION_THEN_RECURRING_PREKICKOFF_OBSERVATION"
+  "task_id": "TASK-20261010-085",
+  "status": "IMPLEMENTED_ISOLATED_CANARY_COMPLETE",
+  "branch": "codex/TASK-20261010-085",
+  "implementation_commit": "3879a5ae5fc1038b84883e3d3767b4511ebadac9",
+  "summary": "Provider-neutral official team-intelligence collection framework completed; 17 sources audited and a 10-fixture five-league API-Football Canary persisted 73 unique append-only observations with zero mapping failures, conflicts, production DB writes, or replay inserts.",
+  "production_alembic": "settlement_void_0022",
+  "migration_created": false,
+  "production_db_writes": 0,
+  "next_gate": "PR_REVIEW_THEN_SEPARATE_0023_SCHEMA_REHEARSAL_APPROVAL"
 }

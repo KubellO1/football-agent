@@ -78,6 +78,29 @@ async def test_provider_parses_complete_fixture_availability() -> None:
 
 
 @pytest.mark.unit
+async def test_provider_parses_current_nested_availability_fields() -> None:
+    record = _record()
+    record["player"] = {
+        "id": 99,
+        "name": "Test Player",
+        "type": "Missing Fixture",
+        "reason": "Hamstring injury",
+    }
+    record.pop("type")
+    record.pop("reason")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_payload(response=[record]))
+
+    batch = await _provider(handler).get_fixture_availability(
+        fixture_external_id="1234",
+    )
+
+    assert batch.records[0].raw_status == "Missing Fixture"
+    assert batch.records[0].reason == "Hamstring injury"
+
+
+@pytest.mark.unit
 async def test_provider_distinguishes_complete_empty_response() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=_payload(response=[]))
