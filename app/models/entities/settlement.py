@@ -3,18 +3,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
 from decimal import Decimal
-from enum import Enum
-from uuid import UUID
+from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from app.models.entities.base import Entity, utcnow
 
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
-class SettlementResult(str, Enum):
+
+class SettlementResult(StrEnum):
     WIN = "W"
     LOSS = "L"
     PUSH = "P"
+    VOID = "V"
 
 
 @dataclass(eq=False, kw_only=True)
@@ -24,14 +28,34 @@ class Settlement(Entity):
     value_bet_id: UUID
     fixture_id: UUID
     result: SettlementResult
-    score_home: int
-    score_away: int
+    score_home: int | None
+    score_away: int | None
     profit_loss: Decimal
+    void_reason_code: str | None = None
     closing_odds: Decimal | None = None
     clv: float | None = None
     bankroll_before: Decimal | None = None
     bankroll_after: Decimal | None = None
     settlement_timestamp: datetime = field(default_factory=utcnow)
+
+    def __post_init__(self) -> None:
+        if self.result is SettlementResult.VOID:
+            reason = (self.void_reason_code or "").strip()
+            if self.score_home is not None or self.score_away is not None:
+                raise ValueError("VOID settlement must not contain a score")
+            if self.profit_loss != Decimal("0"):
+                raise ValueError("VOID settlement profit/loss must be zero")
+            if not reason:
+                raise ValueError("VOID settlement requires a non-empty reason code")
+            if len(reason) > 64:
+                raise ValueError("VOID settlement reason code must be at most 64 characters")
+            self.void_reason_code = reason
+            return
+
+        if self.score_home is None or self.score_away is None:
+            raise ValueError("W/L/P settlement requires a regulation-time score")
+        if self.void_reason_code is not None:
+            raise ValueError("W/L/P settlement must not contain a VOID reason code")
 
 
 @dataclass(eq=False, kw_only=True)
@@ -63,5 +87,5 @@ class PerformanceSnapshot(Entity):
     log_loss: float | None = None
     max_drawdown: float | None = None
     sharpe_ratio: float | None = None
-    breakdown_json: dict | None = None
+    breakdown_json: dict[str, object] | None = None
     created_at: datetime = field(default_factory=utcnow)

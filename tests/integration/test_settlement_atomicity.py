@@ -30,7 +30,7 @@ from app.repositories.sqlalchemy.settlement_repository import (
     SqlAlchemySettlementRepository,
 )
 from app.repositories.sqlalchemy.value_bet_repository import SqlAlchemyValueBetRepository
-from app.services.settlement import SettlementService
+from app.services.settlement import AuthoritativeVoidEvidence, SettlementService
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -81,9 +81,14 @@ def _service(
     provider_fixture: ProviderFixture,
     *,
     bankroll: BankrollRepository | None = None,
+    void_evidence: AuthoritativeVoidEvidence | None = None,
 ) -> SettlementService:
     provider = AsyncMock(spec=FixturesProvider)
     provider.get_fixture.return_value = provider_fixture
+    evidence_provider = None
+    if void_evidence is not None:
+        evidence_provider = AsyncMock()
+        evidence_provider.get_void_evidence.return_value = void_evidence
     return SettlementService(
         fixtures_provider=provider,
         fixtures=SqlAlchemyFixtureRepository(session),
@@ -91,6 +96,7 @@ def _service(
         settlements=SqlAlchemySettlementRepository(session),
         bankroll=bankroll or SqlAlchemyBankrollRepository(session),
         initial_bankroll=Money(Decimal("100"), "EUR"),
+        void_evidence_provider=evidence_provider,
     )
 
 
@@ -144,6 +150,103 @@ async def test_bankroll_failure_rolls_back_settlement(
         with pytest.raises(RuntimeError, match="simulated bankroll failure"):
             async with session.begin():
                 await _service(session, provider_fixture, bankroll=bankroll).settle_all()
+
+    async with factory() as verify:
+        assert await _counts(verify) == (0, 0)
+
+
+@pytest.mark.integration
+async def test_void_replay_and_concurrent_invocation_insert_once(
+    db_session: AsyncSession,
+    reference_ids: tuple[UUID, UUID, UUID],
+) -> None:
+    fixture, value_bet, _provider_fixture = await _seed_candidate(db_session, reference_ids)
+    await db_session.commit()
+    cancelled_fixture = ProviderFixture(
+        provider_id="98765",
+        kickoff=fixture.kickoff,
+        status="CANC",
+        home=ProviderTeam(provider_id="1", name="Home"),
+        away=ProviderTeam(provider_id="2", name="Away"),
+    )
+    evidence = AuthoritativeVoidEvidence(
+        value_bet_id=value_bet.id,
+        fixture_id=fixture.id,
+        reason_code="BOOKMAKER_CANCELLED_MARKET",
+        source="bookmaker-settlement-feed",
+        evidence_reference="settlement-notice-123",
+        bookmaker_id=value_bet.bookmaker_id,
+    )
+    engine = db_session.bind
+    assert isinstance(engine, AsyncEngine)
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async def run() -> int:
+        async with factory.begin() as session:
+            return (
+                await _service(
+                    session,
+                    cancelled_fixture,
+                    void_evidence=evidence,
+                ).settle_all()
+            ).bets_settled
+
+    first_pair = await asyncio.gather(run(), run())
+    assert sorted(first_pair) == [0, 1]
+    assert await run() == 0
+
+    async with factory() as verify:
+        assert await _counts(verify) == (1, 1)
+        settlement = (await verify.execute(select(SettlementORM))).scalar_one()
+        entry = (await verify.execute(select(BankrollEntryORM))).scalar_one()
+        assert settlement.result == "V"
+        assert settlement.score_home is None
+        assert settlement.score_away is None
+        assert settlement.profit_loss == Decimal("0")
+        assert settlement.void_reason_code == "BOOKMAKER_CANCELLED_MARKET"
+        assert settlement.bankroll_before == settlement.bankroll_after == Decimal("100")
+        assert entry.amount == Decimal("0")
+        assert entry.balance_after == Decimal("100")
+
+
+@pytest.mark.integration
+async def test_void_bankroll_failure_rolls_back_terminal_settlement(
+    db_session: AsyncSession,
+    reference_ids: tuple[UUID, UUID, UUID],
+) -> None:
+    fixture, value_bet, _provider_fixture = await _seed_candidate(db_session, reference_ids)
+    await db_session.commit()
+    cancelled_fixture = ProviderFixture(
+        provider_id="98765",
+        kickoff=fixture.kickoff,
+        status="CANC",
+        home=ProviderTeam(provider_id="1", name="Home"),
+        away=ProviderTeam(provider_id="2", name="Away"),
+    )
+    evidence = AuthoritativeVoidEvidence(
+        value_bet_id=value_bet.id,
+        fixture_id=fixture.id,
+        reason_code="BOOKMAKER_CANCELLED_MARKET",
+        source="bookmaker-settlement-feed",
+        evidence_reference="settlement-notice-123",
+        bookmaker_id=value_bet.bookmaker_id,
+    )
+    engine = db_session.bind
+    assert isinstance(engine, AsyncEngine)
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    bankroll = AsyncMock(spec=BankrollRepository)
+    bankroll.lock_and_get_latest_balance.return_value = Decimal("100")
+    bankroll.add.side_effect = RuntimeError("simulated VOID bankroll failure")
+
+    async with factory() as session:
+        with pytest.raises(RuntimeError, match="VOID bankroll failure"):
+            async with session.begin():
+                await _service(
+                    session,
+                    cancelled_fixture,
+                    bankroll=bankroll,
+                    void_evidence=evidence,
+                ).settle_all()
 
     async with factory() as verify:
         assert await _counts(verify) == (0, 0)

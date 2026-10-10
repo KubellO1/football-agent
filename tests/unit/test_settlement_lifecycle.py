@@ -26,7 +26,11 @@ from app.repositories.interfaces.settlement_repository import (
     SettlementRepository,
 )
 from app.repositories.interfaces.value_bet_repository import ValueBetRepository
-from app.services.settlement import FixtureLifecycle, SettlementService
+from app.services.settlement import (
+    AuthoritativeVoidEvidence,
+    FixtureLifecycle,
+    SettlementService,
+)
 
 
 def _fixture() -> Fixture:
@@ -78,6 +82,8 @@ def _service(
     fixture: Fixture,
     bet: ValueBet,
     provider_fixture: ProviderFixture | None,
+    *,
+    void_evidence: AuthoritativeVoidEvidence | None = None,
 ) -> tuple[SettlementService, AsyncMock, AsyncMock, AsyncMock]:
     provider = AsyncMock(spec=FixturesProvider)
     fixtures = AsyncMock(spec=FixtureRepository)
@@ -91,6 +97,10 @@ def _service(
     settlements.add.side_effect = lambda entity: entity
     bankroll.lock_and_get_latest_balance.return_value = Decimal("100")
     bankroll.add.side_effect = lambda entity: entity
+    evidence_provider = None
+    if void_evidence is not None:
+        evidence_provider = AsyncMock()
+        evidence_provider.get_void_evidence.return_value = void_evidence
     return (
         SettlementService(
             fixtures_provider=provider,
@@ -99,6 +109,7 @@ def _service(
             settlements=settlements,
             bankroll=bankroll,
             initial_bankroll=Money(Decimal("100"), "EUR"),
+            void_evidence_provider=evidence_provider,
         ),
         provider,
         settlements,
@@ -159,6 +170,8 @@ async def test_aet_and_pen_use_regulation_score(status: str) -> None:
     [
         ("NS", FixtureLifecycle.NOT_STARTED),
         ("1H", FixtureLifecycle.LIVE),
+        ("SUSP", FixtureLifecycle.INTERRUPTED),
+        ("INT", FixtureLifecycle.INTERRUPTED),
         ("PST", FixtureLifecycle.POSTPONED),
         ("CANC", FixtureLifecycle.CANCELLED),
         ("ABD", FixtureLifecycle.ABANDONED),
@@ -234,4 +247,70 @@ async def test_provider_timeout_occurs_before_any_write() -> None:
 
     settlements.add.assert_not_awaited()
     bankroll.lock_and_get_latest_balance.assert_not_awaited()
+    bankroll.add.assert_not_awaited()
+
+
+@pytest.mark.unit
+async def test_explicit_authoritative_evidence_creates_zero_value_void() -> None:
+    fixture = _fixture()
+    bet = _bet(fixture.id, "home")
+    evidence = AuthoritativeVoidEvidence(
+        value_bet_id=bet.id,
+        fixture_id=fixture.id,
+        reason_code="BOOKMAKER_CANCELLED_MARKET",
+        source="bookmaker-settlement-feed",
+        evidence_reference="settlement-notice-123",
+        bookmaker_id=bet.bookmaker_id,
+    )
+    service, _provider, settlements, bankroll = _service(
+        fixture,
+        bet,
+        _provider_fixture(fixture, status="CANC", regulation=None),
+        void_evidence=evidence,
+    )
+
+    report = await service.settle_all()
+
+    assert report.bets_settled == 1
+    assert report.bets_skipped == 0
+    assert report.total_pl == Decimal("0")
+    assert report.deferred_fixtures == {}
+    detail = report.details[0]
+    assert detail.result is SettlementResult.VOID
+    assert detail.score_home is None
+    assert detail.score_away is None
+    assert detail.void_reason_code == "BOOKMAKER_CANCELLED_MARKET"
+    saved = settlements.add.await_args.args[0]
+    assert saved.result is SettlementResult.VOID
+    assert saved.profit_loss == Decimal("0")
+    assert saved.bankroll_before == saved.bankroll_after == Decimal("100")
+    ledger_entry = bankroll.add.await_args.args[0]
+    assert ledger_entry.amount == Decimal("0")
+    assert ledger_entry.balance_after == Decimal("100")
+
+
+@pytest.mark.unit
+async def test_mismatched_void_evidence_fails_before_database_mutation() -> None:
+    fixture = _fixture()
+    bet = _bet(fixture.id, "home")
+    evidence = AuthoritativeVoidEvidence(
+        value_bet_id=uuid4(),
+        fixture_id=fixture.id,
+        reason_code="BOOKMAKER_CANCELLED_MARKET",
+        source="bookmaker-settlement-feed",
+        evidence_reference="settlement-notice-123",
+        bookmaker_id=bet.bookmaker_id,
+    )
+    service, _provider, settlements, bankroll = _service(
+        fixture,
+        bet,
+        _provider_fixture(fixture, status="CANC", regulation=None),
+        void_evidence=evidence,
+    )
+
+    with pytest.raises(RuntimeError, match="identity does not match"):
+        await service.settle_all()
+
+    bankroll.lock_and_get_latest_balance.assert_not_awaited()
+    settlements.add.assert_not_awaited()
     bankroll.add.assert_not_awaited()

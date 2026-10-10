@@ -595,15 +595,30 @@ class SettlementORM(TimestampMixin, Base):
     """结算记录：每一条 value_bet 对应的比赛结果。唯一约束防止重复结算。"""
 
     __tablename__ = "settlements"
-    __table_args__ = (UniqueConstraint("value_bet_id", name="uq_settlements_value_bet"),)
+    __table_args__ = (
+        UniqueConstraint("value_bet_id", name="uq_settlements_value_bet"),
+        CheckConstraint(
+            "result IN ('W', 'L', 'P', 'V')",
+            name="ck_settlements_result_terminal",
+        ),
+        CheckConstraint(
+            "(result = 'V' AND score_home IS NULL AND score_away IS NULL "
+            "AND profit_loss = 0 AND void_reason_code IS NOT NULL "
+            "AND length(btrim(void_reason_code)) > 0) OR "
+            "(result IN ('W', 'L', 'P') AND score_home IS NOT NULL "
+            "AND score_away IS NOT NULL AND void_reason_code IS NULL)",
+            name="ck_settlements_void_shape",
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     value_bet_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("value_bets.id"), index=True)
     fixture_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("fixtures.id"), index=True)
-    result: Mapped[str] = mapped_column(String(1))  # W / L / P
-    score_home: Mapped[int] = mapped_column(Integer)
-    score_away: Mapped[int] = mapped_column(Integer)
+    result: Mapped[str] = mapped_column(String(1))  # W / L / P / V
+    score_home: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    score_away: Mapped[int | None] = mapped_column(Integer, nullable=True)
     profit_loss: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    void_reason_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     closing_odds: Mapped[Decimal | None] = mapped_column(Numeric(6, 3), nullable=True)
     clv: Mapped[float | None] = mapped_column(Float, nullable=True)
     bankroll_before: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)

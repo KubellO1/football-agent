@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from app.core.logging import get_logger
 from app.models.entities.settlement import BankrollEntry, Settlement, SettlementResult
@@ -36,6 +36,7 @@ class FixtureLifecycle(StrEnum):
 
     NOT_STARTED = "NOT_STARTED"
     LIVE = "LIVE"
+    INTERRUPTED = "INTERRUPTED"
     FT = "FT"
     AET = "AET"
     PEN = "PEN"
@@ -66,18 +67,62 @@ class AuthoritativeSettlementState:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class AuthoritativeVoidEvidence:
+    """Explicit terminal VOID instruction from an authoritative market source.
+
+    Fixture lifecycle alone is never sufficient evidence.  The injected provider
+    owns authentication and policy interpretation; this value binds its decision
+    to one persisted value bet and fixture.
+    """
+
+    value_bet_id: UUID
+    fixture_id: UUID
+    reason_code: str
+    source: str
+    evidence_reference: str
+    bookmaker_id: UUID | None = None
+
+    def __post_init__(self) -> None:
+        reason = self.reason_code.strip()
+        source = self.source.strip()
+        reference = self.evidence_reference.strip()
+        if not reason or len(reason) > 64:
+            raise ValueError("VOID reason code must contain 1-64 characters")
+        if not source:
+            raise ValueError("VOID evidence requires an authoritative source")
+        if not reference:
+            raise ValueError("VOID evidence requires an evidence reference")
+        object.__setattr__(self, "reason_code", reason)
+        object.__setattr__(self, "source", source)
+        object.__setattr__(self, "evidence_reference", reference)
+
+
+class VoidSettlementEvidenceProvider(Protocol):
+    """Port for explicit bookmaker/market settlement instructions."""
+
+    async def get_void_evidence(
+        self,
+        *,
+        value_bet: ValueBet,
+        fixture: Fixture,
+        lifecycle: FixtureLifecycle,
+    ) -> AuthoritativeVoidEvidence | None: ...
+
+
 @dataclass
 class SettlementResult_:
     value_bet_id: UUID
     fixture_id: UUID
     result: SettlementResult
-    score_home: int
-    score_away: int
+    score_home: int | None
+    score_away: int | None
     profit_loss: Decimal
     bankroll_before: Decimal
     bankroll_after: Decimal
     settled: bool
     message: str = ""
+    void_reason_code: str | None = None
 
 
 @dataclass
@@ -104,6 +149,7 @@ class SettlementService:
         settlements: SettlementRepository,
         bankroll: BankrollRepository,
         initial_bankroll: Money | None = None,
+        void_evidence_provider: VoidSettlementEvidenceProvider | None = None,
     ) -> None:
         self._fixtures_provider = fixtures_provider
         self._fixtures = fixtures
@@ -111,6 +157,7 @@ class SettlementService:
         self._settlements = settlements
         self._bankroll = bankroll
         self._initial_bankroll = initial_bankroll
+        self._void_evidence_provider = void_evidence_provider
 
     async def settle_all(self) -> SettlementReport:
         """Settle all currently eligible bets, failing closed per fixture."""
@@ -139,7 +186,6 @@ class SettlementService:
             candidates.append((value_bet, fixture))
 
         states: dict[UUID, AuthoritativeSettlementState] = {}
-        deferred: dict[str, str] = {}
         provider_requests = 0
         for fixture in fixtures_by_id.values():
             if fixture.external_source != "api-football" or not fixture.external_id:
@@ -147,14 +193,38 @@ class SettlementService:
                 states[fixture.id] = AuthoritativeSettlementState(
                     FixtureLifecycle.UNKNOWN, None, None, reason
                 )
-                deferred[str(fixture.id)] = reason
                 continue
             provider_requests += 1
             refreshed = await self._fixtures_provider.get_fixture(fixture.external_id)
             state = self._authoritative_state(fixture, refreshed)
             states[fixture.id] = state
-            if not state.can_settle:
-                deferred[str(fixture.id)] = state.reason or state.lifecycle.value
+
+        void_evidence: dict[UUID, AuthoritativeVoidEvidence] = {}
+        if self._void_evidence_provider is not None:
+            for value_bet, fixture in candidates:
+                state = states[fixture.id]
+                if state.can_settle or state.lifecycle not in _VOID_EVIDENCE_LIFECYCLES:
+                    continue
+                evidence = await self._void_evidence_provider.get_void_evidence(
+                    value_bet=value_bet,
+                    fixture=fixture,
+                    lifecycle=state.lifecycle,
+                )
+                if evidence is None:
+                    continue
+                self._validate_void_evidence(evidence, value_bet, fixture)
+                void_evidence[value_bet.id] = evidence
+
+        deferred: dict[str, str] = {}
+        for fixture_id, state in states.items():
+            if state.can_settle:
+                continue
+            unresolved = any(
+                fixture.id == fixture_id and value_bet.id not in void_evidence
+                for value_bet, fixture in candidates
+            )
+            if unresolved:
+                deferred[str(fixture_id)] = state.reason or state.lifecycle.value
 
         # Provider reads finish before any mutation. The xact lock then makes a
         # concurrent waiter re-read rows committed by the first transaction.
@@ -173,11 +243,18 @@ class SettlementService:
                 continue
             bets_eligible += 1
             state = states[fixture.id]
-            if not state.can_settle:
+            evidence = void_evidence.get(value_bet.id)
+            if not state.can_settle and evidence is None:
                 bets_skipped += 1
                 continue
-            assert state.regulation_score is not None
-            result = self._resolve(value_bet, fixture, state.regulation_score)
+            if evidence is not None:
+                result = self._void_result(value_bet, fixture, evidence)
+                settlement_basis = f"authoritative_void:{evidence.reason_code}"
+            else:
+                assert state.regulation_score is not None
+                assert state.score_basis is not None
+                result = self._resolve(value_bet, fixture, state.regulation_score)
+                settlement_basis = state.score_basis
             if not result.settled:
                 bets_skipped += 1
                 details.append(result)
@@ -193,6 +270,7 @@ class SettlementService:
                     score_home=result.score_home,
                     score_away=result.score_away,
                     profit_loss=result.profit_loss,
+                    void_reason_code=result.void_reason_code,
                     bankroll_before=bankroll_before,
                     bankroll_after=bankroll_after,
                     settlement_timestamp=datetime.now(UTC),
@@ -204,7 +282,7 @@ class SettlementService:
                     balance_after=bankroll_after,
                     reason=(
                         f"Settlement: {fixture.id} | {value_bet.selection.label} "
-                        f"→ {result.result.value} | basis={state.score_basis}"
+                        f"→ {result.result.value} | basis={settlement_basis}"
                     ),
                 )
             )
@@ -224,6 +302,37 @@ class SettlementService:
             details=details,
             provider_requests=provider_requests,
             deferred_fixtures=deferred,
+        )
+
+    @staticmethod
+    def _validate_void_evidence(
+        evidence: AuthoritativeVoidEvidence,
+        value_bet: ValueBet,
+        fixture: Fixture,
+    ) -> None:
+        if evidence.value_bet_id != value_bet.id or evidence.fixture_id != fixture.id:
+            raise RuntimeError("VOID evidence identity does not match the settlement candidate")
+        if evidence.bookmaker_id != value_bet.bookmaker_id:
+            raise RuntimeError("VOID evidence bookmaker does not match the value bet")
+
+    @staticmethod
+    def _void_result(
+        value_bet: ValueBet,
+        fixture: Fixture,
+        evidence: AuthoritativeVoidEvidence,
+    ) -> SettlementResult_:
+        return SettlementResult_(
+            value_bet_id=value_bet.id,
+            fixture_id=fixture.id,
+            result=SettlementResult.VOID,
+            score_home=None,
+            score_away=None,
+            profit_loss=Decimal("0"),
+            bankroll_before=Decimal("0"),
+            bankroll_after=Decimal("0"),
+            settled=True,
+            message="authoritative VOID evidence accepted",
+            void_reason_code=evidence.reason_code,
         )
 
     @classmethod
@@ -271,8 +380,10 @@ class SettlementService:
         status = raw_status.strip().upper()
         if status in {"TBD", "NS"}:
             return FixtureLifecycle.NOT_STARTED
-        if status in {"1H", "HT", "2H", "ET", "BT", "P", "SUSP", "INT", "LIVE"}:
+        if status in {"1H", "HT", "2H", "ET", "BT", "P", "LIVE"}:
             return FixtureLifecycle.LIVE
+        if status in {"SUSP", "INT"}:
+            return FixtureLifecycle.INTERRUPTED
         if status == "FT":
             return FixtureLifecycle.FT
         if status == "AET":
@@ -400,3 +511,15 @@ class SettlementService:
             False,
             reason,
         )
+
+
+_VOID_EVIDENCE_LIFECYCLES = frozenset(
+    {
+        FixtureLifecycle.INTERRUPTED,
+        FixtureLifecycle.POSTPONED,
+        FixtureLifecycle.CANCELLED,
+        FixtureLifecycle.ABANDONED,
+        FixtureLifecycle.AWARDED_WALKOVER,
+        FixtureLifecycle.UNKNOWN,
+    }
+)
