@@ -1,0 +1,89 @@
+{
+  "task_id": "TASK-20261011-086",
+  "title": "Team Intelligence 0023 Persistence Foundation",
+  "status": "IMPLEMENTED_VALIDATED_PR_OPEN",
+  "branch": "codex/TASK-20261011-086",
+  "base_sha": "335f26176d437f9e4f053a95f4e8b3e3c3ddf696",
+  "implementation_commit": "c35c8579776a00620ff1379d49e503e99ea6ecd4",
+  "pull_request": {
+    "number": 85,
+    "url": "https://github.com/KubellO1/football-agent/pull/85",
+    "state": "OPEN",
+    "mergeable": true,
+    "merged": false
+  },
+  "migration": {
+    "revision": "team_intelligence_0023",
+    "down_revision": "settlement_void_0022",
+    "graph": "settlement_void_0022 -> team_intelligence_0023",
+    "tables": [
+      "team_intelligence_source_registry",
+      "team_intelligence_raw_payloads",
+      "team_intelligence_capture_receipts",
+      "team_intelligence_observations"
+    ],
+    "production_applied": false
+  },
+  "persistence_contract": {
+    "source_provenance_percent": 100.0,
+    "append_only_database_guards": "PASS",
+    "source_policy_database_guards": "PASS",
+    "semantic_identity_excludes_captured_at": true,
+    "source_conflicts_preserved": true,
+    "license_unclear_automation_enabled": false,
+    "rejected_source_automation_enabled": false
+  },
+  "rehearsals": {
+    "independent_databases": 2,
+    "upgrade_downgrade_reupgrade": "PASS",
+    "schema_hash": "192bbbffbbd23bd20b1b726a325b608feea242b3589609d7312c27d099068b64",
+    "schema_hash_identical": true,
+    "preexisting_counts_and_hashes_unchanged": true,
+    "alembic_check": "clean",
+    "duplicates": 0,
+    "orphans": 0
+  },
+  "isolated_canary": {
+    "fixtures": 10,
+    "sources_registered": 17,
+    "sources_enabled": 2,
+    "observations": 11,
+    "capture_receipts": 12,
+    "exact_replay_new_observations": 0,
+    "later_capture_new_observations": 0,
+    "later_capture_new_receipts": 1,
+    "conflict_preserved": true,
+    "production_db_reads": 0,
+    "production_db_writes": 0
+  },
+  "storage": {
+    "canary_database_bytes": 286720,
+    "canary_fixtures": 10,
+    "conservative_estimated_1000_fixtures_bytes": 28672000,
+    "raw_payload_bytes_external": true,
+    "note": "Small-sample relation size includes PostgreSQL minimum-page and index overhead and is not a linear production forecast."
+  },
+  "validation": {
+    "focused_contract_tests": "20 passed",
+    "full_unit": "802 passed",
+    "full_integration": "121 passed",
+    "ruff": "PASS",
+    "black": "PASS",
+    "mypy_changed_app_scope": "PASS",
+    "git_diff_check": "PASS",
+    "secret_scan": "PASS",
+    "ci_quality": "PASS",
+    "ci_unit": "PASS",
+    "ci_integration": "PASS"
+  },
+  "safety": {
+    "production_migration": false,
+    "production_observation_writes": 0,
+    "scheduler_changes": 0,
+    "daily_or_prekickoff_changes": 0,
+    "settlement_or_recovery_enablement": 0,
+    "production_model_input_wiring": false,
+    "frozen_changes": 0
+  },
+  "next_gate": "PRODUCTION_MIGRATION_REVIEW_GATE"
+}

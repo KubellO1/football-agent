@@ -4,6 +4,8 @@ import hashlib
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from app.team_intelligence.conflicts import resolve_conflicts
 from app.team_intelligence.contracts import (
     CaptureWindow,
@@ -11,8 +13,12 @@ from app.team_intelligence.contracts import (
     EvidenceLevel,
     Observation,
     RawPayload,
+    SourceDefinition,
     SourcePolicy,
+    SourceStatus,
+    SourceType,
 )
+from app.team_intelligence.persistence import SourceRegistration
 from app.team_intelligence.storage import ContentAddressedArchive, ObservationStore, is_stale
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
@@ -52,11 +58,18 @@ def _observation(
 
 def test_observation_identity_is_replay_stable_but_window_specific() -> None:
     first = _observation()
-    replay = _observation()
+    replay = replace(first, captured_at=NOW + timedelta(minutes=30))
     later_window = replace(first, capture_window=CaptureWindow.T30)
 
     assert first.observation_id == replay.observation_id
     assert first.observation_id != later_window.observation_id
+
+
+def test_observation_identity_changes_for_semantically_new_evidence() -> None:
+    first = _observation()
+    correction = replace(first, original_text="Player returned", normalized={"status": "returned"})
+
+    assert first.observation_id != correction.observation_id
 
 
 def test_append_only_store_rejects_replay_without_overwrite(tmp_path) -> None:
@@ -69,6 +82,18 @@ def test_append_only_store_rejects_replay_without_overwrite(tmp_path) -> None:
     assert replay.inserted == 0
     assert replay.duplicates == 1
     assert store.count() == 1
+
+
+def test_append_only_store_treats_later_capture_of_same_semantics_as_replay(tmp_path) -> None:
+    store = ObservationStore(tmp_path / "observations")
+    first = _observation()
+    later_capture = replace(first, captured_at=NOW + timedelta(minutes=30))
+
+    assert store.append((first,)).inserted == 1
+    replay = store.append((later_capture,))
+
+    assert replay.inserted == 0
+    assert replay.duplicates == 1
 
 
 def test_content_archive_preserves_payload_and_distinct_capture_receipts(tmp_path) -> None:
@@ -122,3 +147,33 @@ def test_stale_detection_uses_data_type_contract() -> None:
     observation = _observation()
     assert is_stale(observation, now=NOW + timedelta(hours=5)) is False
     assert is_stale(observation, now=NOW + timedelta(hours=7)) is True
+
+
+def test_enabled_source_registration_fails_closed_for_license_unclear_source() -> None:
+    source = SourceDefinition(
+        name="Unclear official site",
+        base_url="https://example.test",
+        source_type=SourceType.CLUB_SITE,
+        leagues=("Premier League",),
+        clubs=("Example FC",),
+        data_types=frozenset({DataType.INJURY}),
+        terms_url=None,
+        robots_url=None,
+        automation_allowed=None,
+        storage_allowed=None,
+        login_required=False,
+        page_structure="HTML",
+        update_frequency="unknown",
+        parser_difficulty="medium",
+        status=SourceStatus.LICENSE_UNCLEAR,
+        source_policy=SourcePolicy.RESEARCH_ONLY,
+        notes="No automated production permission.",
+    )
+
+    with pytest.raises(ValueError, match="does not permit"):
+        SourceRegistration(
+            definition=source,
+            policy_reviewed_at=NOW,
+            parser_version=None,
+            enabled=True,
+        )

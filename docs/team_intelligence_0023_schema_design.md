@@ -1,112 +1,115 @@
-# Future `0023_team_intelligence_observations` schema design
+# Team Intelligence 0023 persistence foundation
 
 ## Status
 
-Design only. No Alembic migration was created or applied. Production remains at `settlement_void_0022`. The historical TASK-060 observation migration is not reused, renamed, merged, or applied.
+Implemented on `codex/TASK-20261011-086` and validated only against isolated,
+disposable PostgreSQL databases. The migration has not been applied to
+production, no production observations were written, and no collection task is
+enabled. Production remains at `settlement_void_0022` until a separate migration
+approval.
 
-If approved later, the migration must be a single linear successor:
+The active migration graph is linear:
 
 ```text
 settlement_void_0022
-  -> 0023_team_intelligence_observations
+  -> team_intelligence_0023
 ```
 
-## Minimum persistent schema
+The historical frozen observation-layer migration is not reused, renamed,
+merged, or applied.
 
-### `team_intelligence_raw_payloads`
-
-- `id UUID PRIMARY KEY`
-- `source_name VARCHAR(120) NOT NULL`
-- `source_url TEXT NOT NULL`
-- `content_sha256 CHAR(64) NOT NULL`
-- `media_type VARCHAR(120) NOT NULL`
-- `object_uri TEXT NOT NULL`
-- `source_policy VARCHAR(64) NOT NULL`
-- `first_captured_at TIMESTAMPTZ NOT NULL`
-- unique `(source_name, content_sha256)`
-
-Raw bytes should live in content-addressed object/file storage; the database keeps immutable metadata and the object URI.
-
-### `team_intelligence_capture_receipts`
-
-- `id UUID PRIMARY KEY`
-- `raw_payload_id UUID NOT NULL REFERENCES team_intelligence_raw_payloads(id)`
-- `source_url TEXT NOT NULL`
-- `captured_at TIMESTAMPTZ NOT NULL`
-- `http_status SMALLINT NOT NULL`
-- `etag TEXT NULL`
-- `last_modified TEXT NULL`
-- unique `(raw_payload_id, source_url, captured_at)`
-
-This preserves repeated point-in-time captures even when content bytes do not change.
-
-### `team_intelligence_observations`
-
-- `id UUID PRIMARY KEY` derived from the semantic observation key;
-- `team_id UUID NOT NULL REFERENCES teams(id)`;
-- `player_id UUID NULL REFERENCES players(id)`;
-- `fixture_id UUID NULL REFERENCES fixtures(id)`;
-- `raw_payload_id UUID NOT NULL REFERENCES team_intelligence_raw_payloads(id)`;
-- `source_name VARCHAR(120) NOT NULL`;
-- `source_url TEXT NOT NULL`;
-- `published_at TIMESTAMPTZ NULL`;
-- `captured_at TIMESTAMPTZ NOT NULL`;
-- `original_title TEXT NULL`;
-- `original_text TEXT NULL`;
-- `original_quote TEXT NULL`;
-- `language VARCHAR(16) NOT NULL`;
-- `parser_version VARCHAR(80) NOT NULL`;
-- `data_type VARCHAR(64) NOT NULL` with a check constraint for the v1 values;
-- `evidence_level VARCHAR(64) NOT NULL` with a check constraint for the v1 values;
-- `source_policy VARCHAR(64) NOT NULL`;
-- `capture_window VARCHAR(20) NOT NULL`;
-- `provider_team_id VARCHAR(120) NULL`;
-- `provider_player_id VARCHAR(120) NULL`;
-- `provider_fixture_id VARCHAR(120) NULL`;
-- `normalized JSONB NOT NULL`;
-- `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`;
-- `superseded_by_id UUID NULL REFERENCES team_intelligence_observations(id)` only if later explicit correction semantics are approved.
-
-Required indexes:
-
-- `(fixture_id, capture_window, captured_at DESC)`;
-- `(team_id, data_type, captured_at DESC)`;
-- `(player_id, data_type, captured_at DESC)` where `player_id IS NOT NULL`;
-- `(source_name, provider_fixture_id, captured_at DESC)`;
-- GIN on `normalized` only if measured queries justify it.
-
-The primary deterministic ID provides replay idempotency. There is no UPDATE or DELETE path in the repository contract. Corrections append a new observation and may reference the earlier row; original evidence remains immutable.
+## Persistent boundary
 
 ### `team_intelligence_source_registry`
 
-- `source_name VARCHAR(120) PRIMARY KEY`
-- `base_url TEXT NOT NULL`
-- `source_type VARCHAR(40) NOT NULL`
-- `status VARCHAR(40) NOT NULL`
-- `automation_allowed BOOLEAN NULL`
-- `storage_allowed BOOLEAN NULL`
-- `terms_url TEXT NULL`
-- `robots_url TEXT NULL`
-- `policy_reviewed_at TIMESTAMPTZ NOT NULL`
-- `policy_hash CHAR(64) NOT NULL`
-- `parser_version VARCHAR(80) NULL`
-- `enabled BOOLEAN NOT NULL DEFAULT false`
+Stores the reviewed source identity, policy, review timestamp/hash, parser
+version, permission fields, and enabled state. A database check permits an
+enabled source only when it is `APPROVED`, storage is explicitly allowed, and
+automation is explicitly allowed for every non-manual source.
 
-No source may become enabled merely because robots allows crawling; an explicit reviewed status is required.
+The migration creates no source rows. Registration is explicit and
+idempotent. `LICENSE_UNCLEAR`, `RESEARCH_ONLY`, and `REJECTED` sources cannot be
+enabled by the persistence contract.
 
-## Append-only enforcement
+### `team_intelligence_raw_payloads`
 
-The future repository should expose only `insert_if_absent` and read methods. A database trigger should reject UPDATE and DELETE for observations, raw payload metadata and capture receipts. Migration tests must prove trigger enforcement, repository replay idempotency, concurrent duplicate safety and deterministic rollback.
+Stores immutable content-addressed metadata: deterministic UUID, canonical
+source identity, source URL, SHA-256 digest, media type, object URI, reviewed
+source policy, and first capture time. Raw bytes remain in the permitted
+content-addressed archive; the database preserves its location and digest.
 
-## Forward and rollback rehearsal
+The natural key is `(source_name, content_sha256)`. A composite foreign key to
+the source registry proves the exact policy under which the payload was
+accepted.
 
-Before any production approval:
+### `team_intelligence_capture_receipts`
 
-1. apply `settlement_void_0022 -> 0023_team_intelligence_observations` to a fresh production clone;
-2. record schema/constraint/index hashes;
-3. run append-only, idempotency and concurrent replay tests;
-4. downgrade to `settlement_void_0022` after exporting any isolated test observations;
-5. re-upgrade and require identical schema hash;
-6. require all pre-existing production table counts and hashes unchanged.
+Stores one immutable point-in-time receipt for each source URL and capture
+time, including HTTP status, ETag, and Last-Modified metadata. Repeated capture
+of unchanged content creates a new receipt but not a duplicate semantic
+observation.
 
-Rollback drops only the new intelligence tables in reverse FK order. It must not alter existing player-availability, lineup, settlement, prediction, odds or fixture data.
+The natural key is `(raw_payload_id, source_url, captured_at)`. A database
+policy trigger resolves the receipt's raw payload back to the current reviewed
+source and rejects inserts from disabled or non-approved sources.
+
+### `team_intelligence_observations`
+
+Stores immutable normalized evidence with complete source, raw-payload, exact
+capture-receipt, team/player/fixture, parser, publication, capture-window, and
+provider identity provenance. Composite foreign keys require the observation's
+source/policy and URL/capture time to match the referenced evidence exactly.
+
+`semantic_key` is SHA-256 over all semantic and provenance fields except
+`captured_at`. The row UUID is deterministic UUIDv5 over that semantic key.
+Consequences:
+
+- exact replay inserts zero rows;
+- unchanged evidence captured later preserves a new receipt but inserts zero
+  observations;
+- changed evidence or evidence from another source appends a distinct row;
+- conflicts remain side by side and no historical row is mutated.
+
+## Database enforcement
+
+PostgreSQL triggers reject `UPDATE`, `DELETE`, and `TRUNCATE` on raw payloads,
+capture receipts, and observations. Separate insert triggers enforce reviewed
+source policy for raw payloads, capture receipts, and observations. The
+repository exposes registration, append-if-absent, and read methods only; it has
+no evidence update/delete API.
+
+## Rehearsal and rollback
+
+Two independent disposable databases each completed:
+
+1. migration from `settlement_void_0022` to `team_intelligence_0023`;
+2. a 10-fixture isolated persistence Canary;
+3. exact and later-capture replay;
+4. source-conflict preservation;
+5. database-level mutation and disabled-source bypass attempts;
+6. downgrade to `settlement_void_0022`;
+7. re-upgrade to `team_intelligence_0023`;
+8. `alembic check`.
+
+Both produced schema hash
+`192bbbffbbd23bd20b1b726a325b608feea242b3589609d7312c27d099068b64`.
+All pre-existing table counts and content hashes were identical before the
+migration, after downgrade, and after re-upgrade. Downgrade removed all four
+Team Intelligence tables and only those tables.
+
+## Storage estimate
+
+The 10-fixture Canary stored 17 source-policy rows, 11 immutable observations,
+and 12 capture receipts in 286,720 bytes of PostgreSQL relation storage. The
+simple conservative projection is 28,672,000 bytes per 1,000 fixtures. This
+small sample includes PostgreSQL minimum-page and index overhead, so it is not a
+linear production forecast. Raw payload bytes are external and must be sized
+separately from the database metadata.
+
+## Production boundary
+
+This foundation does not connect Team Intelligence to model inputs, does not
+automate official websites, does not enable collection schedules, and does not
+alter Daily, PreKickoff, Settlement, Recovery, or any Frozen betting/model rule.
+Production migration and production observation writes require a separate
+approval.

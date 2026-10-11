@@ -4,14 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from types import MappingProxyType
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from collections.abc import Mapping
 
 
 class CaptureWindow(StrEnum):
@@ -85,14 +82,39 @@ def utc_datetime(value: datetime, *, field_name: str) -> datetime:
     return value.astimezone(UTC)
 
 
+def _json_compatible(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {
+            str(key): _json_compatible(item)
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        }
+    if isinstance(value, (list, tuple)):
+        return [_json_compatible(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        return sorted((_json_compatible(item) for item in value), key=str)
+    if isinstance(value, datetime):
+        return utc_datetime(value, field_name="canonical datetime").isoformat()
+    if isinstance(value, StrEnum):
+        return value.value
+    if isinstance(value, bytes):
+        return value.hex()
+    return value
+
+
 def canonical_json(payload: Mapping[str, object]) -> bytes:
     return json.dumps(
-        payload,
+        _json_compatible(payload),
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
-        default=str,
     ).encode("utf-8")
+
+
+def canonical_source_name(value: str) -> str:
+    normalized = " ".join(value.strip().casefold().split())
+    if not normalized:
+        raise ValueError("source name cannot be empty")
+    return normalized
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +149,34 @@ class SourceDefinition:
         if self.source_type is SourceType.MANUAL and self.storage_allowed is not True:
             raise ValueError("manual evidence must be explicitly permitted for storage")
 
+    @property
+    def source_key(self) -> str:
+        return canonical_source_name(self.name)
+
+    @property
+    def policy_hash(self) -> str:
+        policy: dict[str, object] = {
+            "source_key": self.source_key,
+            "base_url": self.base_url,
+            "source_type": self.source_type,
+            "leagues": sorted(self.leagues),
+            "clubs": sorted(self.clubs),
+            "data_types": sorted(item.value for item in self.data_types),
+            "terms_url": self.terms_url,
+            "robots_url": self.robots_url,
+            "automation_allowed": self.automation_allowed,
+            "storage_allowed": self.storage_allowed,
+            "login_required": self.login_required,
+            "status": self.status,
+            "source_policy": self.source_policy,
+        }
+        return hashlib.sha256(canonical_json(policy)).hexdigest()
+
+    def permits_persistence(self, *, automated: bool) -> bool:
+        if self.status is not SourceStatus.APPROVED or self.storage_allowed is not True:
+            return False
+        return not automated or self.automation_allowed is True
+
 
 @dataclass(frozen=True, slots=True)
 class RawPayload:
@@ -143,6 +193,7 @@ class RawPayload:
             raise ValueError("source name and HTTPS source URL are required")
         if not self.content:
             raise ValueError("raw payload cannot be empty")
+        object.__setattr__(self, "source_name", canonical_source_name(self.source_name))
         object.__setattr__(
             self,
             "captured_at",
@@ -198,6 +249,7 @@ class Observation:
             raise ValueError("raw_payload_hash must be a SHA-256 hexadecimal digest")
         if not any((self.original_title, self.original_text, self.original_quote, self.normalized)):
             raise ValueError("an observation must preserve evidence or normalized data")
+        object.__setattr__(self, "source_name", canonical_source_name(self.source_name))
         object.__setattr__(
             self,
             "captured_at",
@@ -212,21 +264,34 @@ class Observation:
         object.__setattr__(self, "normalized", MappingProxyType(dict(self.normalized)))
 
     @property
-    def observation_id(self) -> str:
-        identity: dict[str, object] = {
+    def semantic_identity(self) -> dict[str, object]:
+        """Return immutable meaning/provenance fields, deliberately excluding capture time."""
+        return {
             "team_id": self.team_id,
             "player_id": self.player_id,
             "fixture_id": self.fixture_id,
             "source_name": self.source_name,
             "source_url": self.source_url,
             "published_at": self.published_at.isoformat() if self.published_at else None,
+            "original_title": self.original_title,
+            "original_text": self.original_text,
+            "original_quote": self.original_quote,
+            "language": self.language,
             "raw_payload_hash": self.raw_payload_hash,
             "parser_version": self.parser_version,
             "data_type": self.data_type,
+            "evidence_level": self.evidence_level,
+            "source_policy": self.source_policy,
             "capture_window": self.capture_window,
             "normalized": self.normalized,
+            "provider_team_id": self.provider_team_id,
+            "provider_player_id": self.provider_player_id,
+            "provider_fixture_id": self.provider_fixture_id,
         }
-        return hashlib.sha256(canonical_json(identity)).hexdigest()
+
+    @property
+    def observation_id(self) -> str:
+        return hashlib.sha256(canonical_json(self.semantic_identity)).hexdigest()
 
     def to_dict(self) -> dict[str, object]:
         return {

@@ -24,15 +24,20 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Identity,
     Index,
     Integer,
     Numeric,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
     Uuid,
+    func,
+    text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base, TimestampMixin
@@ -142,6 +147,269 @@ class BookmakerORM(TimestampMixin, Base):
     country: Mapped[str | None] = mapped_column(String(80), nullable=True)
     external_source: Mapped[str | None] = mapped_column(String(40), nullable=True)
     external_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# Team-intelligence evidence (append-only persistence foundation)
+# ---------------------------------------------------------------------------
+
+
+class TeamIntelligenceSourceORM(Base):
+    """Reviewed source policy used to fail closed before evidence persistence."""
+
+    __tablename__ = "team_intelligence_source_registry"
+    __table_args__ = (
+        CheckConstraint(
+            "source_type IN ('LEAGUE_SITE', 'CLUB_SITE', 'PROVIDER_API', 'MANUAL')",
+            name="ck_ti_source_type",
+        ),
+        CheckConstraint(
+            "status IN ('APPROVED', 'RESEARCH_ONLY', 'LICENSE_UNCLEAR', 'REJECTED')",
+            name="ck_ti_source_status",
+        ),
+        CheckConstraint(
+            "source_policy IN ('OFFICIAL_PUBLIC_API', 'EXISTING_LICENSED_API', "
+            "'PUBLIC_WEB_AUTOMATION_ALLOWED', 'MANUAL_OFFICIAL_EVIDENCE', "
+            "'RESEARCH_ONLY', 'REJECTED')",
+            name="ck_ti_source_policy",
+        ),
+        CheckConstraint(
+            "policy_hash ~ '^[0-9a-f]{64}$'",
+            name="ck_ti_source_policy_hash",
+        ),
+        CheckConstraint(
+            "NOT enabled OR (status = 'APPROVED' AND storage_allowed IS TRUE "
+            "AND (source_type = 'MANUAL' OR automation_allowed IS TRUE))",
+            name="ck_ti_source_enabled_policy",
+        ),
+        UniqueConstraint(
+            "source_name",
+            "source_policy",
+            name="uq_ti_source_name_policy",
+        ),
+    )
+
+    source_name: Mapped[str] = mapped_column(String(120), primary_key=True)
+    base_url: Mapped[str] = mapped_column(Text)
+    source_type: Mapped[str] = mapped_column(String(40))
+    status: Mapped[str] = mapped_column(String(40))
+    automation_allowed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    storage_allowed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    terms_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    robots_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_policy: Mapped[str] = mapped_column(String(64))
+    policy_reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    policy_hash: Mapped[str] = mapped_column(String(64))
+    parser_version: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+
+
+class TeamIntelligenceRawPayloadORM(Base):
+    """Immutable metadata for content-addressed raw evidence bytes."""
+
+    __tablename__ = "team_intelligence_raw_payloads"
+    __table_args__ = (
+        CheckConstraint(
+            "content_sha256 ~ '^[0-9a-f]{64}$'",
+            name="ck_ti_raw_payload_sha256",
+        ),
+        ForeignKeyConstraint(
+            ["source_name", "source_policy"],
+            [
+                "team_intelligence_source_registry.source_name",
+                "team_intelligence_source_registry.source_policy",
+            ],
+            name="fk_ti_raw_source_policy",
+        ),
+        UniqueConstraint(
+            "source_name",
+            "content_sha256",
+            name="uq_ti_raw_source_content",
+        ),
+        UniqueConstraint(
+            "id",
+            "source_name",
+            "source_policy",
+            name="uq_ti_raw_provenance",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    source_name: Mapped[str] = mapped_column(String(120))
+    source_url: Mapped[str] = mapped_column(Text)
+    content_sha256: Mapped[str] = mapped_column(String(64))
+    media_type: Mapped[str] = mapped_column(String(120))
+    object_uri: Mapped[str] = mapped_column(Text)
+    source_policy: Mapped[str] = mapped_column(String(64))
+    first_captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class TeamIntelligenceCaptureReceiptORM(Base):
+    """Immutable point-in-time capture of an already content-addressed payload."""
+
+    __tablename__ = "team_intelligence_capture_receipts"
+    __table_args__ = (
+        CheckConstraint(
+            "http_status >= 100 AND http_status <= 599",
+            name="ck_ti_capture_http_status",
+        ),
+        UniqueConstraint(
+            "raw_payload_id",
+            "source_url",
+            "captured_at",
+            name="uq_ti_capture_natural",
+        ),
+        UniqueConstraint(
+            "id",
+            "raw_payload_id",
+            "source_url",
+            "captured_at",
+            name="uq_ti_capture_provenance",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    raw_payload_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("team_intelligence_raw_payloads.id"),
+    )
+    source_url: Mapped[str] = mapped_column(Text)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    http_status: Mapped[int] = mapped_column(SmallInteger)
+    etag: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_modified: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class TeamIntelligenceObservationORM(Base):
+    """Immutable normalized evidence with deterministic semantic replay identity."""
+
+    __tablename__ = "team_intelligence_observations"
+    __table_args__ = (
+        CheckConstraint(
+            "semantic_key ~ '^[0-9a-f]{64}$'",
+            name="ck_ti_observation_semantic_key",
+        ),
+        CheckConstraint(
+            "data_type IN ('INJURY', 'RECOVERY_STATUS', 'ILLNESS', 'SUSPENSION', "
+            "'TRAINING_STATUS', 'SQUAD_CALLUP', 'SQUAD_OMISSION', 'CONFIRMED_LINEUP', "
+            "'SUBSTITUTES', 'FORMATION', 'ROTATION_PLAN', 'MINUTES_RESTRICTION', "
+            "'MANAGER_QUOTE', 'TACTICAL_CHANGE', 'PLAYER_RETURN', 'LATE_WITHDRAWAL', "
+            "'INTERNATIONAL_DUTY', 'GENERAL_TEAM_NEWS')",
+            name="ck_ti_observation_data_type",
+        ),
+        CheckConstraint(
+            "evidence_level IN ('OFFICIAL_CONFIRMED', 'DIRECT_COACH_QUOTE', "
+            "'OFFICIAL_MATCH_PAGE', 'OFFICIAL_MEDICAL_REPORT', "
+            "'OFFICIAL_DISCIPLINARY_NOTICE', 'INFERRED', 'UNVERIFIED')",
+            name="ck_ti_observation_evidence_level",
+        ),
+        CheckConstraint(
+            "source_policy IN ('OFFICIAL_PUBLIC_API', 'EXISTING_LICENSED_API', "
+            "'PUBLIC_WEB_AUTOMATION_ALLOWED', 'MANUAL_OFFICIAL_EVIDENCE', "
+            "'RESEARCH_ONLY', 'REJECTED')",
+            name="ck_ti_observation_source_policy",
+        ),
+        CheckConstraint(
+            "capture_window IN ('DAILY', 'T-24H', 'T-6H', 'T-90', 'T-60', "
+            "'T-30', 'T-15', 'POST_MATCH')",
+            name="ck_ti_observation_capture_window",
+        ),
+        CheckConstraint(
+            "published_at IS NULL OR published_at <= captured_at",
+            name="ck_ti_observation_published_before_capture",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(normalized) = 'object'",
+            name="ck_ti_observation_normalized_object",
+        ),
+        ForeignKeyConstraint(
+            ["raw_payload_id", "source_name", "source_policy"],
+            [
+                "team_intelligence_raw_payloads.id",
+                "team_intelligence_raw_payloads.source_name",
+                "team_intelligence_raw_payloads.source_policy",
+            ],
+            name="fk_ti_obs_raw_provenance",
+        ),
+        ForeignKeyConstraint(
+            [
+                "capture_receipt_id",
+                "raw_payload_id",
+                "source_url",
+                "captured_at",
+            ],
+            [
+                "team_intelligence_capture_receipts.id",
+                "team_intelligence_capture_receipts.raw_payload_id",
+                "team_intelligence_capture_receipts.source_url",
+                "team_intelligence_capture_receipts.captured_at",
+            ],
+            name="fk_ti_obs_capture_provenance",
+        ),
+        UniqueConstraint("semantic_key", name="uq_ti_observation_semantic_key"),
+        Index(
+            "ix_ti_observation_fixture_window_capture",
+            "fixture_id",
+            "capture_window",
+            "captured_at",
+        ),
+        Index(
+            "ix_ti_observation_team_type_capture",
+            "team_id",
+            "data_type",
+            "captured_at",
+        ),
+        Index(
+            "ix_ti_observation_player_type_capture",
+            "player_id",
+            "data_type",
+            "captured_at",
+            postgresql_where=text("player_id IS NOT NULL"),
+        ),
+        Index(
+            "ix_ti_observation_source_fixture_capture",
+            "source_name",
+            "provider_fixture_id",
+            "captured_at",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    semantic_key: Mapped[str] = mapped_column(String(64))
+    team_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("teams.id"))
+    player_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("players.id"),
+        nullable=True,
+    )
+    fixture_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("fixtures.id"),
+        nullable=True,
+    )
+    raw_payload_id: Mapped[UUID] = mapped_column(Uuid)
+    capture_receipt_id: Mapped[UUID] = mapped_column(Uuid)
+    source_name: Mapped[str] = mapped_column(String(120))
+    source_url: Mapped[str] = mapped_column(Text)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    original_title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    original_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    original_quote: Mapped[str | None] = mapped_column(Text, nullable=True)
+    language: Mapped[str] = mapped_column(String(16))
+    parser_version: Mapped[str] = mapped_column(String(80))
+    data_type: Mapped[str] = mapped_column(String(64))
+    evidence_level: Mapped[str] = mapped_column(String(64))
+    source_policy: Mapped[str] = mapped_column(String(64))
+    capture_window: Mapped[str] = mapped_column(String(20))
+    provider_team_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    provider_player_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    provider_fixture_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    normalized: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
 
 
 # ---------------------------------------------------------------------------

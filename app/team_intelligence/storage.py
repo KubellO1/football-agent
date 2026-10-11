@@ -92,7 +92,11 @@ class ObservationStore:
             if _write_exclusive(target, content):
                 inserted += 1
             else:
-                if target.read_bytes() != content:
+                stored = json.loads(target.read_text(encoding="utf-8"))
+                current = observation.to_dict()
+                stored.pop("captured_at", None)
+                current.pop("captured_at", None)
+                if stored != current:
                     raise ValueError("observation identity collision")
                 duplicates += 1
         return AppendResult(inserted=inserted, duplicates=duplicates)
