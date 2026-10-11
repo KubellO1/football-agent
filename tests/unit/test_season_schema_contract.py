@@ -21,18 +21,19 @@ def test_season_orm_declares_canonical_natural_key() -> None:
     assert [column.name for column in constraints[0].columns] == ["competition_id", "label"]
 
 
-def test_alembic_graph_is_linear_through_active_settlement_void_revision() -> None:
+def test_alembic_graph_is_linear_through_team_intelligence_revision() -> None:
     repository_root = Path(__file__).resolve().parents[2]
     config = Config(repository_root / "alembic.ini")
     config.set_main_option("script_location", str(repository_root / "alembic"))
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_heads() == ["settlement_void_0022"]
+    assert script.get_heads() == ["team_intelligence_0023"]
 
     revisions = list(script.walk_revisions(base="base", head="heads"))
     revision_ids = [revision.revision for revision in revisions]
 
     assert revision_ids == [
+        "team_intelligence_0023",
         "settlement_void_0022",
         *[f"{revision:04d}" for revision in range(21, 0, -1)],
     ]

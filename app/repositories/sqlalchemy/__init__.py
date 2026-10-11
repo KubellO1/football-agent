@@ -30,6 +30,10 @@ from app.repositories.sqlalchemy.models import (
     PlayerORM,
     PredictionORM,
     SeasonORM,
+    TeamIntelligenceCaptureReceiptORM,
+    TeamIntelligenceObservationORM,
+    TeamIntelligenceRawPayloadORM,
+    TeamIntelligenceSourceORM,
     TeamMatchStatisticsORM,
     TeamORM,
     ValueBetORM,
@@ -44,6 +48,9 @@ from app.repositories.sqlalchemy.reference_repositories import (
     SqlAlchemyCompetitionRepository,
     SqlAlchemySeasonRepository,
     SqlAlchemyTeamRepository,
+)
+from app.repositories.sqlalchemy.team_intelligence_repository import (
+    SqlAlchemyTeamIntelligenceRepository,
 )
 from app.repositories.sqlalchemy.team_match_statistics_repository import (
     SqlAlchemyTeamMatchStatisticsRepository,
@@ -83,6 +90,11 @@ __all__ = [
     "SqlAlchemyTeamMatchStatisticsRepository",
     "TeamMatchStatisticsMapper",
     "TeamMatchStatisticsORM",
+    "TeamIntelligenceCaptureReceiptORM",
+    "TeamIntelligenceObservationORM",
+    "TeamIntelligenceRawPayloadORM",
+    "TeamIntelligenceSourceORM",
+    "SqlAlchemyTeamIntelligenceRepository",
     "SqlAlchemyValueBetRepository",
     "TeamMapper",
     "TeamORM",

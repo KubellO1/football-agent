@@ -73,7 +73,7 @@ def test_settlement_void_metadata_is_minimal_and_constrained() -> None:
 def test_active_void_revision_is_linear_and_historical_0022_is_unresolvable() -> None:
     script = _script_directory()
 
-    assert script.get_heads() == ["settlement_void_0022"]
+    assert script.get_heads() == ["team_intelligence_0023"]
     assert script.get_revision("settlement_void_0022").down_revision == "0021"
     with pytest.raises(CommandError, match="Can't locate revision identified by '0022'"):
         script.get_revision("0022")
