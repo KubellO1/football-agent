@@ -1,0 +1,56 @@
+{
+  "alembic_check": "clean",
+  "append_only_guards": {
+    "delete_rejected": true,
+    "disabled_capture_insert_rejected": true,
+    "disabled_source_insert_rejected": true,
+    "truncate_rejected": true,
+    "update_rejected": true
+  },
+  "baseline_after_downgrade_match": true,
+  "baseline_after_reupgrade_match": true,
+  "canary": {
+    "capture_receipts": 12,
+    "conflict_preserved": true,
+    "fixtures": 10,
+    "later_capture_observation_inserted": 0,
+    "later_capture_receipt_inserted": true,
+    "observations": 11,
+    "observations_inserted": 11,
+    "orphans": 0,
+    "provenance_percent": 100.0,
+    "registry": {
+      "enabled": 2,
+      "registered": 17
+    },
+    "replay_duplicates": 11,
+    "replay_inserted": 0,
+    "semantic_duplicates": 0
+  },
+  "database_identity": "DISPOSABLE_TEST_DATABASE",
+  "downgrade": "team_intelligence_0023->settlement_void_0022",
+  "fixture_count": 10,
+  "label": "rehearsal-1",
+  "production_db_reads": 0,
+  "production_db_writes": 0,
+  "reupgrade": "settlement_void_0022->team_intelligence_0023",
+  "revision": "team_intelligence_0023",
+  "schema_hash_first": "192bbbffbbd23bd20b1b726a325b608feea242b3589609d7312c27d099068b64",
+  "schema_hash_match": true,
+  "schema_hash_second": "192bbbffbbd23bd20b1b726a325b608feea242b3589609d7312c27d099068b64",
+  "storage": {
+    "bytes_per_canary_fixture": 28672.0,
+    "database_bytes": 286720,
+    "estimated_1000_fixtures_bytes": 28672000,
+    "raw_payload_bytes_external": true,
+    "table_bytes": {
+      "team_intelligence_capture_receipts": 65536,
+      "team_intelligence_observations": 106496,
+      "team_intelligence_raw_payloads": 65536,
+      "team_intelligence_source_registry": 49152
+    }
+  },
+  "task_id": "TASK-20261011-086",
+  "team_tables_after_downgrade": 0,
+  "upgrade": "settlement_void_0022->team_intelligence_0023"
+}

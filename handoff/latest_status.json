@@ -1,11 +1,13 @@
 {
-  "task_id": "TASK-20261010-085",
-  "status": "IMPLEMENTED_ISOLATED_CANARY_COMPLETE",
-  "branch": "codex/TASK-20261010-085",
-  "implementation_commit": "3879a5ae5fc1038b84883e3d3767b4511ebadac9",
-  "summary": "Provider-neutral official team-intelligence collection framework completed; 17 sources audited and a 10-fixture five-league API-Football Canary persisted 73 unique append-only observations with zero mapping failures, conflicts, production DB writes, or replay inserts.",
+  "task_id": "TASK-20261011-086",
+  "status": "IMPLEMENTED_VALIDATED_PR_OPEN",
+  "branch": "codex/TASK-20261011-086",
+  "implementation_commit": "c35c8579776a00620ff1379d49e503e99ea6ecd4",
+  "pull_request": "https://github.com/KubellO1/football-agent/pull/85",
+  "summary": "Linear team_intelligence_0023 persistence foundation implemented with database-enforced append-only evidence, source-policy enforcement, complete provenance, semantic replay idempotency excluding captured_at, conflict preservation, and two deterministic disposable PostgreSQL rehearsals.",
   "production_alembic": "settlement_void_0022",
-  "migration_created": false,
+  "migration_created": true,
+  "migration_applied_to_production": false,
   "production_db_writes": 0,
-  "next_gate": "PR_REVIEW_THEN_SEPARATE_0023_SCHEMA_REHEARSAL_APPROVAL"
+  "next_gate": "PRODUCTION_MIGRATION_REVIEW_GATE"
 }
